@@ -278,3 +278,32 @@ table.nd-prof td{font-size:12.5px;padding:6px 8px}
   color:hsl(var(--h) 55% 30%);background:hsl(var(--h) 70% 90%)}
 @media (prefers-color-scheme:dark){.isp-badge{color:hsl(var(--h) 70% 82%);background:hsl(var(--h) 35% 22%)}}
 .isp-logo{flex:none;border-radius:8px;object-fit:contain;background:#fff;padding:3px}
+
+/* updates */
+.update-chip{display:block;margin:8px 10px 0;padding:6px 10px;border-radius:8px;font-size:12px;text-decoration:none;color:var(--ok);background:var(--ok-bg)}
+.update-chip:hover{outline:1px solid var(--ok)}
+.cmd{display:flex;align-items:center;gap:8px;margin:6px 0}
+.cmd code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;padding:8px 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
+.relnotes{max-height:220px;overflow:auto;white-space:pre-wrap;font-size:13px;padding:10px 12px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
+
+/* guest Wi-Fi */
+.guest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:16px}
+.guest-card{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.guest-qr{flex:none;background:#fff;border-radius:12px;padding:6px;line-height:0}
+.guest-qr .qr{max-width:100%;height:auto}
+.guest-info{flex:1;min-width:200px}
+.guest-info .l{font-size:12px;color:var(--muted);margin-top:6px}
+.guest-ssid{font-size:22px;font-weight:700;overflow-wrap:anywhere}
+.guest-pass{font-size:20px;overflow-wrap:anywhere;margin-bottom:6px}
+#print-card{display:none}
+@media print{
+  body.printing-card>*:not(#print-card){display:none!important}
+  body.printing-card #print-card{display:block}
+  .pc{width:90mm;margin:10mm auto;padding:8mm;border:1px dashed #999;border-radius:6mm;text-align:center;color:#000;font-family:-apple-system,"Segoe UI",Roboto,sans-serif}
+  .pc-title{font-size:20pt;font-weight:700;margin-bottom:4mm}
+  .pc .qr{width:60mm;height:60mm}
+  .pc-hint{font-size:10pt;margin:2mm 0 5mm}
+  .pc dl{margin:0;text-align:left;display:grid;grid-template-columns:max-content 1fr;gap:1mm 4mm;font-size:13pt}
+  .pc dt{color:#555} .pc dd{margin:0;font-weight:700;overflow-wrap:anywhere}
+  .pc-foot{margin-top:6mm;font-size:8pt;color:#555;display:flex;align-items:center;justify-content:center;gap:2mm}
+}

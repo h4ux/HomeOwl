@@ -1,9 +1,11 @@
 package unifi
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -236,6 +238,38 @@ func (c *Client) plan(a Action) (*plan, error) {
 			p.Undo = &req{"POST", p.Path, map[string]any{"cmd": u, "mac": mac}}
 		}
 		return p, nil
+	case "guestpass":
+		id, pw := a.s("wlan_id"), a.s("password")
+		if !idRE.MatchString(id) {
+			return nil, aerr("bad Wi-Fi id")
+		}
+		if pw == "" {
+			pw = NewGuestPassword()
+		}
+		if err := checkPassphrase(pw); err != nil {
+			return nil, err
+		}
+		path := c.SitePath("rest/wlanconf/"+id, false)
+		st, d := c.Get(path)
+		cur := first(d)
+		if st != 200 || cur == nil {
+			return nil, aerr("could not read Wi-Fi %s: %s", id, ErrText(d))
+		}
+		if !c.IsGuestWLAN(cur) {
+			return nil, aerr("only guest Wi-Fi passwords can be changed here")
+		}
+		if sec, _ := cur["security"].(string); sec != "wpapsk" {
+			return nil, aerr("this Wi-Fi has no shared password (security: %v)", cur["security"])
+		}
+		old, _ := cur["x_passphrase"].(string)
+		if old == "" {
+			return nil, aerr("could not read the current password")
+		}
+		// the passwords themselves stay out of the preview and the change log
+		return &plan{req: req{"PUT", path, map[string]any{"x_passphrase": pw}},
+			Before: map[string]any{"password": fmt.Sprintf("(hidden, %d characters)", len(old))},
+			After:  map[string]any{"password": fmt.Sprintf("(new, %d characters)", len(pw))},
+			Undo:   &req{"PUT", path, map[string]any{"x_passphrase": old}}, Target: "Wi-Fi " + label(cur, id)}, nil
 	case "route":
 		_, ipn, err := net.ParseCIDR(a.s("network"))
 		hop := net.ParseIP(a.s("nexthop"))
@@ -252,6 +286,55 @@ func (c *Client) plan(a Action) (*plan, error) {
 			After: map[string]any{"route": ipn.String() + " via " + hop.String()}, DeleteCreated: true, Target: name}, nil
 	}
 	return nil, aerr("unknown action kind")
+}
+
+// IsGuestWLAN: UniFi's guest flag, a guest network behind it, or picked by an admin.
+func (c *Client) IsGuestWLAN(w map[string]any) bool {
+	if g, _ := w["is_guest"].(bool); g {
+		return true
+	}
+	id, _ := w["_id"].(string)
+	if c.GuestSSIDs != nil && id != "" && contains(c.GuestSSIDs(), id) {
+		return true
+	}
+	if nid, _ := w["networkconf_id"].(string); nid != "" && idRE.MatchString(nid) {
+		if st, d := c.Get(c.SitePath("rest/networkconf/"+nid, false)); st == 200 {
+			if n := first(d); n != nil && n["purpose"] == "guest" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// checkPassphrase: WPA personal passwords are 8–63 printable ASCII characters.
+func checkPassphrase(pw string) error {
+	if len(pw) < 8 || len(pw) > 63 {
+		return aerr("the password must be 8 to 63 characters")
+	}
+	for _, r := range pw {
+		if r < 0x20 || r > 0x7e {
+			return aerr("use plain letters, digits and symbols (no accents or emoji) in Wi-Fi passwords")
+		}
+	}
+	return nil
+}
+
+// NewGuestPassword makes an easy-to-type password: three groups of four letters/digits without look-alikes.
+func NewGuestPassword() string {
+	const alpha = "abcdefghjkmnpqrstuvwxyz23456789"
+	out := make([]byte, 0, 14)
+	for i := 0; i < 12; i++ {
+		if i > 0 && i%4 == 0 {
+			out = append(out, '-')
+		}
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alpha))))
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, alpha[n.Int64()])
+	}
+	return string(out)
 }
 
 func label(m map[string]any, fallback string) string {

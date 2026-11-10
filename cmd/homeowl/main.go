@@ -31,6 +31,7 @@ import (
 	"github.com/h4ux/homeowl/internal/config"
 	"github.com/h4ux/homeowl/internal/mcp"
 	"github.com/h4ux/homeowl/internal/server"
+	"github.com/h4ux/homeowl/internal/update"
 )
 
 func usage() {
@@ -42,6 +43,7 @@ Usage:
   homeowl mcp [--url URL] [--token TOKEN] [--insecure]
   homeowl reset-password USERNAME [--data DIR]
   homeowl setup-code [--data DIR]
+  homeowl update [--check]
   homeowl version
 `, config.Version)
 }
@@ -63,6 +65,8 @@ func main() {
 		resetCmd(args)
 	case "setup-code":
 		setupCodeCmd(args)
+	case "update":
+		updateCmd(args)
 	case "version", "--version", "-v":
 		fmt.Println("HomeOwl", config.Version, runtime.GOOS+"/"+runtime.GOARCH)
 	case "help", "-h", "--help":
@@ -82,6 +86,7 @@ type program struct {
 	service    bool
 	cancel     context.CancelFunc
 	done       chan struct{}
+	restart    bool // set when the program file was replaced: start the new one after shutting down
 }
 
 func (p *program) Start(s service.Service) error {
@@ -121,6 +126,7 @@ func (p *program) run() {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
+	app.Restart = func() { p.restart = true; cancel() }
 	if p.browser {
 		go func() {
 			time.Sleep(800 * time.Millisecond)
@@ -129,6 +135,9 @@ func (p *program) run() {
 	}
 	if err := app.Run(ctx); err != nil {
 		log.Fatalf("%v", err)
+	}
+	if p.restart && p.service {
+		restartService() // the service manager starts the new program
 	}
 }
 
@@ -150,6 +159,9 @@ func runCmd(args []string) {
 		case <-sig:
 			_ = p.Stop(nil)
 		case <-p.done:
+		}
+		if p.restart {
+			restartSelf() // run the new program in place of this one
 		}
 		return
 	}
@@ -237,6 +249,39 @@ func serviceCmd(args []string) {
 		log.Fatalf("service %s: %v", action, err)
 	}
 	fmt.Printf("HomeOwl service: %s done\n", action)
+}
+
+// ------------------------------------------------------------------ update
+
+func updateCmd(args []string) {
+	fs := flag.NewFlagSet("update", flag.ExitOnError)
+	only := fs.Bool("check", false, "only check, don't install")
+	_ = fs.Parse(args)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	c := &update.Checker{Current: config.Version}
+	st := c.Check(ctx)
+	if st.Error != "" {
+		log.Fatalf("Couldn't check for updates: %s", st.Error)
+	}
+	if !st.Available {
+		fmt.Printf("HomeOwl %s is up to date (latest release: %s).\n", config.Version, st.Latest)
+		return
+	}
+	fmt.Printf("HomeOwl %s is available (you have %s).\n  %s\n", st.Latest, config.Version, st.URL)
+	if *only {
+		return
+	}
+	exe, _ := update.Executable()
+	if !update.Writable() {
+		fmt.Fprintf(os.Stderr, "Can't replace %s as this user. Run: %s\n", exe, update.Commands(runtime.GOOS, false)[0])
+		os.Exit(1)
+	}
+	fmt.Println("Downloading and checking the release…")
+	if err := c.Apply(ctx); err != nil {
+		log.Fatalf("Update failed: %v", err)
+	}
+	fmt.Printf("Installed %s at %s. A running HomeOwl restarts by itself within a minute.\n", st.Latest, exe)
 }
 
 // ------------------------------------------------------------------ mcp bridge

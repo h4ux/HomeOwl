@@ -5,6 +5,8 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 ## [Unreleased]
 
 ### Added
+- Guest Wi-Fi page: network name, password and a scan-to-join QR code (built in, no external service), a printable card, and a new password through the allow-listed actions (previewed, logged without the password, undoable). Admins can mark other SSIDs as guest networks.
+- Update check: HomeOwl looks for new releases twice a day (can be turned off), shows “Update available” with the release notes, and updates in one click where it can replace its own program file — otherwise it shows the command (`homeowl update`, new). The running program restarts by itself after its file is replaced.
 - Overview shows every internet connection (WAN1, WAN2…) with provider, status, IP, latency and uptime, and the provider's logo (fetched from the provider's website you give; a lettered badge until then).
 - One program for macOS, Linux and Windows, written in Go with DuckDB built in; install scripts and background services for each system.
 - User accounts (admin / view-only) with sign-in, first-run setup and a one-time setup code for remote setup.

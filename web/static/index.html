@@ -28,6 +28,7 @@
   <aside class="side">
     <div class="brand"><img class="logo-img" src="icon.png" alt=""> HomeOwl</div>
     <div class="site-chip" id="site-chip"></div>
+    <a href="#" class="update-chip" id="update-chip" hidden></a>
     <button class="btn sm lock" id="btn-lock" hidden>🔒 Changes locked</button>
     <nav id="nav">
       <a data-view="overview" class="active">Overview</a>
@@ -37,6 +38,7 @@
       <a data-view="ports">Switch ports</a>
       <a data-view="networks">Networks &amp; VLANs</a>
       <a data-view="wifi">Wi-Fi &amp; Radios</a>
+      <a data-view="guest">Guest Wi-Fi</a>
       <a data-view="neighbors">Neighbour Wi-Fi</a>
       <a data-view="security">Security &amp; Exposure</a>
       <a data-view="dns">NextDNS &amp; Tailscale</a>
@@ -68,5 +70,8 @@
 <script src="settings.js"></script>
 <script src="analytics.js"></script>
 <script src="explore.js"></script>
+<script src="updates.js"></script>
+<script src="qr.js"></script>
+<script src="guest.js"></script>
 </body>
 </html>

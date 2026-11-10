@@ -122,6 +122,21 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		}
 		send(w, 200, res)
 		return
+	case "update":
+		st := a.Updates.Status()
+		if !who.Admin() {
+			st.Commands, st.CanApply = nil, false
+		}
+		send(w, 200, st)
+		return
+	case "guest-wifi":
+		res, err := a.guestWiFi(who.Admin())
+		if err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		send(w, 200, res)
+		return
 	case "isp-logos":
 		send(w, 200, map[string]any{"logos": a.logos.Versions()})
 		return
@@ -193,6 +208,19 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	case p == "speedtest-status":
 		st, d := a.UniFi.Request("POST", a.UniFi.SitePath("cmd/devmgr", false), map[string]any{"cmd": "speedtest-status"})
 		res = map[string]any{"status": st, "data": unifi.Redact(unifi.Data(d))}
+	case p == "guest-wifi/pick":
+		err = a.pickGuestSSIDs(body)
+		res = map[string]any{"ssids": a.Cfg.Get().Guest.SSIDs}
+	case p == "guest-wifi/suggest":
+		res = map[string]any{"password": unifi.NewGuestPassword()}
+	case p == "update/check":
+		res = a.Updates.Check(r.Context())
+	case p == "update/apply":
+		if a.ReadOnly {
+			err = errors.New("HomeOwl was started in read-only mode")
+		} else if err = a.applyUpdate(r.Context()); err == nil {
+			res = map[string]any{"ok": true, "restarting": a.Restart != nil}
+		}
 	case p == "isp-logo":
 		if s(body, "site") == "" {
 			err = a.logos.Remove(s(body, "name"))
@@ -442,6 +470,7 @@ func (a *App) settingsView(who *Who, r *http.Request) map[string]any {
 			"analytics": a.An.DBPath, "log": config.LogDir(a.DataDir), "secrets": a.Sec.Where(), "binary": exe},
 		"system":  map[string]any{"os": runtime.GOOS, "arch": runtime.GOARCH, "version": config.Version, "uptime_s": int(time.Since(a.started).Seconds())},
 		"version": config.Version,
+		"updates": map[string]any{"check": c.Updates.Check},
 	}
 }
 
@@ -453,6 +482,9 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 	c := a.Cfg.Get()
 	if v, ok := n(body, "refresh_minutes"); ok {
 		c.RefreshMinutes = max(1, min(120, v))
+	}
+	if u, ok := body["updates"].(map[string]any); ok && has(u, "check") {
+		c.Updates.Check = b(u, "check")
 	}
 	if l, ok := body["lan"].(map[string]any); ok {
 		nl := c.LAN
@@ -519,7 +551,7 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 		return nil, verr
 	}
 	if err := a.Cfg.Update(func(x *config.Config) {
-		x.RefreshMinutes, x.LAN, x.Tailscale, x.MCP.Mode = c.RefreshMinutes, c.LAN, c.Tailscale, c.MCP.Mode
+		x.RefreshMinutes, x.LAN, x.Tailscale, x.MCP.Mode, x.Updates = c.RefreshMinutes, c.LAN, c.Tailscale, c.MCP.Mode, c.Updates
 	}); err != nil {
 		return nil, err
 	}

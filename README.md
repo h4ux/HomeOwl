@@ -23,6 +23,7 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **People & categories** — group devices per family member; domains are sorted into subjects (Social, Video, Gaming, AI…) and you can add your own rules.
 - **NextDNS & Tailscale helpers** — per-network NextDNS profiles and device names, plus Tailscale guidance.
 - **AI & MCP** — an [MCP](https://modelcontextprotocol.io) server so Claude (or any MCP client) can answer questions about your network and, if you allow it, make guarded changes.
+- **Guest Wi-Fi** — the guest network's name and password with a scan-to-join QR code, a printable card, and a new password in one click (previewed, logged, undoable).
 - **Accounts** — admin and view-only users with passwords; optional sign-in through Tailscale.
 
 <p align="center"><img src="docs/images/explore.png" width="860" alt="Explore: drill down by person, category, hour and weekday"></p>
@@ -44,6 +45,10 @@ irm https://github.com/h4ux/HomeOwl/releases/latest/download/install.ps1 | iex
 The installer downloads the right build for your system, checks its checksum, installs `homeowl` and sets it up as a background service (LaunchAgent on macOS, systemd on Linux, a Windows service on Windows). Then open **http://127.0.0.1:8555** on that computer and create your admin account.
 
 Prefer to do it by hand? Download a release archive, unpack it and run `./homeowl` — or build from source (below).
+
+### Updating
+
+HomeOwl checks GitHub for new releases twice a day (turn it off in **Settings › Updates**) and shows **Update available** in the sidebar. Click it to see what's new and either update in one click (when HomeOwl may replace its own program file, e.g. the Windows service) or copy the command — `sudo homeowl update`, or the install command above. A running HomeOwl notices its new program file and restarts by itself; downloads are checked against the release's SHA256 checksums.
 
 ### First steps
 
@@ -87,6 +92,7 @@ homeowl service install      run in the background (then: start | stop | restart
 homeowl mcp --token …        connect an MCP client over stdio
 homeowl reset-password USER  set a new random password
 homeowl setup-code           show the one-time code for the first admin
+homeowl update [--check]     install the latest release (checksum-verified)
 homeowl version
 ```
 
@@ -116,7 +122,7 @@ The web UI is plain HTML/CSS/JavaScript in `web/static` (no build step) and is e
 
 ## Roadmap
 
-Cameras (UniFi Protect), doors (UniFi Access), config history, firmware watch, bedtime & homework modes, device check-in, network health, guest Wi-Fi, a phone app and "Ask HomeOwl" — see [ROADMAP.md](ROADMAP.md).
+Cameras (UniFi Protect), doors (UniFi Access), config history, firmware watch, bedtime & homework modes, device check-in, network health, guest Wi-Fi vouchers, a phone app and "Ask HomeOwl" — see [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

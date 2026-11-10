@@ -30,6 +30,8 @@ type Client struct {
 	legacySite string // classic API site name, learned while collecting
 	http       *http.Client
 	LastError  string
+	// GuestSSIDs lists Wi-Fi ids an admin marked as guest networks (in addition to UniFi's own guest flag).
+	GuestSSIDs func() []string
 }
 
 func New() *Client { return &Client{legacySite: "default"} }

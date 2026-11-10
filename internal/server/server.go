@@ -29,6 +29,7 @@ import (
 	"github.com/h4ux/homeowl/internal/secrets"
 	"github.com/h4ux/homeowl/internal/tsnetx"
 	"github.com/h4ux/homeowl/internal/unifi"
+	"github.com/h4ux/homeowl/internal/update"
 	"github.com/h4ux/homeowl/web"
 )
 
@@ -46,7 +47,10 @@ type App struct {
 	An       *analytics.Engine
 	TS       *tsnetx.Node
 	MCP      *mcp.Server
+	Updates  *update.Checker
 	ReadOnly bool
+	// Restart is set by the command line: it restarts HomeOwl (after an update replaced the program file).
+	Restart func()
 
 	mu      sync.Mutex
 	lan     *http.Server
@@ -71,6 +75,8 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}}
 	a.Changes.ReadOnly = readOnly
+	a.Updates = &update.Checker{Current: config.Version}
+	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
 	a.Cache = unifi.NewCache(a.UniFi)
 	a.An = analytics.New(cfg, dataDir, a.UniFi, a.Sec)
 	a.MCP = &mcp.Server{Name: "homeowl", Version: config.Version, Tools: a.mcpTools,
@@ -89,6 +95,8 @@ func (a *App) Run(ctx context.Context) error {
 	a.autoConnect()
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
+	go a.updateLoop(ctx)
+	go a.watchExecutable(ctx)
 	if err := a.StartLAN(); err != nil {
 		return err
 	}

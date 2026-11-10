@@ -1041,14 +1041,16 @@
     "_id": "s3",
     "name": "Guest",
     "enabled": true,
-    "security": "open",
+    "security": "wpapsk",
     "is_guest": true,
     "networkconf_id": "n-guest",
     "wlan_bands": [
      "2g",
      "5g"
     ],
-    "l2_isolation": false
+    "l2_isolation": false,
+    "wpa_mode": "wpa2",
+    "x_passphrase": "sunny-garden-42"
    },
    {
     "_id": "s4",

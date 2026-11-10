@@ -22,7 +22,7 @@ Go version with built-in DuckDB, accounts and login, home-network HTTPS and buil
 - **New-device alerts** — Telegram, ntfy, Pushover or email, with approve / quarantine.
 - **Wi-Fi planner** — channel use and interference over time, weak spots, roaming problems.
 - **Exposure check** — what's reachable from the internet (port forwards, UPnP), firmware advisories.
-- **Guest Wi-Fi** — QR codes and vouchers.
+- **Guest Wi-Fi** — ✅ join QR code, printable card and password rotation; next: hotspot vouchers.
 
 ## Phase 4 — everywhere
 - **Phone app** — installable web app (PWA) with push notifications.

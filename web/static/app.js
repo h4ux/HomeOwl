@@ -626,6 +626,7 @@ async function startApp() {
   S.token = st.token; S.write = st.write; S.readOnly = st.read_only; S.user = st.user; S.role = st.user?.role; S.remote = !!st.user?.remote; S.dataAge = st.data_age;
   S.connected = st.connected; S.lastError = st.last_error;
   loadIspLogos();
+  setTimeout(() => typeof loadUpdate === "function" && loadUpdate(), 0);
   if (S.dataAge !== null && S.dataAge !== undefined) S.dataAt = Date.now() - S.dataAge * 1000;
   if (st.connected) {
     try { await collectLive(false, false); return; } catch (err) { toast(err.message, "err"); }

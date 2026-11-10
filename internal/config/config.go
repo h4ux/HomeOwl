@@ -67,6 +67,14 @@ type MCP struct {
 	Tokens []MCPToken `json:"tokens"`
 }
 
+type Updates struct {
+	Check bool `json:"check"` // ask GitHub once in a while whether a newer release exists
+}
+
+type Guest struct {
+	SSIDs []string `json:"ssids"` // Wi-Fi ids shown on the Guest Wi-Fi page besides UniFi's guest networks
+}
+
 type Config struct {
 	Host           string    `json:"host"`
 	Site           string    `json:"site"`
@@ -77,6 +85,8 @@ type Config struct {
 	Tailscale      Tailscale `json:"tailscale"`
 	MCP            MCP       `json:"mcp"`
 	Analytics      Analytics `json:"analytics"`
+	Updates        Updates   `json:"updates"`
+	Guest          Guest     `json:"guest"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`
@@ -88,6 +98,7 @@ func Defaults() Config {
 		LAN:            LAN{Enabled: true, Port: 8555, TLS: true},
 		Tailscale:      Tailscale{Hostname: "homeowl", AutoLogin: true},
 		MCP:            MCP{Mode: "off"},
+		Updates:        Updates{Check: true},
 		Analytics: Analytics{NextDNSAll: true, SyslogPort: 5514, RawDays: 90, BackfillDays: 90,
 			NextDNSProfiles: []string{}, SyslogSources: []string{}},
 	}
@@ -155,6 +166,7 @@ func (s *Store) Get() Config {
 	c.Analytics.NextDNSAccounts = append([]NextDNSAccount{}, s.cfg.Analytics.NextDNSAccounts...)
 	c.Analytics.SyslogSources = append([]string{}, s.cfg.Analytics.SyslogSources...)
 	c.MCP.Tokens = append([]MCPToken{}, s.cfg.MCP.Tokens...)
+	c.Guest.SSIDs = append([]string{}, s.cfg.Guest.SSIDs...)
 	return c
 }
 
