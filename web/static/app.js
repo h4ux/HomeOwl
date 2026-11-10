@@ -555,6 +555,7 @@ function render() {
   $$("#nav a").forEach(a => a.classList.toggle("active", a.dataset.view === S.view));
   $("#nav-findings").textContent = S.findings.filter(f => f.sev !== "info").length || "";
   const bad = m.devices.filter(d => !d.online).length; $("#nav-devices").textContent = bad || ""; $("#nav-devices").classList.toggle("alert", !!bad);
+  if ($("#nav-firmware")) $("#nav-firmware").textContent = m.devices.filter(d => d.upgradable).length || "";
   renderChip(); $("#nav-settings").hidden = S.role !== "admin" || (S.source !== "live" && S.source !== "none");
   renderLock();
   if (S.view === "changes") loadChanges();

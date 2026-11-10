@@ -154,6 +154,9 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		}
 		send(w, 200, res)
 		return
+	case "firmware":
+		send(w, 200, map[string]any{"pending": a.firmware.Pending(), "recent": a.recentFirmware(30)})
+		return
 	case "isp-logos":
 		send(w, 200, map[string]any{"logos": a.logos.Versions()})
 		return

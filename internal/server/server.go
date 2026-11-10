@@ -64,6 +64,7 @@ type App struct {
 	logos    *ispLogos
 	checkins *checkins
 	History  *history.Store
+	firmware *firmwareWatch
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -84,7 +85,9 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.Cache = unifi.NewCache(a.UniFi)
 	unifi.RedactKey = fingerprintKey(dataDir)
 	a.History = history.New(filepath.Join(dataDir, "config-history"))
+	a.firmware = newFirmwareWatch(dataDir)
 	a.Cache.OnCollect = func(b map[string]any) {
+		a.firmware.Observe(b)
 		if e, err := a.History.Record(b); err != nil {
 			log.Printf("config history: %v", err)
 		} else if e != nil && e.Changes > 0 {
