@@ -316,11 +316,16 @@ func (e *Engine) Meta() (map[string]any, error) {
 		return nil, errors.New("analytics isn't running")
 	}
 	since := utcnow().Add(-30 * 24 * time.Hour)
-	dns, _ := e.Rows(`SELECT device, any_value(local_ip) AS local_ip, any_value(device_model) AS model, count(*) AS queries, max(ts) AS last
-		FROM dnsq WHERE ts >= ? GROUP BY device ORDER BY 4 DESC LIMIT 400`, since)
+	// one row per device per NextDNS profile: the same generic name ("iPhone 16") in two profiles is two devices
+	dns, _ := e.Rows(`SELECT profile_id AS profile, device, any_value(local_ip) AS local_ip, any_value(device_model) AS model, count(*) AS queries, max(ts) AS last
+		FROM dnsq WHERE ts >= ? GROUP BY 1, 2 ORDER BY queries DESC LIMIT 600`, since)
 	if len(dns) == 0 {
-		dns, _ = e.Rows("SELECT device, sum(n) AS queries FROM dns_hourly_device WHERE hour >= ? GROUP BY 1 ORDER BY 2 DESC LIMIT 400", since)
+		dns, _ = e.Rows(`SELECT profile_id AS profile, device, sum(n) AS queries FROM dns_hourly_device WHERE hour >= ?
+			GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 600`, since)
 	}
+	ndProfiles, _ := e.Rows(`SELECT p.id, coalesce(nullif(p.name,''), p.id) AS name, coalesce(sum(h.n),0) AS queries, count(DISTINCT h.device) AS devices
+		FROM nextdns_profiles p LEFT JOIN dns_hourly_device h ON h.profile_id = p.id AND h.hour >= ?
+		GROUP BY 1, 2 ORDER BY queries DESC, name`, since)
 	clients, _ := e.Rows("SELECT mac, name, hostname, ip, vendor, network, last_seen FROM clients ORDER BY last_seen DESC NULLS LAST LIMIT 1000")
 	rules, _ := e.Rows("SELECT pattern, category, created FROM category_rules ORDER BY category, pattern")
 	profiles := map[string]string{}
@@ -330,7 +335,7 @@ func (e *Engine) Meta() (map[string]any, error) {
 		}
 	}
 	return map[string]any{"people": e.People(), "categories": categories.Categories, "rules": nz(rules), "dns_devices": nz(dns),
-		"clients": nz(clients), "timezone": e.conf().Timezone, "profiles": profiles}, nil
+		"nd_profiles": nz(ndProfiles), "clients": nz(clients), "timezone": e.conf().Timezone, "profiles": profiles}, nil
 }
 
 func nz(r []map[string]any) []map[string]any {

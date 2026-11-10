@@ -276,6 +276,14 @@ func hid(parts ...any) string {
 	return hex.EncodeToString(h[:])[:20]
 }
 
+// Kinds of things a person can own:
+//
+//	ndev    a device inside one NextDNS profile, key "<profile id>/<device name>"
+//	profile a whole NextDNS profile (every device in it, unless one is given to someone else), key = profile id
+//	mac     a UniFi client
+//	dns     a NextDNS device name in any profile (older versions; still honoured)
+var validKind = map[string]bool{"ndev": true, "profile": true, "mac": true, "dns": true}
+
 func (e *Engine) SavePerson(p Person) (string, error) {
 	if e.db == nil {
 		return "", errors.New("analytics isn't running")
@@ -302,7 +310,7 @@ func (e *Engine) SavePerson(p Person) (string, error) {
 		if len(k) > 200 {
 			k = k[:200]
 		}
-		if (d.Kind == "dns" || d.Kind == "mac") && k != "" {
+		if validKind[d.Kind] && k != "" {
 			if d.Kind == "mac" {
 				k = strings.ToLower(k)
 			}
@@ -369,23 +377,59 @@ func (e *Engine) RefreshDevPerson() {
 			order = append(order, l)
 		}
 	}
-	rs, err := e.db.Query("SELECT person_id, kind, key FROM person_devices ORDER BY kind ASC") // dns before mac
+	toClients := func(name, ip, pid string) { // the same device as UniFi sees it → its traffic
+		for _, c := range clients {
+			if (name != "" && (name == c.name || name == c.host || name == c.ip || name == c.fip)) || (ip != "" && (ip == c.ip || ip == c.fip)) {
+				add("mac:"+c.mac, pid)
+			}
+		}
+	}
+	// most specific first: a labelled device beats a whole profile, and the first owner wins
+	rs, err := e.db.Query(`SELECT person_id, kind, key FROM person_devices
+		ORDER BY CASE kind WHEN 'ndev' THEN 0 WHEN 'dns' THEN 1 WHEN 'mac' THEN 2 ELSE 3 END`)
 	if err != nil {
 		return
 	}
+	type pd struct{ pid, kind, key string }
+	var all []pd
 	for rs.Next() {
-		var pid, kind, key string
-		if rs.Scan(&pid, &kind, &key) != nil {
-			continue
+		var d pd
+		if rs.Scan(&d.pid, &d.kind, &d.key) == nil {
+			all = append(all, d)
 		}
-		if kind == "dns" {
-			add(key, pid)
-			for _, c := range clients { // the same device as UniFi sees it → its traffic
-				if key == c.name || key == c.host || key == c.ip || key == c.fip {
-					add("mac:"+c.mac, pid)
-				}
+	}
+	rs.Close()
+	for _, d := range all {
+		pid, key := d.pid, d.key
+		switch d.kind {
+		case "ndev":
+			if prof, dev, ok := strings.Cut(key, "/"); ok {
+				add("dns:"+prof+"/"+dev, pid)
+				toClients(dev, "", pid)
 			}
-		} else {
+		case "dns":
+			add(key, pid)
+			toClients(key, "", pid)
+		case "profile":
+			add("profile:"+key, pid)
+			// devices seen in this profile that nobody owns yet → their UniFi traffic too
+			if ds, err := e.db.Query(`SELECT coalesce(nullif(device_name,''), nullif(local_ip,''), '') AS d, coalesce(any_value(local_ip),'')
+				FROM dns_queries WHERE profile_id = ? AND ts >= ? GROUP BY 1`, key, utcnow().Add(-30*24*time.Hour)); err == nil {
+				for ds.Next() {
+					var dev, ip string
+					if ds.Scan(&dev, &ip) == nil && dev != "" {
+						if _, taken := labels["dns:"+key+"/"+dev]; taken {
+							continue
+						}
+						if _, taken := labels[dev]; taken {
+							continue
+						}
+						toClients(dev, ip, pid)
+					}
+				}
+				ds.Close()
+			}
+		case "mac":
 			add("mac:"+key, pid)
 			for _, c := range clients {
 				if c.mac == key {

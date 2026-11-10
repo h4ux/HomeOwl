@@ -241,6 +241,11 @@ th.sorted{color:var(--accent)}
 .person h3,.card h3{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 0 6px}
 .pp-pick{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
 .pp-pick label{margin:4px 0}
+.pp-group+.pp-group{border-top:1px solid var(--line);margin-top:8px;padding-top:8px}
+.pp-ghead{font-size:12px;color:var(--muted);margin:2px 0 4px}
+.pp-ghead b{color:var(--text)}
+.pp-prof label{font-weight:600}
+.pp-group .pp-dev:not(.pp-prof .pp-dev){padding-left:14px}
 @media (max-width:1100px){.g5{grid-template-columns:repeat(3,minmax(0,1fr))}.ex-selects{grid-template-columns:1fr 1fr}}
 @media (max-width:700px){.g5{grid-template-columns:repeat(2,minmax(0,1fr))}.pp-kpis{grid-template-columns:repeat(2,1fr)}.bl-row{grid-template-columns:minmax(0,1fr) 70px auto}}
 .logo-img{width:26px;height:26px;border-radius:7px;vertical-align:-6px;margin-right:2px}

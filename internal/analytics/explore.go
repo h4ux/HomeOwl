@@ -315,12 +315,12 @@ func vHeatmap(x *xctx) (any, error) {
 	}
 	if v, ok := x.f["person"]; ok {
 		if v == "__none__" {
-			w.add("p.person_id IS NULL")
+			w.add("h.person_id IS NULL")
 		} else {
-			w.add("p.person_id = ?", v)
+			w.add("h.person_id = ?", v)
 		}
 	}
-	base := "FROM dns_hourly_device h JOIN tz_offsets o ON o.hour = h.hour LEFT JOIN dev_person p ON p.label = h.device WHERE " + w.sql()
+	base := "FROM dnsh h JOIN tz_offsets o ON o.hour = h.hour WHERE " + w.sql()
 	cells, err := x.e.Rows(`SELECT isodow(h.hour + to_minutes(o.off)) AS dow, hour(h.hour + to_minutes(o.off)) AS hour, sum(h.n) AS n,
 		count(DISTINCT h.hour) * 60 AS active_min `+base+` GROUP BY 1, 2`, w.a...)
 	if err != nil {

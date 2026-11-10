@@ -107,12 +107,23 @@ CREATE TABLE IF NOT EXISTS tz_offsets(hour TIMESTAMP PRIMARY KEY, off INTEGER);
 ALTER TABLE dns_queries ADD COLUMN IF NOT EXISTS lts TIMESTAMP;
 ALTER TABLE client_hourly ADD COLUMN IF NOT EXISTS lhour TIMESTAMP;
 CREATE OR REPLACE VIEW dnsq AS SELECT q.*, coalesce(nullif(q.device_name,''), nullif(q.local_ip,''), 'Unidentified') AS device,
-  coalesce(rc.category, 'Uncategorized') AS category, coalesce(p1.person_id, p2.person_id) AS person_id
+  coalesce(rc.category, 'Uncategorized') AS category, coalesce(p0.person_id, p1.person_id, p2.person_id, p3.person_id) AS person_id
   FROM dns_queries q LEFT JOIN root_category rc ON rc.root = q.root
+  LEFT JOIN dev_person p0 ON p0.label = 'dns:' || q.profile_id || '/' || coalesce(nullif(q.device_name,''), nullif(q.local_ip,''), 'Unidentified')
   LEFT JOIN dev_person p1 ON p1.label = coalesce(nullif(q.device_name,''), nullif(q.local_ip,''), 'Unidentified')
-  LEFT JOIN dev_person p2 ON p2.label = 'ip:' || q.local_ip;
-CREATE OR REPLACE VIEW dnsd AS SELECT d.*, coalesce(rc.category, 'Uncategorized') AS category, p.person_id
-  FROM dns_daily_dr d LEFT JOIN root_category rc ON rc.root = d.root LEFT JOIN dev_person p ON p.label = d.device;
+  LEFT JOIN dev_person p2 ON p2.label = 'ip:' || q.local_ip
+  LEFT JOIN dev_person p3 ON p3.label = 'profile:' || q.profile_id;
+CREATE OR REPLACE VIEW dnsd AS SELECT d.*, coalesce(rc.category, 'Uncategorized') AS category,
+  coalesce(p0.person_id, p1.person_id, p3.person_id) AS person_id
+  FROM dns_daily_dr d LEFT JOIN root_category rc ON rc.root = d.root
+  LEFT JOIN dev_person p0 ON p0.label = 'dns:' || d.profile_id || '/' || d.device
+  LEFT JOIN dev_person p1 ON p1.label = d.device
+  LEFT JOIN dev_person p3 ON p3.label = 'profile:' || d.profile_id;
+CREATE OR REPLACE VIEW dnsh AS SELECT h.*, coalesce(p0.person_id, p1.person_id, p3.person_id) AS person_id
+  FROM dns_hourly_device h
+  LEFT JOIN dev_person p0 ON p0.label = 'dns:' || h.profile_id || '/' || h.device
+  LEFT JOIN dev_person p1 ON p1.label = h.device
+  LEFT JOIN dev_person p3 ON p3.label = 'profile:' || h.profile_id;
 CREATE OR REPLACE VIEW trafq AS SELECT h.*, coalesce(c.name, c.hostname, h.mac) AS client, c.network, c.vendor, p.person_id
   FROM client_hourly h LEFT JOIN clients c ON c.mac = h.mac LEFT JOIN dev_person p ON p.label = 'mac:' || h.mac;
 `

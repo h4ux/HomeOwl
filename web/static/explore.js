@@ -253,7 +253,7 @@ async function loadPeople() {
   const ppl = meta.people;
   if (!ppl.length) return fill("pp-list", `<div class="card"><h2>No people yet</h2><p>Add a person (e.g. each family member, “Guests”, “TV & IoT”) and pick their devices. Then every chart can be filtered by person, and you get a usage profile per person.</p>${isAdmin() ? `<button class="btn primary" id="pp-add2">Add the first person</button>` : ""}</div>`);
   fill("pp-list", `<div class="grid g2">${ppl.map(p => `<div class="card person" id="pp-${esc(p.id)}" style="border-top:3px solid ${esc(p.color || "var(--c4)")}">
-    <div class="head" style="margin:0 0 6px"><h2 style="margin:0">${esc(p.name)} <span class="muted fine">${plural(p.devices.length, "device")}</span></h2>
+    <div class="head" style="margin:0 0 6px"><h2 style="margin:0">${esc(p.name)} <span class="muted fine">${ppCount(p)}</span></h2>
       <div class="btnrow"><button class="btn sm primary" data-exgo="person|${esc(p.id)}">Explore</button>${isAdmin() ? `<button class="btn sm" data-ppedit="${esc(p.id)}">Edit</button>` : ""}</div></div>
     <div class="pp-body"><div class="empty">Loading…</div></div></div>`).join("")}</div>
     <div class="card section"><h2>Devices not assigned to anyone</h2><div id="pp-unassigned"><div class="empty">Loading…</div></div></div>`);
@@ -278,24 +278,42 @@ async function loadPeople() {
   } catch (e) { fill("pp-unassigned", `<div class="empty bad-t">${esc(e.message)}</div>`); }
 }
 
+function ppCount(p) {
+  const prof = p.devices.filter(d => d.kind === "profile").length, dev = p.devices.length - prof;
+  return [prof ? plural(prof, "NextDNS profile") : "", dev || !prof ? plural(dev, "device") : ""].filter(Boolean).join(" + ");
+}
 function personModal(p) {
   const meta = S.ex.meta, owner = {};
   meta.people.forEach(x => x.devices.forEach(d => { owner[`${d.kind}|${d.key}`] = x; }));
   p = p || { id: "", name: "", color: ["#4c8dff", "#13a49b", "#d9480f", "#8a5cf6", "#c2a000", "#d6336c"][meta.people.length % 6], devices: [] };
   const mine = new Set(p.devices.map(d => `${d.kind}|${d.key}`));
-  const row = (kind, key, label, sub) => { const o = owner[`${kind}|${key}`]; const other = o && o.id !== p.id;
-    return `<label class="check pp-dev" data-txt="${esc((label + " " + sub).toLowerCase())}"><input type="checkbox" data-ppdev="${kind}|${esc(key)}" ${mine.has(`${kind}|${key}`) ? "checked" : ""}>
+  const shown = new Set();   // keys this editor shows; anything else the person owns is kept as it is
+  const isMine = (kind, key, legacy) => mine.has(`${kind}|${key}`) || (legacy && mine.has(`dns|${legacy}`));
+  const ownerOf = (kind, key, legacy) => owner[`${kind}|${key}`] || (legacy && owner[`dns|${legacy}`]);
+  const row = (kind, key, label, sub, legacy) => { shown.add(`${kind}|${key}`); if (legacy) shown.add(`dns|${legacy}`);
+    const o = ownerOf(kind, key, legacy); const other = o && o.id !== p.id;
+    return `<label class="check pp-dev" data-txt="${esc((label + " " + sub).toLowerCase())}"><input type="checkbox" data-ppdev="${kind}|${esc(key)}" ${isMine(kind, key, legacy) ? "checked" : ""}>
       <span>${esc(label)} <span class="fine">${esc(sub)}</span>${other ? ` <span class="tag warn">now ${esc(o.name)}'s</span>` : ""}</span></label>`; };
+  // NextDNS: devices grouped under their profile; a profile can belong to one person as a whole
+  const profName = id => (meta.nd_profiles || []).find(x => x.id === id)?.name || meta.profiles?.[id] || id;
+  const byProf = {};
+  meta.dns_devices.forEach(d => { (byProf[d.profile || ""] ||= []).push(d); });
+  const profIds = [...new Set([...(meta.nd_profiles || []).map(x => x.id), ...Object.keys(byProf)])];
+  const ndGroup = pid => { const devs = byProf[pid] || [], info = (meta.nd_profiles || []).find(x => x.id === pid) || {};
+    const head = pid ? `<div class="pp-prof">${row("profile", pid, `All of “${profName(pid)}”`, [plural(info.devices ?? devs.length, "device"), info.queries ? fmtNum(info.queries) + " q" : ""].filter(Boolean).join(" · "))}</div>` : "";
+    return `<div class="pp-group"><div class="pp-ghead">${pid ? `NextDNS profile <b>${esc(profName(pid))}</b> <span class="fine mono">${esc(pid)}</span>` : "Other"}</div>${head}
+      ${devs.map(d => row(pid ? "ndev" : "dns", pid ? `${pid}/${d.device}` : d.device, d.device, [d.local_ip, d.model, d.queries ? fmtNum(d.queries) + " q" : ""].filter(Boolean).join(" · "), d.device)).join("") || `<div class="fine muted">No devices in the last 30 days</div>`}</div>`; };
   openModal({
     title: p.id ? `Edit ${p.name}` : "Add a person", wide: true,
     body: `<div class="grid g2"><label>Name<input id="pp-name" value="${esc(p.name)}" placeholder="e.g. Noa"></label><label>Colour<input id="pp-color" type="color" value="${esc(p.color || "#8a5cf6")}" style="height:40px;padding:4px"></label></div>
       <div class="ovr" style="grid-template-columns:1fr auto"><input id="pp-find" placeholder="Filter devices… (typing the name above also suggests matches)"><button class="btn sm" id="pp-suggest" type="button">Select name matches</button></div>
-      <div class="grid g2 section"><div><h3>Devices in NextDNS logs <span class="fine muted">(last 30 days)</span></h3><div class="pp-pick">${meta.dns_devices.map(d => row("dns", d.device, d.device, [d.local_ip, d.queries ? fmtNum(d.queries) + " q" : ""].filter(Boolean).join(" · "))).join("") || `<div class="empty">No DNS devices yet</div>`}</div></div>
+      <div class="grid g2 section"><div><h3>NextDNS <span class="fine muted">(by profile, last 30 days)</span></h3><div class="pp-pick">${profIds.map(ndGroup).join("") || `<div class="empty">No DNS devices yet</div>`}</div></div>
         <div><h3>UniFi clients <span class="fine muted">(adds data usage)</span></h3><div class="pp-pick">${meta.clients.map(c => row("mac", c.mac, c.name || c.hostname || c.mac, [c.ip, c.network, c.vendor, c.mac].filter(Boolean).join(" · "))).join("") || `<div class="empty">No UniFi clients imported yet</div>`}</div></div></div>
-      <p class="fine">Tip: pick the same device on both sides (e.g. “iPhone-Noa” in NextDNS and its UniFi client) so both DNS and data usage are counted.</p>`,
+      <p class="fine">If a NextDNS profile is just for this person, tick <b>All of “profile”</b> — handy when its devices have generic names like “iPhone 16”. A device ticked for someone else still counts as theirs. Pick the matching UniFi client too, so data usage is counted.</p>`,
     buttons: [...(p.id ? [{ label: "Delete", cls: "danger", onClick: () => confirmDelete(p) }] : []), { label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
       const name = $("#pp-name").value.trim(); if (!name) return toast("Give the person a name", "err");
       const devices = $$("[data-ppdev]").filter(x => x.checked).map(x => { const [kind, ...k] = x.dataset.ppdev.split("|"); return { kind, key: k.join("|") }; });
+      p.devices.forEach(d => { if (!shown.has(`${d.kind}|${d.key}`)) devices.push(d); });   // devices not seen lately stay assigned
       try { await api("/api/analytics/person-save", { id: p.id, name, color: $("#pp-color").value, devices }); closeModal(); toast(`${name} saved`, "ok"); S.ex.meta = null; loadAnalytics(); } catch (e) { toast(e.message, "err"); }
     } }],
   });
