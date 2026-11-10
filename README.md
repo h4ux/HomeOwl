@@ -24,6 +24,7 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **NextDNS & Tailscale helpers** — per-network NextDNS profiles and device names, plus Tailscale guidance.
 - **AI & MCP** — an [MCP](https://modelcontextprotocol.io) server so Claude (or any MCP client) can answer questions about your network and, if you allow it, make guarded changes.
 - **Guest Wi-Fi** — the guest network's name and password with a scan-to-join QR code, a printable card, and a new password in one click (previewed, logged, undoable).
+- **Device check-in** — family members open `http://<HomeOwl>:8555/hi` (or scan its QR code) on their own phone, tablet or laptop and say what it is and whose; HomeOwl finds the device by its address, and an admin's approval sets its UniFi name and gives it to that person.
 - **Accounts** — admin and view-only users with passwords; optional sign-in through Tailscale.
 
 <p align="center"><img src="docs/images/explore.png" width="860" alt="Explore: drill down by person, category, hour and weekday"></p>
@@ -122,7 +123,7 @@ The web UI is plain HTML/CSS/JavaScript in `web/static` (no build step) and is e
 
 ## Roadmap
 
-Cameras (UniFi Protect), doors (UniFi Access), config history, firmware watch, bedtime & homework modes, device check-in, network health, guest Wi-Fi vouchers, a phone app and "Ask HomeOwl" — see [ROADMAP.md](ROADMAP.md).
+Cameras (UniFi Protect), doors (UniFi Access), config history, firmware watch, bedtime & homework modes, network health, guest Wi-Fi vouchers, a phone app and "Ask HomeOwl" — see [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 

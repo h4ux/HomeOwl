@@ -15,7 +15,7 @@ Go version with built-in DuckDB, accounts and login, home-network HTTPS and buil
 - **Bedtime & homework modes** — per-person schedules that pause internet or block categories (UniFi traffic rules or NextDNS profiles).
 - **Weekly family digest** — screen time per person, top apps, late-night use, new devices (email or push).
 - **Who's home** — presence from phones on Wi-Fi (also for Home Assistant).
-- **Device check-in** — a "Hi HomeOwl" page (`http://hi.home` + QR code) where family members name their own device and choose its owner; admin approval sets the UniFi alias.
+- **Device check-in** — ✅ a “Hi HomeOwl” page (`/hi` + QR code) where family members name their own device and choose its owner; admin approval sets the UniFi alias and the person. Next: a `hi.home` short name.
 - **"Plug it in now" pairing** — catch a new device the moment it joins and name it (for plugs, bulbs, cameras).
 - **Device identification** — UniFi fingerprint, DHCP name, vendor and DNS behaviour → device type and icon; an "unknown devices" queue.
 - **Internet quality** — scheduled speed tests, latency and outage history, "ISP or us?" verdict.

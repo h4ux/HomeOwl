@@ -338,6 +338,35 @@ func (e *Engine) SavePerson(p Person) (string, error) {
 	return p.ID, nil
 }
 
+// AssignDevice gives one device (e.g. kind "mac") to a person, taking it away from whoever had it.
+func (e *Engine) AssignDevice(personID, kind, key string) error {
+	if e.db == nil {
+		return errors.New("analytics isn't running")
+	}
+	key = strings.TrimSpace(key)
+	if kind == "mac" {
+		key = strings.ToLower(key)
+	}
+	if !validKind[kind] || key == "" || len(key) > 200 {
+		return errors.New("bad device")
+	}
+	var n int
+	if err := e.db.QueryRow("SELECT count(*) FROM people WHERE id=?", personID).Scan(&n); err != nil || n == 0 {
+		return errors.New("no such person")
+	}
+	err := e.tx(func(tx *sql.Tx) error {
+		if _, err := tx.Exec("DELETE FROM person_devices WHERE kind=? AND key=?", kind, key); err != nil {
+			return err
+		}
+		_, err := tx.Exec("INSERT INTO person_devices VALUES (?,?,?)", personID, kind, key)
+		return err
+	})
+	if err == nil {
+		e.RefreshDevPerson()
+	}
+	return err
+}
+
 func (e *Engine) DeletePerson(id string) error {
 	err := e.tx(func(tx *sql.Tx) error {
 		if _, err := tx.Exec("DELETE FROM person_devices WHERE person_id=?", id); err != nil {

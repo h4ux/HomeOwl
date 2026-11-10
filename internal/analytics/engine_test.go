@@ -125,3 +125,42 @@ func toInt(v any) int64 {
 	}
 	return -1
 }
+
+// A device check-in gives a UniFi client (by MAC) to a person; giving it to someone else moves it.
+func TestAssignDevice(t *testing.T) {
+	e := openTestEngine(t)
+	alex, err := e.SavePerson(Person{Name: "Alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sam, err := e.SavePerson(Person{Name: "Sam", Devices: []PersonDevice{{Kind: "mac", Key: "aa:bb:cc:00:00:09"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.db.Exec(`INSERT INTO clients(mac, name, ip) VALUES ('aa:bb:cc:00:00:09', 'Tablet', '192.168.1.40')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.db.Exec(`INSERT INTO client_hourly(hour, mac, rx, tx) VALUES (now(), 'aa:bb:cc:00:00:09', 100, 10)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AssignDevice(alex, "mac", "AA:BB:CC:00:00:09"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AssignDevice("nobody", "mac", "aa:bb:cc:00:00:09"); err == nil {
+		t.Fatal("assigning to a missing person must fail")
+	}
+	if err := e.AssignDevice(alex, "bogus", "x"); err == nil {
+		t.Fatal("unknown device kind must fail")
+	}
+	owners := map[string][]PersonDevice{}
+	for _, p := range e.People() {
+		owners[p.ID] = p.Devices
+	}
+	if len(owners[alex]) != 1 || owners[alex][0].Key != "aa:bb:cc:00:00:09" || len(owners[sam]) != 0 {
+		t.Fatalf("the tablet should now be Alex's only: %+v", owners)
+	}
+	var who string
+	if err := e.db.QueryRow(`SELECT person_id FROM trafq WHERE mac='aa:bb:cc:00:00:09'`).Scan(&who); err != nil || who != alex {
+		t.Fatalf("traffic belongs to %q (%v), want Alex", who, err)
+	}
+}

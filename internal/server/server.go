@@ -52,15 +52,16 @@ type App struct {
 	// Restart is set by the command line: it restarts HomeOwl (after an update replaced the program file).
 	Restart func()
 
-	mu      sync.Mutex
-	lan     *http.Server
-	lanAddr string
-	lanErr  string
-	cert    tls.Certificate
-	handler http.Handler
-	started time.Time
-	tsErr   string
-	logos   *ispLogos
+	mu       sync.Mutex
+	lan      *http.Server
+	lanAddr  string
+	lanErr   string
+	cert     tls.Certificate
+	handler  http.Handler
+	started  time.Time
+	tsErr    string
+	logos    *ispLogos
+	checkins *checkins
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -73,7 +74,8 @@ func New(dataDir string, readOnly bool) (*App, error) {
 		return nil, err
 	}
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
-		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}}
+		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")},
+		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
@@ -359,6 +361,9 @@ func (a *App) routes() http.Handler {
 		if p == "" {
 			p = "index.html"
 		}
+		if p == "hi" {
+			p = "hi.html"
+		}
 		b, err := fs.ReadFile(static, p)
 		if err != nil {
 			fail(w, 404, "not found")
@@ -377,6 +382,10 @@ func (a *App) routes() http.Handler {
 	return a.guard(securityHeaders(mux))
 }
 
+// The device check-in page also works over plain HTTP, so a phone can open it without a certificate warning.
+// It only shows the device itself and the family's first names, and only queues a request for an admin.
+var plainHTTPOK = map[string]bool{"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true}
+
 // guard applies the Host check and sends plain-HTTP visitors from other devices to HTTPS.
 func (a *App) guard(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -384,7 +393,7 @@ func (a *App) guard(h http.Handler) http.Handler {
 			http.Error(w, "Unexpected host name. Open HomeOwl by this computer's IP address or name.", http.StatusMisdirectedRequest)
 			return
 		}
-		if r.TLS == nil && !isLoopback(r) && !tsnetx.FromTailnet(r) && a.cert.Certificate != nil && a.Cfg.Get().LAN.TLS {
+		if r.TLS == nil && !isLoopback(r) && !tsnetx.FromTailnet(r) && a.cert.Certificate != nil && a.Cfg.Get().LAN.TLS && !plainHTTPOK[r.URL.Path] {
 			http.Redirect(w, r, "https://"+r.Host+r.URL.RequestURI(), http.StatusFound)
 			return
 		}

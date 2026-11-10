@@ -33,6 +33,11 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, map[string]any{"app": config.AppSlug, "version": config.Version})
 		return
 	}
+	// ---- device check-in page (no session: the device itself, on the home network)
+	if p == "hi" {
+		a.hiAPI(w, r)
+		return
+	}
 	// ---- login (no session needed)
 	if strings.HasPrefix(p, "auth/") {
 		a.authAPI(w, r, strings.TrimPrefix(p, "auth/"))
@@ -74,7 +79,7 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		c := a.Cfg.Get()
 		send(w, 200, map[string]any{"connected": a.UniFi.Connected(), "host": a.UniFi.Host(), "last_error": nilIfEmpty(a.UniFi.LastError),
 			"configured": c.Host != "", "write": a.Changes.Write, "read_only": a.ReadOnly, "token": who.csrf, "version": config.Version,
-			"user": who, "data_age": dataAge, "refresh_minutes": c.RefreshMinutes, "mcp_mode": c.MCP.Mode})
+			"user": who, "data_age": dataAge, "refresh_minutes": c.RefreshMinutes, "mcp_mode": c.MCP.Mode, "checkins_pending": a.pendingFor(who)})
 		return
 	case "changes":
 		send(w, 200, a.Changes.List())
@@ -208,6 +213,13 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	case p == "speedtest-status":
 		st, d := a.UniFi.Request("POST", a.UniFi.SitePath("cmd/devmgr", false), map[string]any{"cmd": "speedtest-status"})
 		res = map[string]any{"status": st, "data": unifi.Redact(unifi.Data(d))}
+	case p == "checkins":
+		res = a.checkinView()
+	case p == "checkins/approve":
+		res, err = a.approveCheckIn(body, by)
+	case p == "checkins/reject":
+		err = a.checkins.Decide(s(body, "id"), "rejected", by)
+		res = a.checkinView()
 	case p == "guest-wifi/pick":
 		err = a.pickGuestSSIDs(body)
 		res = map[string]any{"ssids": a.Cfg.Get().Guest.SSIDs}
