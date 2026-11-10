@@ -1,0 +1,25 @@
+# build output
+/dist/
+/homeowl
+/homeowl.exe
+*.test
+coverage.out
+
+# local data (never commit settings, keys, databases or logs)
+*.duckdb
+*.duckdb.wal
+/users.json
+/sessions.json
+/setup-code
+/secrets/
+/tls/
+/tailscale/
+/config.json
+/changes-log.jsonl
+*.log
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/
+.devdata/

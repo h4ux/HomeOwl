@@ -1,0 +1,4005 @@
+{
+ "integration": {
+  "info": {
+   "applicationVersion": "9.4.19"
+  },
+  "sites": [
+   {
+    "id": "site-1",
+    "internalReference": "default",
+    "name": "Default"
+   }
+  ]
+ },
+ "legacy": {
+  "sysinfo": [
+   {
+    "hostname": "home-ucg",
+    "version": "9.4.19",
+    "console_display_version": "4.1.13",
+    "timezone": "Asia/Jerusalem",
+    "update_available": true
+   }
+  ],
+  "health": [
+   {
+    "subsystem": "wan",
+    "status": "ok",
+    "wan_ip": "203.0.113.47",
+    "isp_name": "Example Fiber"
+   },
+   {
+    "subsystem": "www",
+    "status": "ok",
+    "latency": 9,
+    "xput_down": 912.4,
+    "xput_up": 96.1,
+    "uptime": 1729000,
+    "drops": 2
+   },
+   {
+    "subsystem": "wlan",
+    "num_ap": 3
+   },
+   {
+    "subsystem": "vpn",
+    "remote_user_enabled": true
+   }
+  ],
+  "devices": [
+   {
+    "_id": "d1",
+    "mac": "74:ac:b9:10:00:01",
+    "name": "Gateway",
+    "model": "UCGULTRA",
+    "model_name": "Cloud Gateway Ultra",
+    "type": "udm",
+    "ip": "192.168.1.1",
+    "version": "4.1.13",
+    "state": 1,
+    "uptime": 18316800,
+    "upgradable": true,
+    "upgrade_to_firmware": "4.3.9",
+    "system-stats": {
+     "cpu": "31",
+     "mem": "72"
+    },
+    "num_sta": 0,
+    "port_table": [
+     {
+      "up": true
+     },
+     {
+      "up": true
+     },
+     {
+      "up": true
+     },
+     {
+      "up": true
+     },
+     {
+      "up": false
+     }
+    ]
+   },
+   {
+    "_id": "d2",
+    "mac": "74:ac:b9:20:00:02",
+    "name": "Office Switch",
+    "model": "USL8LPB",
+    "model_name": "USW Lite 8 PoE",
+    "type": "usw",
+    "ip": "192.168.1.20",
+    "version": "7.1.26",
+    "state": 1,
+    "uptime": 3456000,
+    "upgradable": false,
+    "uplink": {
+     "uplink_mac": "74:ac:b9:10:00:01",
+     "uplink_remote_port": 2,
+     "type": "wire"
+    },
+    "system-stats": {
+     "cpu": "9",
+     "mem": "41"
+    },
+    "total_max_power": 52,
+    "port_table": [
+     {
+      "port_idx": 1,
+      "name": "Port 1",
+      "up": true,
+      "speed": 1000,
+      "full_duplex": true,
+      "port_poe": true,
+      "poe_enable": true,
+      "poe_mode": "auto",
+      "poe_power": "9.8",
+      "rx_bytes": 91000000000.0,
+      "tx_bytes": 330000000000.0,
+      "rx_packets": 400000000.0
+     },
+     {
+      "port_idx": 2,
+      "name": "Port 2",
+      "up": true,
+      "speed": 100,
+      "full_duplex": true,
+      "port_poe": true,
+      "poe_enable": true,
+      "poe_mode": "auto",
+      "poe_power": "6.4",
+      "rx_errors": 4120,
+      "tx_errors": 12,
+      "rx_packets": 2000000.0,
+      "rx_bytes": 20000000000.0,
+      "tx_bytes": 60000000000.0
+     },
+     {
+      "port_idx": 3,
+      "name": "NAS",
+      "up": true,
+      "speed": 1000,
+      "full_duplex": true,
+      "port_poe": true,
+      "poe_enable": false,
+      "poe_mode": "off",
+      "rx_bytes": 400000000000.0,
+      "tx_bytes": 900000000000.0,
+      "rx_packets": 900000000.0
+     },
+     {
+      "port_idx": 4,
+      "name": "Port 4",
+      "up": true,
+      "speed": 1000,
+      "full_duplex": true,
+      "port_poe": true,
+      "poe_mode": "off",
+      "rx_bytes": 10000000000.0,
+      "tx_bytes": 50000000000.0,
+      "rx_packets": 50000000.0
+     },
+     {
+      "port_idx": 5,
+      "name": "UPS",
+      "up": false,
+      "port_poe": true,
+      "poe_enable": false,
+      "poe_mode": "off",
+      "mac_table": [
+       {
+        "mac": "f4:e2:c6:aa:00:09"
+       }
+      ]
+     },
+     {
+      "port_idx": 6,
+      "name": "Port 6",
+      "up": true,
+      "speed": 1000,
+      "full_duplex": true,
+      "port_poe": true,
+      "poe_enable": true,
+      "poe_mode": "auto",
+      "poe_power": "3.2",
+      "rx_bytes": 2000000000.0,
+      "tx_bytes": 1000000000.0,
+      "rx_packets": 10000000.0
+     },
+     {
+      "port_idx": 7,
+      "name": "Port 7",
+      "up": false,
+      "port_poe": true,
+      "poe_mode": "off"
+     },
+     {
+      "port_idx": 8,
+      "name": "Uplink",
+      "up": true,
+      "speed": 2500,
+      "full_duplex": true,
+      "is_uplink": true,
+      "rx_bytes": 900000000000.0,
+      "tx_bytes": 700000000000.0,
+      "rx_packets": 900000000.0
+     }
+    ]
+   },
+   {
+    "_id": "d3",
+    "mac": "74:ac:b9:30:00:03",
+    "name": "Living Room AP",
+    "model": "U7PRO",
+    "model_name": "U7 Pro",
+    "type": "uap",
+    "ip": "192.168.1.21",
+    "version": "7.0.83",
+    "state": 1,
+    "uptime": 3456000,
+    "upgradable": true,
+    "upgrade_to_firmware": "8.0.21",
+    "uplink": {
+     "uplink_mac": "74:ac:b9:20:00:02",
+     "uplink_remote_port": 1,
+     "type": "wire"
+    },
+    "vap_table": [
+     {
+      "bssid": "74:ac:b9:30:10:03"
+     }
+    ],
+    "system-stats": {
+     "cpu": "14",
+     "mem": "58"
+    },
+    "satisfaction": 88,
+    "radio_table": [
+     {
+      "name": "wifi0",
+      "radio": "ng",
+      "channel": 6,
+      "ht": 40,
+      "tx_power_mode": "high"
+     },
+     {
+      "name": "wifi1",
+      "radio": "na",
+      "channel": 36,
+      "ht": 160,
+      "tx_power_mode": "high"
+     },
+     {
+      "name": "wifi2",
+      "radio": "6e",
+      "channel": 37,
+      "ht": 320,
+      "tx_power_mode": "auto"
+     }
+    ],
+    "radio_table_stats": [
+     {
+      "name": "wifi0",
+      "radio": "ng",
+      "channel": 6,
+      "tx_power": 23,
+      "cu_total": 63,
+      "num_sta": 9
+     },
+     {
+      "name": "wifi1",
+      "radio": "na",
+      "channel": 36,
+      "tx_power": 26,
+      "cu_total": 28,
+      "num_sta": 11
+     },
+     {
+      "name": "wifi2",
+      "radio": "6e",
+      "channel": 37,
+      "tx_power": 23,
+      "cu_total": 4,
+      "num_sta": 2
+     }
+    ]
+   },
+   {
+    "_id": "d4",
+    "mac": "74:ac:b9:30:00:04",
+    "name": "Upstairs AP",
+    "model": "U6LITE",
+    "model_name": "U6 Lite",
+    "type": "uap",
+    "ip": "192.168.1.22",
+    "version": "6.6.77",
+    "state": 1,
+    "uptime": 16416000,
+    "upgradable": true,
+    "upgrade_to_firmware": "6.7.31",
+    "uplink": {
+     "uplink_mac": "74:ac:b9:20:00:02",
+     "uplink_remote_port": 2,
+     "type": "wire"
+    },
+    "system-stats": {
+     "cpu": "22",
+     "mem": "67"
+    },
+    "satisfaction": 71,
+    "radio_table": [
+     {
+      "name": "wifi0",
+      "radio": "ng",
+      "channel": 6,
+      "ht": 40,
+      "tx_power_mode": "high"
+     },
+     {
+      "name": "wifi1",
+      "radio": "na",
+      "channel": 36,
+      "ht": 80,
+      "tx_power_mode": "high"
+     }
+    ],
+    "radio_table_stats": [
+     {
+      "name": "wifi0",
+      "radio": "ng",
+      "channel": 6,
+      "tx_power": 20,
+      "cu_total": 58,
+      "num_sta": 7
+     },
+     {
+      "name": "wifi1",
+      "radio": "na",
+      "channel": 36,
+      "tx_power": 23,
+      "cu_total": 35,
+      "num_sta": 5
+     }
+    ]
+   },
+   {
+    "_id": "d5",
+    "mac": "74:ac:b9:30:00:05",
+    "name": "Garden AP",
+    "model": "UAPMESH",
+    "model_name": "U6 Mesh",
+    "type": "uap",
+    "ip": "192.168.1.23",
+    "version": "6.6.77",
+    "state": 0,
+    "uptime": 0,
+    "last_seen": 1793875340.366397,
+    "inform_url": "http://192.168.1.1:8080/inform",
+    "upgradable": false,
+    "uplink": {
+     "uplink_mac": "74:ac:b9:30:00:04",
+     "type": "wireless"
+    },
+    "radio_table": [
+     {
+      "name": "wifi0",
+      "radio": "ng",
+      "channel": 3,
+      "ht": 20,
+      "tx_power_mode": "high"
+     },
+     {
+      "name": "wifi1",
+      "radio": "na",
+      "channel": 149,
+      "ht": 80,
+      "tx_power_mode": "high"
+     }
+    ],
+    "radio_table_stats": []
+   }
+  ],
+  "clients": [
+   {
+    "mac": "a4:83:e7:00:75:b6",
+    "ip": "192.168.1.30",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Apple",
+    "tx_bytes": 56155686323,
+    "rx_bytes": 28081399467,
+    "uptime": 384052,
+    "hostname": "MacBook-Pro",
+    "essid": "Home",
+    "radio": "na",
+    "signal": -58,
+    "satisfaction": 72,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:01:46:19",
+    "ip": "192.168.1.31",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Sonos",
+    "tx_bytes": 27642297818,
+    "rx_bytes": 64734536207,
+    "uptime": 95719,
+    "hostname": "iPhone-Alon",
+    "essid": "Home",
+    "radio": "na",
+    "signal": -77,
+    "satisfaction": 53,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:02:e3:a0",
+    "ip": "192.168.1.32",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Sonos",
+    "tx_bytes": 16964167389,
+    "rx_bytes": 174517209528,
+    "uptime": 611916,
+    "hostname": "iPad",
+    "essid": "Home",
+    "radio": "ng",
+    "signal": -48,
+    "satisfaction": 82,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:03:75:1c",
+    "ip": "192.168.1.33",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Google",
+    "tx_bytes": 34569809456,
+    "rx_bytes": 38056832331,
+    "uptime": 304277,
+    "hostname": "Pixel-8",
+    "essid": "Home",
+    "radio": "6e",
+    "signal": -81,
+    "satisfaction": 49,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:04:9a:2e",
+    "ip": "192.168.1.34",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Samsung",
+    "tx_bytes": 58250861528,
+    "rx_bytes": 50183819540,
+    "uptime": 108661,
+    "hostname": "Sonos-Kitchen",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -58,
+    "satisfaction": 72,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:05:b3:40",
+    "ip": "192.168.1.35",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Amazon",
+    "tx_bytes": 34788199506,
+    "rx_bytes": 20248361634,
+    "uptime": 592383,
+    "hostname": "Sonos-Living",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -81,
+    "satisfaction": 49,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:06:ae:44",
+    "ip": "192.168.1.36",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": true,
+    "oui": "TP-Link",
+    "tx_bytes": 37292034004,
+    "rx_bytes": 125913303407,
+    "uptime": 614606,
+    "hostname": "Hue-Bridge",
+    "sw_mac": "74:ac:b9:20:00:02"
+   },
+   {
+    "mac": "a4:83:e7:07:6c:5c",
+    "ip": "192.168.1.37",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Google",
+    "tx_bytes": 12011768487,
+    "rx_bytes": 22533223035,
+    "uptime": 602926,
+    "hostname": "Nest-Thermostat",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -73,
+    "satisfaction": 57,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:08:8e:f0",
+    "ip": "192.168.1.38",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Amazon",
+    "tx_bytes": 33207714720,
+    "rx_bytes": 164455440520,
+    "uptime": 77356,
+    "hostname": "Ring-Doorbell",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -77,
+    "satisfaction": 53,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:09:7b:3a",
+    "ip": "192.168.1.39",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": true,
+    "oui": "Amazon",
+    "tx_bytes": 27879884290,
+    "rx_bytes": 20059834448,
+    "uptime": 585784,
+    "hostname": "LG-TV",
+    "sw_mac": "74:ac:b9:20:00:02"
+   },
+   {
+    "mac": "a4:83:e7:0a:da:f0",
+    "ip": "192.168.1.40",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Amazon",
+    "tx_bytes": 48715454658,
+    "rx_bytes": 164722761979,
+    "uptime": 521401,
+    "hostname": "Roborock",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -81,
+    "satisfaction": 49,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:0b:21:e7",
+    "ip": "192.168.1.41",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Sonos",
+    "tx_bytes": 21247243606,
+    "rx_bytes": 191024797865,
+    "uptime": 697014,
+    "hostname": "Echo-Dot",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -73,
+    "satisfaction": 57,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:0c:cb:c3",
+    "ip": "192.168.1.42",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": true,
+    "oui": "Samsung",
+    "tx_bytes": 41444102913,
+    "rx_bytes": 188958908299,
+    "uptime": 467888,
+    "hostname": "Synology-NAS",
+    "sw_mac": "74:ac:b9:20:00:02"
+   },
+   {
+    "mac": "a4:83:e7:0d:c7:72",
+    "ip": "192.168.1.43",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": true,
+    "oui": "Amazon",
+    "tx_bytes": 23467802642,
+    "rx_bytes": 168235486822,
+    "uptime": 123383,
+    "hostname": "PS5",
+    "sw_mac": "74:ac:b9:20:00:02"
+   },
+   {
+    "mac": "a4:83:e7:0e:1f:47",
+    "ip": "192.168.1.44",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Samsung",
+    "tx_bytes": 47810152271,
+    "rx_bytes": 108447680003,
+    "uptime": 410540,
+    "hostname": "Printer-HP",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -73,
+    "satisfaction": 57,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:0f:3a:82",
+    "ip": "192.168.1.45",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": true,
+    "oui": "Synology",
+    "tx_bytes": 19549695633,
+    "rx_bytes": 38163843033,
+    "uptime": 452034,
+    "hostname": "Apple-TV",
+    "sw_mac": "74:ac:b9:20:00:02"
+   },
+   {
+    "mac": "a4:83:e7:10:c4:7a",
+    "ip": "192.168.1.46",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Amazon",
+    "tx_bytes": 9591004799,
+    "rx_bytes": 47611056810,
+    "uptime": 159247,
+    "essid": "Home",
+    "radio": "6e",
+    "signal": -64,
+    "satisfaction": 66,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:11:8c:e4",
+    "ip": "192.168.1.47",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Espressif",
+    "tx_bytes": 18318357317,
+    "rx_bytes": 38682287577,
+    "uptime": 439897,
+    "essid": "Home",
+    "radio": "na",
+    "signal": -48,
+    "satisfaction": 82,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:12:a0:61",
+    "ip": "192.168.30.48",
+    "network_id": "n-guest",
+    "network": "Guest",
+    "is_wired": false,
+    "oui": "Espressif",
+    "tx_bytes": 58810222509,
+    "rx_bytes": 178756199796,
+    "uptime": 709647,
+    "essid": "Guest",
+    "radio": "na",
+    "signal": -81,
+    "satisfaction": 49,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:13:f6:ee",
+    "ip": "192.168.1.49",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Synology",
+    "tx_bytes": 27489499811,
+    "rx_bytes": 27472536365,
+    "uptime": 505513,
+    "essid": "Home",
+    "radio": "na",
+    "signal": -73,
+    "satisfaction": 57,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:14:40:21",
+    "ip": "192.168.1.50",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Google",
+    "tx_bytes": 10492412593,
+    "rx_bytes": 90676451705,
+    "uptime": 630508,
+    "essid": "Home",
+    "radio": "ng",
+    "signal": -48,
+    "satisfaction": 82,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:15:10:a1",
+    "ip": "192.168.1.51",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Espressif",
+    "tx_bytes": 6609727027,
+    "rx_bytes": 102869951685,
+    "uptime": 644150,
+    "hostname": "Tapo-Plug-1",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -55,
+    "satisfaction": 75,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:16:ef:45",
+    "ip": "192.168.1.52",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Synology",
+    "tx_bytes": 43597692445,
+    "rx_bytes": 164710783985,
+    "uptime": 382453,
+    "hostname": "Tapo-Plug-2",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -55,
+    "satisfaction": 75,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:17:2d:e9",
+    "ip": "192.168.1.53",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "TP-Link",
+    "tx_bytes": 32076180567,
+    "rx_bytes": 83692432651,
+    "uptime": 90656,
+    "hostname": "Camera-Garage",
+    "essid": "Home-IoT",
+    "radio": "ng",
+    "signal": -55,
+    "satisfaction": 75,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:18:cd:53",
+    "ip": "192.168.1.54",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "TP-Link",
+    "tx_bytes": 50814547003,
+    "rx_bytes": 142437294318,
+    "uptime": 24817,
+    "hostname": "Garmin",
+    "essid": "Home",
+    "radio": "na",
+    "signal": -67,
+    "satisfaction": 63,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:19:35:c0",
+    "ip": "192.168.1.55",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Apple",
+    "tx_bytes": 37625937578,
+    "rx_bytes": 189379448354,
+    "uptime": 274399,
+    "hostname": "Kindle",
+    "essid": "Home",
+    "radio": "6e",
+    "signal": -67,
+    "satisfaction": 63,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:1a:6b:d5",
+    "ip": "10.10.40.56",
+    "network_id": "n-lab",
+    "network": "Lab",
+    "is_wired": false,
+    "oui": "Google",
+    "tx_bytes": 36657205284,
+    "rx_bytes": 140794968736,
+    "uptime": 346278,
+    "hostname": "Dell-XPS",
+    "essid": "Lab-5G",
+    "radio": "na",
+    "signal": -58,
+    "satisfaction": 72,
+    "ap_mac": "74:ac:b9:30:00:04"
+   },
+   {
+    "mac": "a4:83:e7:1b:ac:df",
+    "ip": "10.10.40.57",
+    "network_id": "n-lab",
+    "network": "Lab",
+    "is_wired": true,
+    "oui": "Google",
+    "tx_bytes": 16356983058,
+    "rx_bytes": 110898895639,
+    "uptime": 776413,
+    "hostname": "Raspberry-Pi",
+    "sw_mac": "74:ac:b9:20:00:02"
+   },
+   {
+    "mac": "a4:83:e7:1c:94:8e",
+    "ip": "192.168.30.58",
+    "network_id": "n-guest",
+    "network": "Guest",
+    "is_wired": false,
+    "oui": "Amazon",
+    "tx_bytes": 3149638261,
+    "rx_bytes": 8555282342,
+    "uptime": 293591,
+    "hostname": "Guest-Phone",
+    "essid": "Guest",
+    "radio": "na",
+    "signal": -61,
+    "satisfaction": 69,
+    "ap_mac": "74:ac:b9:30:00:03"
+   },
+   {
+    "mac": "a4:83:e7:1d:c1:aa",
+    "ip": "192.168.1.59",
+    "network_id": "n-default",
+    "network": "Default",
+    "is_wired": false,
+    "oui": "Amazon",
+    "tx_bytes": 53470435785,
+    "rx_bytes": 98742871660,
+    "uptime": 382948,
+    "essid": "Home",
+    "radio": "na",
+    "signal": -61,
+    "satisfaction": 69,
+    "ap_mac": "74:ac:b9:30:00:03"
+   }
+  ],
+  "networks": [
+   {
+    "_id": "w1",
+    "name": "Primary (WAN1)",
+    "purpose": "wan",
+    "wan_type": "dhcp",
+    "wan_networkgroup": "WAN",
+    "enabled": true
+   },
+   {
+    "_id": "n-default",
+    "name": "Default",
+    "purpose": "corporate",
+    "ip_subnet": "192.168.1.1/24",
+    "dhcpd_enabled": true,
+    "dhcpd_start": "192.168.1.6",
+    "dhcpd_stop": "192.168.1.254",
+    "vlan_enabled": false,
+    "attr_no_delete": true,
+    "attr_hidden_id": "LAN",
+    "mdns_enabled": true,
+    "igmp_snooping": false,
+    "internet_access_enabled": true,
+    "enabled": true
+   },
+   {
+    "_id": "n-iot",
+    "name": "IoT",
+    "purpose": "corporate",
+    "ip_subnet": "192.168.20.1/24",
+    "vlan_enabled": true,
+    "vlan": 20,
+    "dhcpd_enabled": true,
+    "dhcpd_start": "192.168.20.100",
+    "dhcpd_stop": "192.168.20.120",
+    "dhcpd_dns_enabled": true,
+    "dhcpd_dns_1": "45.90.28.190",
+    "dhcpd_dns_2": "45.90.30.190",
+    "network_isolation_enabled": false,
+    "mdns_enabled": true,
+    "internet_access_enabled": true,
+    "enabled": true
+   },
+   {
+    "_id": "n-guest",
+    "name": "Guest",
+    "purpose": "guest",
+    "ip_subnet": "192.168.30.1/24",
+    "vlan_enabled": true,
+    "vlan": 30,
+    "dhcpd_enabled": true,
+    "dhcpd_start": "192.168.30.6",
+    "dhcpd_stop": "192.168.30.254",
+    "internet_access_enabled": true,
+    "enabled": true
+   },
+   {
+    "_id": "n-lab",
+    "name": "Lab",
+    "purpose": "corporate",
+    "ip_subnet": "10.10.40.1/24",
+    "vlan_enabled": true,
+    "vlan": 40,
+    "dhcpd_enabled": true,
+    "dhcpd_start": "10.10.40.50",
+    "dhcpd_stop": "10.10.40.200",
+    "internet_access_enabled": true,
+    "enabled": true
+   },
+   {
+    "_id": "vpn1",
+    "name": "WireGuard",
+    "purpose": "remote-user-vpn",
+    "ip_subnet": "192.168.3.1/24",
+    "enabled": true
+   }
+  ],
+  "wlans": [
+   {
+    "_id": "s1",
+    "name": "Home",
+    "enabled": true,
+    "security": "wpapsk",
+    "wpa_mode": "wpa2",
+    "wpa_enc": "ccmp",
+    "wpa3_support": false,
+    "pmf_mode": "disabled",
+    "networkconf_id": "n-default",
+    "wlan_bands": [
+     "2g",
+     "5g",
+     "6g"
+    ],
+    "x_passphrase": {
+     "__redacted__": true,
+     "length": 21
+    },
+    "fast_roaming_enabled": false,
+    "bss_transition": true,
+    "minrate_setting_preference": "auto"
+   },
+   {
+    "_id": "s2",
+    "name": "Home-IoT",
+    "enabled": true,
+    "security": "wpapsk",
+    "wpa_mode": "wpa2",
+    "wpa_enc": "ccmp",
+    "pmf_mode": "optional",
+    "networkconf_id": "n-default",
+    "wlan_bands": [
+     "2g"
+    ],
+    "x_passphrase": {
+     "__redacted__": true,
+     "length": 8
+    },
+    "hide_ssid": true
+   },
+   {
+    "_id": "s3",
+    "name": "Guest",
+    "enabled": true,
+    "security": "open",
+    "is_guest": true,
+    "networkconf_id": "n-guest",
+    "wlan_bands": [
+     "2g",
+     "5g"
+    ],
+    "l2_isolation": false
+   },
+   {
+    "_id": "s4",
+    "name": "Lab-5G",
+    "enabled": true,
+    "security": "wpapsk",
+    "wpa_mode": "wpa2",
+    "wpa_enc": "ccmp",
+    "wpa3_support": true,
+    "wpa3_transition": true,
+    "pmf_mode": "optional",
+    "networkconf_id": "n-lab",
+    "wlan_bands": [
+     "5g"
+    ],
+    "x_passphrase": {
+     "__redacted__": true,
+     "length": 16
+    }
+   }
+  ],
+  "firewall_rules": [],
+  "firewall_groups": [],
+  "port_forwards": [
+   {
+    "_id": "p1",
+    "name": "Plex",
+    "enabled": true,
+    "pfwd_interface": "wan",
+    "src": "any",
+    "dst_port": "32400",
+    "fwd": "192.168.1.42",
+    "fwd_port": "32400",
+    "proto": "tcp"
+   },
+   {
+    "_id": "p2",
+    "name": "NAS SSH",
+    "enabled": true,
+    "pfwd_interface": "wan",
+    "src": "any",
+    "dst_port": "2222",
+    "fwd": "192.168.1.42",
+    "fwd_port": "22",
+    "proto": "tcp"
+   },
+   {
+    "_id": "p3",
+    "name": "Remote Desktop",
+    "enabled": true,
+    "pfwd_interface": "wan",
+    "src": "any",
+    "dst_port": "3389",
+    "fwd": "192.168.1.50",
+    "fwd_port": "3389",
+    "proto": "tcp_udp"
+   },
+   {
+    "_id": "p4",
+    "name": "Old Minecraft",
+    "enabled": false,
+    "pfwd_interface": "wan",
+    "src": "any",
+    "dst_port": "25565",
+    "fwd": "10.10.40.12",
+    "fwd_port": "25565",
+    "proto": "tcp"
+   }
+  ],
+  "routes": [],
+  "settings": [
+   {
+    "key": "mgmt",
+    "x_ssh_enabled": true,
+    "x_ssh_auth_password_enabled": true,
+    "x_ssh_password": {
+     "__redacted__": true,
+     "length": 7
+    },
+    "auto_upgrade": false,
+    "led_enabled": true
+   },
+   {
+    "key": "ips",
+    "ips_mode": "ids",
+    "enabled_categories": [
+     "emerging-malware",
+     "emerging-scan"
+    ]
+   },
+   {
+    "key": "usg",
+    "upnp_enabled": true,
+    "geo_ip_filtering_enabled": false
+   },
+   {
+    "key": "dpi",
+    "enabled": true
+   },
+   {
+    "key": "doh",
+    "state": "off"
+   },
+   {
+    "key": "country",
+    "code": 376
+   },
+   {
+    "key": "teleport",
+    "enabled": true
+   }
+  ],
+  "alarms": [
+   {
+    "time": 1793875340177,
+    "key": "EVT_AP_Lost_Contact",
+    "msg": "AP[74:ac:b9:30:00:05] was disconnected"
+   }
+  ],
+  "devices_basic": [
+   {
+    "mac": "f4:e2:c6:aa:00:09",
+    "state": 0,
+    "adopted": true,
+    "type": "uups",
+    "model": "UPSTOWER",
+    "name": "Tower UPS",
+    "last_seen": 1793616140.367932
+   }
+  ],
+  "known_clients": [
+   {
+    "_id": "u-a483e70075b6",
+    "mac": "a4:83:e7:00:75:b6",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1784025740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7014619",
+    "mac": "a4:83:e7:01:46:19",
+    "oui": "Sonos",
+    "network_id": "n-default",
+    "first_seen": 1789209740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e702e3a0",
+    "mac": "a4:83:e7:02:e3:a0",
+    "oui": "Sonos",
+    "network_id": "n-default",
+    "first_seen": 1783680140,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e703751c",
+    "mac": "a4:83:e7:03:75:1c",
+    "oui": "Google",
+    "network_id": "n-default",
+    "first_seen": 1772966540,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7049a2e",
+    "mac": "a4:83:e7:04:9a:2e",
+    "oui": "Samsung",
+    "network_id": "n-default",
+    "first_seen": 1785062540,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e705b340",
+    "mac": "a4:83:e7:05:b3:40",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1778841740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e706ae44",
+    "mac": "a4:83:e7:06:ae:44",
+    "oui": "TP-Link",
+    "network_id": "n-default",
+    "first_seen": 1784716940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7076c5c",
+    "mac": "a4:83:e7:07:6c:5c",
+    "oui": "Google",
+    "network_id": "n-default",
+    "first_seen": 1772361740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7088ef0",
+    "mac": "a4:83:e7:08:8e:f0",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1766140940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7097b3a",
+    "mac": "a4:83:e7:09:7b:3a",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1766745740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e70adaf0",
+    "mac": "a4:83:e7:0a:da:f0",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1793702540,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e70b21e7",
+    "mac": "a4:83:e7:0b:21:e7",
+    "oui": "Sonos",
+    "network_id": "n-default",
+    "first_seen": 1772534540,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e70ccbc3",
+    "mac": "a4:83:e7:0c:cb:c3",
+    "oui": "Samsung",
+    "network_id": "n-default",
+    "first_seen": 1764844940,
+    "last_seen": 1794134480,
+    "use_fixedip": true,
+    "fixed_ip": "192.168.1.42",
+    "name": "Synology-NAS"
+   },
+   {
+    "_id": "u-a483e70dc772",
+    "mac": "a4:83:e7:0d:c7:72",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1778496140,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e70e1f47",
+    "mac": "a4:83:e7:0e:1f:47",
+    "oui": "Samsung",
+    "network_id": "n-default",
+    "first_seen": 1765276940,
+    "last_seen": 1794134480,
+    "use_fixedip": true,
+    "fixed_ip": "192.168.1.44",
+    "name": "Printer-HP"
+   },
+   {
+    "_id": "u-a483e70f3a82",
+    "mac": "a4:83:e7:0f:3a:82",
+    "oui": "Synology",
+    "network_id": "n-default",
+    "first_seen": 1789987340,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e710c47a",
+    "mac": "a4:83:e7:10:c4:7a",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1764499340,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7118ce4",
+    "mac": "a4:83:e7:11:8c:e4",
+    "oui": "Espressif",
+    "network_id": "n-default",
+    "first_seen": 1788432140,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e712a061",
+    "mac": "a4:83:e7:12:a0:61",
+    "oui": "Espressif",
+    "network_id": "n-guest",
+    "first_seen": 1776595340,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e713f6ee",
+    "mac": "a4:83:e7:13:f6:ee",
+    "oui": "Synology",
+    "network_id": "n-default",
+    "first_seen": 1762252940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7144021",
+    "mac": "a4:83:e7:14:40:21",
+    "oui": "Google",
+    "network_id": "n-default",
+    "first_seen": 1760524940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e71510a1",
+    "mac": "a4:83:e7:15:10:a1",
+    "oui": "Espressif",
+    "network_id": "n-default",
+    "first_seen": 1784889740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e716ef45",
+    "mac": "a4:83:e7:16:ef:45",
+    "oui": "Synology",
+    "network_id": "n-default",
+    "first_seen": 1772620940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e7172de9",
+    "mac": "a4:83:e7:17:2d:e9",
+    "oui": "TP-Link",
+    "network_id": "n-default",
+    "first_seen": 1785840140,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e718cd53",
+    "mac": "a4:83:e7:18:cd:53",
+    "oui": "TP-Link",
+    "network_id": "n-default",
+    "first_seen": 1774521740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e71935c0",
+    "mac": "a4:83:e7:19:35:c0",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1765622540,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e71a6bd5",
+    "mac": "a4:83:e7:1a:6b:d5",
+    "oui": "Google",
+    "network_id": "n-lab",
+    "first_seen": 1779014540,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e71bacdf",
+    "mac": "a4:83:e7:1b:ac:df",
+    "oui": "Google",
+    "network_id": "n-lab",
+    "first_seen": 1789900940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e71c948e",
+    "mac": "a4:83:e7:1c:94:8e",
+    "oui": "Amazon",
+    "network_id": "n-guest",
+    "first_seen": 1761820940,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-a483e71dc1aa",
+    "mac": "a4:83:e7:1d:c1:aa",
+    "oui": "Amazon",
+    "network_id": "n-default",
+    "first_seen": 1776249740,
+    "last_seen": 1794134480
+   },
+   {
+    "_id": "u-off0",
+    "mac": "3c:22:fb:00:00:00",
+    "hostname": "old-ipad",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1788864140,
+    "blocked": false
+   },
+   {
+    "_id": "u-off1",
+    "mac": "3c:22:fb:00:00:01",
+    "hostname": "guest-laptop",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1789555340,
+    "blocked": false
+   },
+   {
+    "_id": "u-off2",
+    "mac": "3c:22:fb:00:00:02",
+    "hostname": "Kindle-2",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1785753740,
+    "blocked": false
+   },
+   {
+    "_id": "u-off3",
+    "mac": "3c:22:fb:00:00:03",
+    "hostname": "Pixel-6",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1793097740,
+    "blocked": false
+   },
+   {
+    "_id": "u-off4",
+    "mac": "3c:22:fb:00:00:04",
+    "hostname": null,
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1786012940,
+    "blocked": true
+   },
+   {
+    "_id": "u-off5",
+    "mac": "3c:22:fb:00:00:05",
+    "hostname": "Wii",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1792233740,
+    "blocked": false
+   },
+   {
+    "_id": "u-off6",
+    "mac": "3c:22:fb:00:00:06",
+    "hostname": null,
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1792147340,
+    "blocked": false
+   },
+   {
+    "_id": "u-off7",
+    "mac": "3c:22:fb:00:00:07",
+    "hostname": "Chromecast",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1792579340,
+    "blocked": false
+   },
+   {
+    "_id": "u-off8",
+    "mac": "3c:22:fb:00:00:08",
+    "hostname": "Ring-Chime",
+    "oui": "Apple",
+    "network_id": "n-default",
+    "first_seen": 1750934540,
+    "last_seen": 1793702540,
+    "blocked": false
+   }
+  ],
+  "rogue_aps": [
+   {
+    "essid": "Neighbor-5G",
+    "bssid": "aa:bb:cc:00:00:00",
+    "channel": 36,
+    "radio": "na",
+    "signal": -71,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "HOT-Box",
+    "bssid": "aa:bb:cc:00:00:01",
+    "channel": 6,
+    "radio": "ng",
+    "signal": -62,
+    "ap_mac": "74:ac:b9:30:00:03",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "HOT-Box_5G",
+    "bssid": "aa:bb:cc:00:00:02",
+    "channel": 44,
+    "radio": "na",
+    "signal": -74,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "Bezeq-123",
+    "bssid": "aa:bb:cc:00:00:03",
+    "channel": 1,
+    "radio": "ng",
+    "signal": -80,
+    "ap_mac": "74:ac:b9:30:00:03",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "Partner_Fiber",
+    "bssid": "aa:bb:cc:00:00:04",
+    "channel": 6,
+    "radio": "ng",
+    "signal": -69,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "DIRECT-printer",
+    "bssid": "aa:bb:cc:00:00:05",
+    "channel": 6,
+    "radio": "ng",
+    "signal": -58,
+    "ap_mac": "74:ac:b9:30:00:03",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "Cellcom-X",
+    "bssid": "aa:bb:cc:00:00:06",
+    "channel": 11,
+    "radio": "ng",
+    "signal": -83,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "Yossi",
+    "bssid": "aa:bb:cc:00:00:07",
+    "channel": 3,
+    "radio": "ng",
+    "signal": -77,
+    "ap_mac": "74:ac:b9:30:00:03",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "Home-2.4",
+    "bssid": "aa:bb:cc:00:00:08",
+    "channel": 6,
+    "radio": "ng",
+    "signal": -66,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "FreeWiFi",
+    "bssid": "aa:bb:cc:00:00:09",
+    "channel": 1,
+    "radio": "ng",
+    "signal": -88,
+    "ap_mac": "74:ac:b9:30:00:03",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "NetGear55",
+    "bssid": "aa:bb:cc:00:00:0a",
+    "channel": 11,
+    "radio": "ng",
+    "signal": -85,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "Office",
+    "bssid": "aa:bb:cc:00:00:0b",
+    "channel": 9,
+    "radio": "ng",
+    "signal": -79,
+    "ap_mac": "74:ac:b9:30:00:03",
+    "security": "wpapsk",
+    "oui": "Generic"
+   },
+   {
+    "essid": "CAM-AP",
+    "bssid": "aa:bb:cc:00:00:0c",
+    "channel": 6,
+    "radio": "ng",
+    "signal": -72,
+    "ap_mac": "74:ac:b9:30:00:04",
+    "security": "wpapsk",
+    "oui": "Generic"
+   }
+  ],
+  "events": [
+   {
+    "time": 1793875340177,
+    "key": "EVT_AP_Lost_Contact",
+    "msg": "AP[Garden AP] was disconnected",
+    "ap": "74:ac:b9:30:00:05",
+    "subsystem": "wlan"
+   },
+   {
+    "time": 1793616140177,
+    "key": "EVT_SW_PoeDisconnect",
+    "msg": "Switch[Office Switch] Port 5 PoE disconnected (Tower UPS)",
+    "sw": "74:ac:b9:20:00:02",
+    "port": 5,
+    "subsystem": "lan",
+    "device": "f4:e2:c6:aa:00:09"
+   },
+   {
+    "time": 1793616200177,
+    "key": "EVT_DEV_Lost_Contact",
+    "msg": "Device f4:e2:c6:aa:00:09 (Tower UPS) lost contact",
+    "subsystem": "lan"
+   },
+   {
+    "time": 1794127340177,
+    "key": "EVT_WU_Roam",
+    "msg": "User[iPhone-Alon] roamed from Living Room AP to Upstairs AP",
+    "subsystem": "wlan"
+   },
+   {
+    "time": 1794116540177,
+    "key": "EVT_GW_WANTransition",
+    "msg": "Gateway WAN latency spike 180ms",
+    "subsystem": "wan"
+   }
+  ],
+  "hourly_site": [
+   {
+    "time": 1793529740177,
+    "wan-rx_bytes": 1427422709,
+    "wan-tx_bytes": 297873377,
+    "num_sta": 23
+   },
+   {
+    "time": 1793533340177,
+    "wan-rx_bytes": 1939381380,
+    "wan-tx_bytes": 303744151,
+    "num_sta": 23
+   },
+   {
+    "time": 1793536940177,
+    "wan-rx_bytes": 1210560814,
+    "wan-tx_bytes": 309760231,
+    "num_sta": 22
+   },
+   {
+    "time": 1793540540177,
+    "wan-rx_bytes": 1875154147,
+    "wan-tx_bytes": 291913727,
+    "num_sta": 23
+   },
+   {
+    "time": 1793544140177,
+    "wan-rx_bytes": 1981840481,
+    "wan-tx_bytes": 272462361,
+    "num_sta": 24
+   },
+   {
+    "time": 1793547740177,
+    "wan-rx_bytes": 1395620703,
+    "wan-tx_bytes": 298803070,
+    "num_sta": 24
+   },
+   {
+    "time": 1793551340177,
+    "wan-rx_bytes": 2479034499,
+    "wan-tx_bytes": 228016950,
+    "num_sta": 26
+   },
+   {
+    "time": 1793554940177,
+    "wan-rx_bytes": 1996706467,
+    "wan-tx_bytes": 292105007,
+    "num_sta": 23
+   },
+   {
+    "time": 1793558540177,
+    "wan-rx_bytes": 1425287136,
+    "wan-tx_bytes": 160480614,
+    "num_sta": 26
+   },
+   {
+    "time": 1793562140177,
+    "wan-rx_bytes": 2840592878,
+    "wan-tx_bytes": 380504613,
+    "num_sta": 34
+   },
+   {
+    "time": 1793565740177,
+    "wan-rx_bytes": 4311721430,
+    "wan-tx_bytes": 242046771,
+    "num_sta": 31
+   },
+   {
+    "time": 1793569340177,
+    "wan-rx_bytes": 3320364938,
+    "wan-tx_bytes": 393518815,
+    "num_sta": 30
+   },
+   {
+    "time": 1793572940177,
+    "wan-rx_bytes": 3314660265,
+    "wan-tx_bytes": 378648441,
+    "num_sta": 32
+   },
+   {
+    "time": 1793576540177,
+    "wan-rx_bytes": 3242015879,
+    "wan-tx_bytes": 507450338,
+    "num_sta": 34
+   },
+   {
+    "time": 1793580140177,
+    "wan-rx_bytes": 710752975,
+    "wan-tx_bytes": 104761104,
+    "num_sta": 17
+   },
+   {
+    "time": 1793583740177,
+    "wan-rx_bytes": 613621855,
+    "wan-tx_bytes": 95369447,
+    "num_sta": 16
+   },
+   {
+    "time": 1793587340177,
+    "wan-rx_bytes": 677733618,
+    "wan-tx_bytes": 84222406,
+    "num_sta": 16
+   },
+   {
+    "time": 1793590940177,
+    "wan-rx_bytes": 1032148397,
+    "wan-tx_bytes": 112820521,
+    "num_sta": 17
+   },
+   {
+    "time": 1793594540177,
+    "wan-rx_bytes": 857286023,
+    "wan-tx_bytes": 119734567,
+    "num_sta": 16
+   },
+   {
+    "time": 1793598140177,
+    "wan-rx_bytes": 1224869504,
+    "wan-tx_bytes": 126595573,
+    "num_sta": 17
+   },
+   {
+    "time": 1793601740177,
+    "wan-rx_bytes": 812282064,
+    "wan-tx_bytes": 93702117,
+    "num_sta": 18
+   },
+   {
+    "time": 1793605340177,
+    "wan-rx_bytes": 541715981,
+    "wan-tx_bytes": 104324019,
+    "num_sta": 19
+   },
+   {
+    "time": 1793608940177,
+    "wan-rx_bytes": 2007615228,
+    "wan-tx_bytes": 188181739,
+    "num_sta": 22
+   },
+   {
+    "time": 1793612540177,
+    "wan-rx_bytes": 1550029304,
+    "wan-tx_bytes": 292750604,
+    "num_sta": 22
+   },
+   {
+    "time": 1793616140177,
+    "wan-rx_bytes": 2421931929,
+    "wan-tx_bytes": 183680297,
+    "num_sta": 23
+   },
+   {
+    "time": 1793619740177,
+    "wan-rx_bytes": 2258742241,
+    "wan-tx_bytes": 305280281,
+    "num_sta": 25
+   },
+   {
+    "time": 1793623340177,
+    "wan-rx_bytes": 2091822361,
+    "wan-tx_bytes": 261075140,
+    "num_sta": 22
+   },
+   {
+    "time": 1793626940177,
+    "wan-rx_bytes": 1478416946,
+    "wan-tx_bytes": 296151338,
+    "num_sta": 24
+   },
+   {
+    "time": 1793630540177,
+    "wan-rx_bytes": 2457779689,
+    "wan-tx_bytes": 150073654,
+    "num_sta": 23
+   },
+   {
+    "time": 1793634140177,
+    "wan-rx_bytes": 1906777257,
+    "wan-tx_bytes": 196047319,
+    "num_sta": 26
+   },
+   {
+    "time": 1793637740177,
+    "wan-rx_bytes": 2172778271,
+    "wan-tx_bytes": 142777024,
+    "num_sta": 23
+   },
+   {
+    "time": 1793641340177,
+    "wan-rx_bytes": 1602842142,
+    "wan-tx_bytes": 167606274,
+    "num_sta": 24
+   },
+   {
+    "time": 1793644940177,
+    "wan-rx_bytes": 1514100530,
+    "wan-tx_bytes": 215223637,
+    "num_sta": 23
+   },
+   {
+    "time": 1793648540177,
+    "wan-rx_bytes": 4605477320,
+    "wan-tx_bytes": 236084805,
+    "num_sta": 30
+   },
+   {
+    "time": 1793652140177,
+    "wan-rx_bytes": 2480165150,
+    "wan-tx_bytes": 367428191,
+    "num_sta": 33
+   },
+   {
+    "time": 1793655740177,
+    "wan-rx_bytes": 3120948826,
+    "wan-tx_bytes": 373500472,
+    "num_sta": 33
+   },
+   {
+    "time": 1793659340177,
+    "wan-rx_bytes": 2548078155,
+    "wan-tx_bytes": 293869874,
+    "num_sta": 31
+   },
+   {
+    "time": 1793662940177,
+    "wan-rx_bytes": 3658979145,
+    "wan-tx_bytes": 346409312,
+    "num_sta": 32
+   },
+   {
+    "time": 1793666540177,
+    "wan-rx_bytes": 538035611,
+    "wan-tx_bytes": 110035865,
+    "num_sta": 18
+   },
+   {
+    "time": 1793670140177,
+    "wan-rx_bytes": 996320286,
+    "wan-tx_bytes": 90470542,
+    "num_sta": 20
+   },
+   {
+    "time": 1793673740177,
+    "wan-rx_bytes": 698517905,
+    "wan-tx_bytes": 83444679,
+    "num_sta": 19
+   },
+   {
+    "time": 1793677340177,
+    "wan-rx_bytes": 530550389,
+    "wan-tx_bytes": 89131308,
+    "num_sta": 18
+   },
+   {
+    "time": 1793680940177,
+    "wan-rx_bytes": 700090331,
+    "wan-tx_bytes": 137253341,
+    "num_sta": 18
+   },
+   {
+    "time": 1793684540177,
+    "wan-rx_bytes": 764074279,
+    "wan-tx_bytes": 66711244,
+    "num_sta": 18
+   },
+   {
+    "time": 1793688140177,
+    "wan-rx_bytes": 883333890,
+    "wan-tx_bytes": 60396042,
+    "num_sta": 18
+   },
+   {
+    "time": 1793691740177,
+    "wan-rx_bytes": 941107715,
+    "wan-tx_bytes": 91518291,
+    "num_sta": 18
+   },
+   {
+    "time": 1793695340177,
+    "wan-rx_bytes": 2115563922,
+    "wan-tx_bytes": 230254118,
+    "num_sta": 23
+   },
+   {
+    "time": 1793698940177,
+    "wan-rx_bytes": 2580479658,
+    "wan-tx_bytes": 205112964,
+    "num_sta": 24
+   },
+   {
+    "time": 1793702540177,
+    "wan-rx_bytes": 1638135700,
+    "wan-tx_bytes": 246367290,
+    "num_sta": 23
+   },
+   {
+    "time": 1793706140177,
+    "wan-rx_bytes": 2600836691,
+    "wan-tx_bytes": 247919782,
+    "num_sta": 26
+   },
+   {
+    "time": 1793709740177,
+    "wan-rx_bytes": 1986923745,
+    "wan-tx_bytes": 285288766,
+    "num_sta": 22
+   },
+   {
+    "time": 1793713340177,
+    "wan-rx_bytes": 2602242302,
+    "wan-tx_bytes": 257921166,
+    "num_sta": 23
+   },
+   {
+    "time": 1793716940177,
+    "wan-rx_bytes": 2197197885,
+    "wan-tx_bytes": 307712892,
+    "num_sta": 25
+   },
+   {
+    "time": 1793720540177,
+    "wan-rx_bytes": 2182383099,
+    "wan-tx_bytes": 247720762,
+    "num_sta": 23
+   },
+   {
+    "time": 1793724140177,
+    "wan-rx_bytes": 2451552922,
+    "wan-tx_bytes": 269687766,
+    "num_sta": 26
+   },
+   {
+    "time": 1793727740177,
+    "wan-rx_bytes": 2021168399,
+    "wan-tx_bytes": 269231023,
+    "num_sta": 25
+   },
+   {
+    "time": 1793731340177,
+    "wan-rx_bytes": 1608644223,
+    "wan-tx_bytes": 266280306,
+    "num_sta": 23
+   },
+   {
+    "time": 1793734940177,
+    "wan-rx_bytes": 3195297768,
+    "wan-tx_bytes": 478659375,
+    "num_sta": 30
+   },
+   {
+    "time": 1793738540177,
+    "wan-rx_bytes": 4004801079,
+    "wan-tx_bytes": 410092204,
+    "num_sta": 31
+   },
+   {
+    "time": 1793742140177,
+    "wan-rx_bytes": 2650402343,
+    "wan-tx_bytes": 447965177,
+    "num_sta": 32
+   },
+   {
+    "time": 1793745740177,
+    "wan-rx_bytes": 3253590643,
+    "wan-tx_bytes": 370739414,
+    "num_sta": 30
+   },
+   {
+    "time": 1793749340177,
+    "wan-rx_bytes": 2747861103,
+    "wan-tx_bytes": 379960708,
+    "num_sta": 33
+   },
+   {
+    "time": 1793752940177,
+    "wan-rx_bytes": 1227283486,
+    "wan-tx_bytes": 103926120,
+    "num_sta": 18
+   },
+   {
+    "time": 1793756540177,
+    "wan-rx_bytes": 540323136,
+    "wan-tx_bytes": 96717665,
+    "num_sta": 20
+   },
+   {
+    "time": 1793760140177,
+    "wan-rx_bytes": 717134697,
+    "wan-tx_bytes": 76786977,
+    "num_sta": 17
+   },
+   {
+    "time": 1793763740177,
+    "wan-rx_bytes": 1054230269,
+    "wan-tx_bytes": 80944717,
+    "num_sta": 18
+   },
+   {
+    "time": 1793767340177,
+    "wan-rx_bytes": 886156024,
+    "wan-tx_bytes": 130948972,
+    "num_sta": 18
+   },
+   {
+    "time": 1793770940177,
+    "wan-rx_bytes": 870243022,
+    "wan-tx_bytes": 61986752,
+    "num_sta": 16
+   },
+   {
+    "time": 1793774540177,
+    "wan-rx_bytes": 813415208,
+    "wan-tx_bytes": 118174621,
+    "num_sta": 19
+   },
+   {
+    "time": 1793778140177,
+    "wan-rx_bytes": 1119522647,
+    "wan-tx_bytes": 60139310,
+    "num_sta": 18
+   },
+   {
+    "time": 1793781740177,
+    "wan-rx_bytes": 2655415794,
+    "wan-tx_bytes": 263344241,
+    "num_sta": 24
+   },
+   {
+    "time": 1793785340177,
+    "wan-rx_bytes": 1806015130,
+    "wan-tx_bytes": 291594947,
+    "num_sta": 22
+   },
+   {
+    "time": 1793788940177,
+    "wan-rx_bytes": 1623845920,
+    "wan-tx_bytes": 143688257,
+    "num_sta": 22
+   },
+   {
+    "time": 1793792540177,
+    "wan-rx_bytes": 2193782179,
+    "wan-tx_bytes": 161804589,
+    "num_sta": 24
+   },
+   {
+    "time": 1793796140177,
+    "wan-rx_bytes": 2412722884,
+    "wan-tx_bytes": 276325681,
+    "num_sta": 25
+   },
+   {
+    "time": 1793799740177,
+    "wan-rx_bytes": 2187338953,
+    "wan-tx_bytes": 299416299,
+    "num_sta": 26
+   },
+   {
+    "time": 1793803340177,
+    "wan-rx_bytes": 1266370038,
+    "wan-tx_bytes": 266823444,
+    "num_sta": 25
+   },
+   {
+    "time": 1793806940177,
+    "wan-rx_bytes": 2565254492,
+    "wan-tx_bytes": 222403514,
+    "num_sta": 26
+   },
+   {
+    "time": 1793810540177,
+    "wan-rx_bytes": 1732361958,
+    "wan-tx_bytes": 188598935,
+    "num_sta": 24
+   },
+   {
+    "time": 1793814140177,
+    "wan-rx_bytes": 1953360327,
+    "wan-tx_bytes": 255397677,
+    "num_sta": 22
+   },
+   {
+    "time": 1793817740177,
+    "wan-rx_bytes": 1517270073,
+    "wan-tx_bytes": 298072783,
+    "num_sta": 25
+   },
+   {
+    "time": 1793821340177,
+    "wan-rx_bytes": 2858682442,
+    "wan-tx_bytes": 452774357,
+    "num_sta": 33
+   },
+   {
+    "time": 1793824940177,
+    "wan-rx_bytes": 2219486301,
+    "wan-tx_bytes": 327586570,
+    "num_sta": 30
+   },
+   {
+    "time": 1793828540177,
+    "wan-rx_bytes": 4116706293,
+    "wan-tx_bytes": 285642552,
+    "num_sta": 30
+   },
+   {
+    "time": 1793832140177,
+    "wan-rx_bytes": 3072652631,
+    "wan-tx_bytes": 382250442,
+    "num_sta": 33
+   },
+   {
+    "time": 1793835740177,
+    "wan-rx_bytes": 3295105163,
+    "wan-tx_bytes": 397284230,
+    "num_sta": 32
+   },
+   {
+    "time": 1793839340177,
+    "wan-rx_bytes": 971257341,
+    "wan-tx_bytes": 129028907,
+    "num_sta": 17
+   },
+   {
+    "time": 1793842940177,
+    "wan-rx_bytes": 798730774,
+    "wan-tx_bytes": 111663337,
+    "num_sta": 19
+   },
+   {
+    "time": 1793846540177,
+    "wan-rx_bytes": 1142515254,
+    "wan-tx_bytes": 61744840,
+    "num_sta": 16
+   },
+   {
+    "time": 1793850140177,
+    "wan-rx_bytes": 1094191484,
+    "wan-tx_bytes": 137462501,
+    "num_sta": 19
+   },
+   {
+    "time": 1793853740177,
+    "wan-rx_bytes": 1180486400,
+    "wan-tx_bytes": 126047136,
+    "num_sta": 19
+   },
+   {
+    "time": 1793857340177,
+    "wan-rx_bytes": 604768383,
+    "wan-tx_bytes": 72350270,
+    "num_sta": 20
+   },
+   {
+    "time": 1793860940177,
+    "wan-rx_bytes": 1109078327,
+    "wan-tx_bytes": 116080297,
+    "num_sta": 19
+   },
+   {
+    "time": 1793864540177,
+    "wan-rx_bytes": 528961692,
+    "wan-tx_bytes": 70052141,
+    "num_sta": 20
+   },
+   {
+    "time": 1793868140177,
+    "wan-rx_bytes": 1669191102,
+    "wan-tx_bytes": 158034032,
+    "num_sta": 24
+   },
+   {
+    "time": 1793871740177,
+    "wan-rx_bytes": 2397928977,
+    "wan-tx_bytes": 152900061,
+    "num_sta": 24
+   },
+   {
+    "time": 1793875340177,
+    "wan-rx_bytes": 1802721804,
+    "wan-tx_bytes": 175244946,
+    "num_sta": 26
+   },
+   {
+    "time": 1793878940177,
+    "wan-rx_bytes": 2766256497,
+    "wan-tx_bytes": 185148657,
+    "num_sta": 24
+   },
+   {
+    "time": 1793882540177,
+    "wan-rx_bytes": 1940881884,
+    "wan-tx_bytes": 177258257,
+    "num_sta": 23
+   },
+   {
+    "time": 1793886140177,
+    "wan-rx_bytes": 2217045568,
+    "wan-tx_bytes": 144955568,
+    "num_sta": 23
+   },
+   {
+    "time": 1793889740177,
+    "wan-rx_bytes": 1853305141,
+    "wan-tx_bytes": 181306101,
+    "num_sta": 25
+   },
+   {
+    "time": 1793893340177,
+    "wan-rx_bytes": 1242010318,
+    "wan-tx_bytes": 195849282,
+    "num_sta": 25
+   },
+   {
+    "time": 1793896940177,
+    "wan-rx_bytes": 1198697489,
+    "wan-tx_bytes": 187580017,
+    "num_sta": 26
+   },
+   {
+    "time": 1793900540177,
+    "wan-rx_bytes": 1505455464,
+    "wan-tx_bytes": 272854279,
+    "num_sta": 23
+   },
+   {
+    "time": 1793904140177,
+    "wan-rx_bytes": 2392585651,
+    "wan-tx_bytes": 188087913,
+    "num_sta": 26
+   },
+   {
+    "time": 1793907740177,
+    "wan-rx_bytes": 2569575725,
+    "wan-tx_bytes": 350108724,
+    "num_sta": 30
+   },
+   {
+    "time": 1793911340177,
+    "wan-rx_bytes": 3018734336,
+    "wan-tx_bytes": 288884722,
+    "num_sta": 34
+   },
+   {
+    "time": 1793914940177,
+    "wan-rx_bytes": 2138757070,
+    "wan-tx_bytes": 342996508,
+    "num_sta": 32
+   },
+   {
+    "time": 1793918540177,
+    "wan-rx_bytes": 4439412114,
+    "wan-tx_bytes": 323772827,
+    "num_sta": 31
+   },
+   {
+    "time": 1793922140177,
+    "wan-rx_bytes": 3214505786,
+    "wan-tx_bytes": 318548142,
+    "num_sta": 33
+   },
+   {
+    "time": 1793925740177,
+    "wan-rx_bytes": 839474343,
+    "wan-tx_bytes": 68716610,
+    "num_sta": 16
+   },
+   {
+    "time": 1793929340177,
+    "wan-rx_bytes": 1200682442,
+    "wan-tx_bytes": 69896662,
+    "num_sta": 17
+   },
+   {
+    "time": 1793932940177,
+    "wan-rx_bytes": 745324244,
+    "wan-tx_bytes": 124314899,
+    "num_sta": 16
+   },
+   {
+    "time": 1793936540177,
+    "wan-rx_bytes": 790390930,
+    "wan-tx_bytes": 133560513,
+    "num_sta": 17
+   },
+   {
+    "time": 1793940140177,
+    "wan-rx_bytes": 862072175,
+    "wan-tx_bytes": 110532970,
+    "num_sta": 17
+   },
+   {
+    "time": 1793943740177,
+    "wan-rx_bytes": 556617236,
+    "wan-tx_bytes": 62788350,
+    "num_sta": 16
+   },
+   {
+    "time": 1793947340177,
+    "wan-rx_bytes": 665238782,
+    "wan-tx_bytes": 65028139,
+    "num_sta": 20
+   },
+   {
+    "time": 1793950940177,
+    "wan-rx_bytes": 1202213482,
+    "wan-tx_bytes": 109358278,
+    "num_sta": 18
+   },
+   {
+    "time": 1793954540177,
+    "wan-rx_bytes": 2651977269,
+    "wan-tx_bytes": 188533057,
+    "num_sta": 26
+   },
+   {
+    "time": 1793958140177,
+    "wan-rx_bytes": 2682108225,
+    "wan-tx_bytes": 139366206,
+    "num_sta": 23
+   },
+   {
+    "time": 1793961740177,
+    "wan-rx_bytes": 1925738347,
+    "wan-tx_bytes": 274744201,
+    "num_sta": 24
+   },
+   {
+    "time": 1793965340177,
+    "wan-rx_bytes": 1398208323,
+    "wan-tx_bytes": 224377309,
+    "num_sta": 22
+   },
+   {
+    "time": 1793968940177,
+    "wan-rx_bytes": 2491244319,
+    "wan-tx_bytes": 274105688,
+    "num_sta": 26
+   },
+   {
+    "time": 1793972540177,
+    "wan-rx_bytes": 1917877415,
+    "wan-tx_bytes": 276089945,
+    "num_sta": 26
+   },
+   {
+    "time": 1793976140177,
+    "wan-rx_bytes": 2380570902,
+    "wan-tx_bytes": 179515352,
+    "num_sta": 22
+   },
+   {
+    "time": 1793979740177,
+    "wan-rx_bytes": 2050672725,
+    "wan-tx_bytes": 163924629,
+    "num_sta": 25
+   },
+   {
+    "time": 1793983340177,
+    "wan-rx_bytes": 1607587844,
+    "wan-tx_bytes": 150134867,
+    "num_sta": 22
+   },
+   {
+    "time": 1793986940177,
+    "wan-rx_bytes": 2727832777,
+    "wan-tx_bytes": 166174535,
+    "num_sta": 23
+   },
+   {
+    "time": 1793990540177,
+    "wan-rx_bytes": 2255788052,
+    "wan-tx_bytes": 269635868,
+    "num_sta": 22
+   },
+   {
+    "time": 1793994140177,
+    "wan-rx_bytes": 2717607844,
+    "wan-tx_bytes": 305299764,
+    "num_sta": 32
+   },
+   {
+    "time": 1793997740177,
+    "wan-rx_bytes": 2633212893,
+    "wan-tx_bytes": 298602089,
+    "num_sta": 31
+   },
+   {
+    "time": 1794001340177,
+    "wan-rx_bytes": 2476980354,
+    "wan-tx_bytes": 244441228,
+    "num_sta": 32
+   },
+   {
+    "time": 1794004940177,
+    "wan-rx_bytes": 2590845693,
+    "wan-tx_bytes": 467532867,
+    "num_sta": 33
+   },
+   {
+    "time": 1794008540177,
+    "wan-rx_bytes": 3233373684,
+    "wan-tx_bytes": 470730811,
+    "num_sta": 33
+   },
+   {
+    "time": 1794012140177,
+    "wan-rx_bytes": 734748935,
+    "wan-tx_bytes": 69537330,
+    "num_sta": 17
+   },
+   {
+    "time": 1794015740177,
+    "wan-rx_bytes": 664689772,
+    "wan-tx_bytes": 66009326,
+    "num_sta": 20
+   },
+   {
+    "time": 1794019340177,
+    "wan-rx_bytes": 711003548,
+    "wan-tx_bytes": 122222102,
+    "num_sta": 16
+   },
+   {
+    "time": 1794022940177,
+    "wan-rx_bytes": 964443377,
+    "wan-tx_bytes": 77411633,
+    "num_sta": 18
+   },
+   {
+    "time": 1794026540177,
+    "wan-rx_bytes": 1231911126,
+    "wan-tx_bytes": 63058879,
+    "num_sta": 17
+   },
+   {
+    "time": 1794030140177,
+    "wan-rx_bytes": 815932406,
+    "wan-tx_bytes": 89744739,
+    "num_sta": 20
+   },
+   {
+    "time": 1794033740177,
+    "wan-rx_bytes": 1087877942,
+    "wan-tx_bytes": 103843586,
+    "num_sta": 16
+   },
+   {
+    "time": 1794037340177,
+    "wan-rx_bytes": 995474610,
+    "wan-tx_bytes": 72364173,
+    "num_sta": 20
+   },
+   {
+    "time": 1794040940177,
+    "wan-rx_bytes": 2289522925,
+    "wan-tx_bytes": 208762005,
+    "num_sta": 24
+   },
+   {
+    "time": 1794044540177,
+    "wan-rx_bytes": 1269355323,
+    "wan-tx_bytes": 269160761,
+    "num_sta": 24
+   },
+   {
+    "time": 1794048140177,
+    "wan-rx_bytes": 2402393590,
+    "wan-tx_bytes": 279399604,
+    "num_sta": 23
+   },
+   {
+    "time": 1794051740177,
+    "wan-rx_bytes": 2680108057,
+    "wan-tx_bytes": 213149561,
+    "num_sta": 23
+   },
+   {
+    "time": 1794055340177,
+    "wan-rx_bytes": 1831448810,
+    "wan-tx_bytes": 293910830,
+    "num_sta": 25
+   },
+   {
+    "time": 1794058940177,
+    "wan-rx_bytes": 1269885518,
+    "wan-tx_bytes": 160649425,
+    "num_sta": 25
+   },
+   {
+    "time": 1794062540177,
+    "wan-rx_bytes": 1775416301,
+    "wan-tx_bytes": 225803351,
+    "num_sta": 23
+   },
+   {
+    "time": 1794066140177,
+    "wan-rx_bytes": 1460107918,
+    "wan-tx_bytes": 147077413,
+    "num_sta": 25
+   },
+   {
+    "time": 1794069740177,
+    "wan-rx_bytes": 2719531699,
+    "wan-tx_bytes": 170521506,
+    "num_sta": 23
+   },
+   {
+    "time": 1794073340177,
+    "wan-rx_bytes": 2633873032,
+    "wan-tx_bytes": 191614674,
+    "num_sta": 26
+   },
+   {
+    "time": 1794076940177,
+    "wan-rx_bytes": 2620285821,
+    "wan-tx_bytes": 246661734,
+    "num_sta": 23
+   },
+   {
+    "time": 1794080540177,
+    "wan-rx_bytes": 3619580151,
+    "wan-tx_bytes": 409418731,
+    "num_sta": 31
+   },
+   {
+    "time": 1794084140177,
+    "wan-rx_bytes": 2555881355,
+    "wan-tx_bytes": 344923674,
+    "num_sta": 34
+   },
+   {
+    "time": 1794087740177,
+    "wan-rx_bytes": 2374593255,
+    "wan-tx_bytes": 516207689,
+    "num_sta": 31
+   },
+   {
+    "time": 1794091340177,
+    "wan-rx_bytes": 3979697712,
+    "wan-tx_bytes": 236438610,
+    "num_sta": 32
+   },
+   {
+    "time": 1794094940177,
+    "wan-rx_bytes": 3432136849,
+    "wan-tx_bytes": 413112725,
+    "num_sta": 32
+   },
+   {
+    "time": 1794098540177,
+    "wan-rx_bytes": 703478229,
+    "wan-tx_bytes": 91136964,
+    "num_sta": 18
+   },
+   {
+    "time": 1794102140177,
+    "wan-rx_bytes": 544456197,
+    "wan-tx_bytes": 109511350,
+    "num_sta": 19
+   },
+   {
+    "time": 1794105740177,
+    "wan-rx_bytes": 963476981,
+    "wan-tx_bytes": 125517618,
+    "num_sta": 17
+   },
+   {
+    "time": 1794109340177,
+    "wan-rx_bytes": 575252942,
+    "wan-tx_bytes": 88686005,
+    "num_sta": 18
+   },
+   {
+    "time": 1794112940177,
+    "wan-rx_bytes": 887153518,
+    "wan-tx_bytes": 63261343,
+    "num_sta": 17
+   },
+   {
+    "time": 1794116540177,
+    "wan-rx_bytes": 1075455804,
+    "wan-tx_bytes": 100918538,
+    "num_sta": 16
+   },
+   {
+    "time": 1794120140177,
+    "wan-rx_bytes": 987532942,
+    "wan-tx_bytes": 122739421,
+    "num_sta": 16
+   },
+   {
+    "time": 1794123740177,
+    "wan-rx_bytes": 1043387411,
+    "wan-tx_bytes": 125199155,
+    "num_sta": 17
+   },
+   {
+    "time": 1794127340177,
+    "wan-rx_bytes": 1644004450,
+    "wan-tx_bytes": 280979087,
+    "num_sta": 23
+   },
+   {
+    "time": 1794130940177,
+    "wan-rx_bytes": 1538264820,
+    "wan-tx_bytes": 284946494,
+    "num_sta": 26
+   }
+  ],
+  "daily_site": [
+   {
+    "time": 1791542540177,
+    "wan-rx_bytes": 43103042760,
+    "wan-tx_bytes": 2462474071
+   },
+   {
+    "time": 1791628940177,
+    "wan-rx_bytes": 40837546324,
+    "wan-tx_bytes": 2002503032
+   },
+   {
+    "time": 1791715340177,
+    "wan-rx_bytes": 32062102131,
+    "wan-tx_bytes": 4719677341
+   },
+   {
+    "time": 1791801740177,
+    "wan-rx_bytes": 23833053563,
+    "wan-tx_bytes": 2420036823
+   },
+   {
+    "time": 1791888140177,
+    "wan-rx_bytes": 32168195237,
+    "wan-tx_bytes": 2616771309
+   },
+   {
+    "time": 1791974540177,
+    "wan-rx_bytes": 19031325590,
+    "wan-tx_bytes": 2137337356
+   },
+   {
+    "time": 1792060940177,
+    "wan-rx_bytes": 22514421715,
+    "wan-tx_bytes": 4777413163
+   },
+   {
+    "time": 1792147340177,
+    "wan-rx_bytes": 37031038740,
+    "wan-tx_bytes": 4633945862
+   },
+   {
+    "time": 1792233740177,
+    "wan-rx_bytes": 22724777237,
+    "wan-tx_bytes": 4247042603
+   },
+   {
+    "time": 1792320140177,
+    "wan-rx_bytes": 21222203623,
+    "wan-tx_bytes": 3357524314
+   },
+   {
+    "time": 1792406540177,
+    "wan-rx_bytes": 35816922903,
+    "wan-tx_bytes": 2759226943
+   },
+   {
+    "time": 1792492940177,
+    "wan-rx_bytes": 42442658787,
+    "wan-tx_bytes": 3443130424
+   },
+   {
+    "time": 1792579340177,
+    "wan-rx_bytes": 34241223210,
+    "wan-tx_bytes": 4588872273
+   },
+   {
+    "time": 1792665740177,
+    "wan-rx_bytes": 20929046355,
+    "wan-tx_bytes": 4975341129
+   },
+   {
+    "time": 1792752140177,
+    "wan-rx_bytes": 35633734047,
+    "wan-tx_bytes": 2879897438
+   },
+   {
+    "time": 1792838540177,
+    "wan-rx_bytes": 40334776955,
+    "wan-tx_bytes": 2426639417
+   },
+   {
+    "time": 1792924940177,
+    "wan-rx_bytes": 45733950930,
+    "wan-tx_bytes": 3520761791
+   },
+   {
+    "time": 1793011340177,
+    "wan-rx_bytes": 28087038764,
+    "wan-tx_bytes": 4176237171
+   },
+   {
+    "time": 1793097740177,
+    "wan-rx_bytes": 30383885580,
+    "wan-tx_bytes": 2118646205
+   },
+   {
+    "time": 1793184140177,
+    "wan-rx_bytes": 38820652178,
+    "wan-tx_bytes": 1669020090
+   },
+   {
+    "time": 1793270540177,
+    "wan-rx_bytes": 40955080318,
+    "wan-tx_bytes": 2387783751
+   },
+   {
+    "time": 1793356940177,
+    "wan-rx_bytes": 35898659609,
+    "wan-tx_bytes": 4944193192
+   },
+   {
+    "time": 1793443340177,
+    "wan-rx_bytes": 34404369100,
+    "wan-tx_bytes": 3822944858
+   },
+   {
+    "time": 1793529740177,
+    "wan-rx_bytes": 26754166845,
+    "wan-tx_bytes": 1506268390
+   },
+   {
+    "time": 1793616140177,
+    "wan-rx_bytes": 18946208284,
+    "wan-tx_bytes": 2022776648
+   },
+   {
+    "time": 1793702540177,
+    "wan-rx_bytes": 35249457430,
+    "wan-tx_bytes": 3012815061
+   },
+   {
+    "time": 1793788940177,
+    "wan-rx_bytes": 32354983584,
+    "wan-tx_bytes": 4634398577
+   },
+   {
+    "time": 1793875340177,
+    "wan-rx_bytes": 21696652216,
+    "wan-tx_bytes": 2295408741
+   },
+   {
+    "time": 1793961740177,
+    "wan-rx_bytes": 36287035921,
+    "wan-tx_bytes": 1578013328
+   },
+   {
+    "time": 1794048140177,
+    "wan-rx_bytes": 18073233812,
+    "wan-tx_bytes": 2742369011
+   }
+  ],
+  "hourly_gw": [
+   {
+    "time": 1793529740177,
+    "cpu": 25.3,
+    "mem": 71.0
+   },
+   {
+    "time": 1793533340177,
+    "cpu": 24.9,
+    "mem": 68.7
+   },
+   {
+    "time": 1793536940177,
+    "cpu": 24.8,
+    "mem": 72.7
+   },
+   {
+    "time": 1793540540177,
+    "cpu": 21.8,
+    "mem": 69.1
+   },
+   {
+    "time": 1793544140177,
+    "cpu": 23.2,
+    "mem": 70.1
+   },
+   {
+    "time": 1793547740177,
+    "cpu": 27.0,
+    "mem": 71.3
+   },
+   {
+    "time": 1793551340177,
+    "cpu": 22.4,
+    "mem": 68.8
+   },
+   {
+    "time": 1793554940177,
+    "cpu": 25.3,
+    "mem": 71.9
+   },
+   {
+    "time": 1793558540177,
+    "cpu": 26.0,
+    "mem": 70.8
+   },
+   {
+    "time": 1793562140177,
+    "cpu": 32.9,
+    "mem": 71.9
+   },
+   {
+    "time": 1793565740177,
+    "cpu": 31.7,
+    "mem": 71.9
+   },
+   {
+    "time": 1793569340177,
+    "cpu": 32.7,
+    "mem": 71.1
+   },
+   {
+    "time": 1793572940177,
+    "cpu": 32.7,
+    "mem": 70.7
+   },
+   {
+    "time": 1793576540177,
+    "cpu": 35.3,
+    "mem": 72.7
+   },
+   {
+    "time": 1793580140177,
+    "cpu": 19.6,
+    "mem": 68.7
+   },
+   {
+    "time": 1793583740177,
+    "cpu": 18.6,
+    "mem": 70.1
+   },
+   {
+    "time": 1793587340177,
+    "cpu": 20.0,
+    "mem": 68.8
+   },
+   {
+    "time": 1793590940177,
+    "cpu": 16.1,
+    "mem": 68.7
+   },
+   {
+    "time": 1793594540177,
+    "cpu": 17.0,
+    "mem": 70.4
+   },
+   {
+    "time": 1793598140177,
+    "cpu": 18.8,
+    "mem": 73.0
+   },
+   {
+    "time": 1793601740177,
+    "cpu": 16.5,
+    "mem": 71.6
+   },
+   {
+    "time": 1793605340177,
+    "cpu": 18.8,
+    "mem": 69.9
+   },
+   {
+    "time": 1793608940177,
+    "cpu": 22.3,
+    "mem": 72.6
+   },
+   {
+    "time": 1793612540177,
+    "cpu": 23.2,
+    "mem": 68.2
+   },
+   {
+    "time": 1793616140177,
+    "cpu": 26.5,
+    "mem": 72.2
+   },
+   {
+    "time": 1793619740177,
+    "cpu": 22.5,
+    "mem": 72.6
+   },
+   {
+    "time": 1793623340177,
+    "cpu": 23.3,
+    "mem": 72.0
+   },
+   {
+    "time": 1793626940177,
+    "cpu": 27.2,
+    "mem": 71.2
+   },
+   {
+    "time": 1793630540177,
+    "cpu": 22.0,
+    "mem": 72.3
+   },
+   {
+    "time": 1793634140177,
+    "cpu": 24.1,
+    "mem": 72.6
+   },
+   {
+    "time": 1793637740177,
+    "cpu": 27.2,
+    "mem": 72.8
+   },
+   {
+    "time": 1793641340177,
+    "cpu": 25.4,
+    "mem": 70.7
+   },
+   {
+    "time": 1793644940177,
+    "cpu": 23.2,
+    "mem": 72.0
+   },
+   {
+    "time": 1793648540177,
+    "cpu": 34.4,
+    "mem": 70.8
+   },
+   {
+    "time": 1793652140177,
+    "cpu": 30.6,
+    "mem": 72.1
+   },
+   {
+    "time": 1793655740177,
+    "cpu": 35.8,
+    "mem": 69.5
+   },
+   {
+    "time": 1793659340177,
+    "cpu": 35.0,
+    "mem": 71.5
+   },
+   {
+    "time": 1793662940177,
+    "cpu": 35.9,
+    "mem": 72.2
+   },
+   {
+    "time": 1793666540177,
+    "cpu": 17.2,
+    "mem": 68.3
+   },
+   {
+    "time": 1793670140177,
+    "cpu": 18.6,
+    "mem": 69.4
+   },
+   {
+    "time": 1793673740177,
+    "cpu": 15.7,
+    "mem": 69.3
+   },
+   {
+    "time": 1793677340177,
+    "cpu": 20.4,
+    "mem": 70.7
+   },
+   {
+    "time": 1793680940177,
+    "cpu": 15.9,
+    "mem": 68.9
+   },
+   {
+    "time": 1793684540177,
+    "cpu": 17.6,
+    "mem": 69.0
+   },
+   {
+    "time": 1793688140177,
+    "cpu": 19.5,
+    "mem": 68.7
+   },
+   {
+    "time": 1793691740177,
+    "cpu": 16.4,
+    "mem": 69.2
+   },
+   {
+    "time": 1793695340177,
+    "cpu": 25.5,
+    "mem": 71.6
+   },
+   {
+    "time": 1793698940177,
+    "cpu": 25.9,
+    "mem": 70.5
+   },
+   {
+    "time": 1793702540177,
+    "cpu": 21.9,
+    "mem": 72.2
+   },
+   {
+    "time": 1793706140177,
+    "cpu": 22.4,
+    "mem": 70.6
+   },
+   {
+    "time": 1793709740177,
+    "cpu": 26.6,
+    "mem": 70.9
+   },
+   {
+    "time": 1793713340177,
+    "cpu": 22.1,
+    "mem": 68.2
+   },
+   {
+    "time": 1793716940177,
+    "cpu": 26.6,
+    "mem": 70.8
+   },
+   {
+    "time": 1793720540177,
+    "cpu": 24.5,
+    "mem": 68.0
+   },
+   {
+    "time": 1793724140177,
+    "cpu": 27.0,
+    "mem": 68.5
+   },
+   {
+    "time": 1793727740177,
+    "cpu": 23.1,
+    "mem": 68.4
+   },
+   {
+    "time": 1793731340177,
+    "cpu": 23.0,
+    "mem": 71.2
+   },
+   {
+    "time": 1793734940177,
+    "cpu": 32.9,
+    "mem": 71.4
+   },
+   {
+    "time": 1793738540177,
+    "cpu": 30.5,
+    "mem": 68.7
+   },
+   {
+    "time": 1793742140177,
+    "cpu": 33.7,
+    "mem": 68.7
+   },
+   {
+    "time": 1793745740177,
+    "cpu": 34.2,
+    "mem": 71.4
+   },
+   {
+    "time": 1793749340177,
+    "cpu": 32.8,
+    "mem": 71.8
+   },
+   {
+    "time": 1793752940177,
+    "cpu": 20.5,
+    "mem": 72.7
+   },
+   {
+    "time": 1793756540177,
+    "cpu": 20.4,
+    "mem": 70.2
+   },
+   {
+    "time": 1793760140177,
+    "cpu": 15.0,
+    "mem": 68.5
+   },
+   {
+    "time": 1793763740177,
+    "cpu": 15.4,
+    "mem": 72.1
+   },
+   {
+    "time": 1793767340177,
+    "cpu": 16.0,
+    "mem": 72.5
+   },
+   {
+    "time": 1793770940177,
+    "cpu": 20.3,
+    "mem": 71.4
+   },
+   {
+    "time": 1793774540177,
+    "cpu": 16.7,
+    "mem": 69.6
+   },
+   {
+    "time": 1793778140177,
+    "cpu": 19.6,
+    "mem": 68.6
+   },
+   {
+    "time": 1793781740177,
+    "cpu": 23.1,
+    "mem": 68.3
+   },
+   {
+    "time": 1793785340177,
+    "cpu": 23.8,
+    "mem": 70.1
+   },
+   {
+    "time": 1793788940177,
+    "cpu": 21.9,
+    "mem": 71.3
+   },
+   {
+    "time": 1793792540177,
+    "cpu": 24.2,
+    "mem": 69.6
+   },
+   {
+    "time": 1793796140177,
+    "cpu": 26.9,
+    "mem": 72.1
+   },
+   {
+    "time": 1793799740177,
+    "cpu": 24.9,
+    "mem": 71.6
+   },
+   {
+    "time": 1793803340177,
+    "cpu": 25.3,
+    "mem": 68.7
+   },
+   {
+    "time": 1793806940177,
+    "cpu": 22.4,
+    "mem": 70.4
+   },
+   {
+    "time": 1793810540177,
+    "cpu": 24.0,
+    "mem": 69.2
+   },
+   {
+    "time": 1793814140177,
+    "cpu": 22.6,
+    "mem": 68.8
+   },
+   {
+    "time": 1793817740177,
+    "cpu": 24.9,
+    "mem": 70.3
+   },
+   {
+    "time": 1793821340177,
+    "cpu": 30.8,
+    "mem": 69.0
+   },
+   {
+    "time": 1793824940177,
+    "cpu": 31.9,
+    "mem": 69.8
+   },
+   {
+    "time": 1793828540177,
+    "cpu": 34.5,
+    "mem": 70.1
+   },
+   {
+    "time": 1793832140177,
+    "cpu": 31.6,
+    "mem": 71.8
+   },
+   {
+    "time": 1793835740177,
+    "cpu": 30.8,
+    "mem": 70.5
+   },
+   {
+    "time": 1793839340177,
+    "cpu": 15.2,
+    "mem": 72.5
+   },
+   {
+    "time": 1793842940177,
+    "cpu": 20.3,
+    "mem": 72.2
+   },
+   {
+    "time": 1793846540177,
+    "cpu": 17.2,
+    "mem": 71.8
+   },
+   {
+    "time": 1793850140177,
+    "cpu": 14.6,
+    "mem": 70.0
+   },
+   {
+    "time": 1793853740177,
+    "cpu": 20.4,
+    "mem": 69.2
+   },
+   {
+    "time": 1793857340177,
+    "cpu": 20.4,
+    "mem": 68.5
+   },
+   {
+    "time": 1793860940177,
+    "cpu": 15.1,
+    "mem": 71.9
+   },
+   {
+    "time": 1793864540177,
+    "cpu": 20.1,
+    "mem": 71.2
+   },
+   {
+    "time": 1793868140177,
+    "cpu": 24.8,
+    "mem": 70.2
+   },
+   {
+    "time": 1793871740177,
+    "cpu": 24.7,
+    "mem": 70.9
+   },
+   {
+    "time": 1793875340177,
+    "cpu": 21.6,
+    "mem": 70.7
+   },
+   {
+    "time": 1793878940177,
+    "cpu": 25.5,
+    "mem": 72.4
+   },
+   {
+    "time": 1793882540177,
+    "cpu": 21.8,
+    "mem": 70.1
+   },
+   {
+    "time": 1793886140177,
+    "cpu": 24.6,
+    "mem": 71.4
+   },
+   {
+    "time": 1793889740177,
+    "cpu": 27.2,
+    "mem": 69.1
+   },
+   {
+    "time": 1793893340177,
+    "cpu": 23.8,
+    "mem": 70.0
+   },
+   {
+    "time": 1793896940177,
+    "cpu": 22.0,
+    "mem": 70.5
+   },
+   {
+    "time": 1793900540177,
+    "cpu": 23.0,
+    "mem": 69.1
+   },
+   {
+    "time": 1793904140177,
+    "cpu": 24.6,
+    "mem": 68.9
+   },
+   {
+    "time": 1793907740177,
+    "cpu": 35.7,
+    "mem": 68.7
+   },
+   {
+    "time": 1793911340177,
+    "cpu": 30.9,
+    "mem": 68.3
+   },
+   {
+    "time": 1793914940177,
+    "cpu": 34.4,
+    "mem": 73.0
+   },
+   {
+    "time": 1793918540177,
+    "cpu": 33.9,
+    "mem": 70.6
+   },
+   {
+    "time": 1793922140177,
+    "cpu": 35.0,
+    "mem": 72.9
+   },
+   {
+    "time": 1793925740177,
+    "cpu": 16.3,
+    "mem": 69.8
+   },
+   {
+    "time": 1793929340177,
+    "cpu": 16.9,
+    "mem": 71.8
+   },
+   {
+    "time": 1793932940177,
+    "cpu": 14.9,
+    "mem": 70.4
+   },
+   {
+    "time": 1793936540177,
+    "cpu": 16.5,
+    "mem": 71.7
+   },
+   {
+    "time": 1793940140177,
+    "cpu": 19.5,
+    "mem": 71.8
+   },
+   {
+    "time": 1793943740177,
+    "cpu": 19.4,
+    "mem": 68.3
+   },
+   {
+    "time": 1793947340177,
+    "cpu": 16.6,
+    "mem": 69.4
+   },
+   {
+    "time": 1793950940177,
+    "cpu": 19.1,
+    "mem": 71.4
+   },
+   {
+    "time": 1793954540177,
+    "cpu": 27.1,
+    "mem": 71.2
+   },
+   {
+    "time": 1793958140177,
+    "cpu": 22.2,
+    "mem": 71.6
+   },
+   {
+    "time": 1793961740177,
+    "cpu": 27.1,
+    "mem": 72.1
+   },
+   {
+    "time": 1793965340177,
+    "cpu": 26.4,
+    "mem": 71.7
+   },
+   {
+    "time": 1793968940177,
+    "cpu": 23.0,
+    "mem": 72.3
+   },
+   {
+    "time": 1793972540177,
+    "cpu": 22.1,
+    "mem": 69.0
+   },
+   {
+    "time": 1793976140177,
+    "cpu": 25.5,
+    "mem": 70.4
+   },
+   {
+    "time": 1793979740177,
+    "cpu": 26.9,
+    "mem": 72.9
+   },
+   {
+    "time": 1793983340177,
+    "cpu": 24.1,
+    "mem": 72.9
+   },
+   {
+    "time": 1793986940177,
+    "cpu": 24.1,
+    "mem": 71.1
+   },
+   {
+    "time": 1793990540177,
+    "cpu": 26.3,
+    "mem": 69.5
+   },
+   {
+    "time": 1793994140177,
+    "cpu": 34.4,
+    "mem": 69.0
+   },
+   {
+    "time": 1793997740177,
+    "cpu": 31.7,
+    "mem": 72.5
+   },
+   {
+    "time": 1794001340177,
+    "cpu": 36.0,
+    "mem": 70.5
+   },
+   {
+    "time": 1794004940177,
+    "cpu": 35.9,
+    "mem": 68.5
+   },
+   {
+    "time": 1794008540177,
+    "cpu": 35.5,
+    "mem": 68.2
+   },
+   {
+    "time": 1794012140177,
+    "cpu": 18.2,
+    "mem": 72.1
+   },
+   {
+    "time": 1794015740177,
+    "cpu": 19.8,
+    "mem": 70.2
+   },
+   {
+    "time": 1794019340177,
+    "cpu": 15.2,
+    "mem": 71.0
+   },
+   {
+    "time": 1794022940177,
+    "cpu": 16.6,
+    "mem": 68.2
+   },
+   {
+    "time": 1794026540177,
+    "cpu": 19.5,
+    "mem": 72.1
+   },
+   {
+    "time": 1794030140177,
+    "cpu": 16.5,
+    "mem": 69.0
+   },
+   {
+    "time": 1794033740177,
+    "cpu": 17.0,
+    "mem": 72.0
+   },
+   {
+    "time": 1794037340177,
+    "cpu": 15.1,
+    "mem": 68.8
+   },
+   {
+    "time": 1794040940177,
+    "cpu": 25.6,
+    "mem": 70.1
+   },
+   {
+    "time": 1794044540177,
+    "cpu": 24.1,
+    "mem": 68.1
+   },
+   {
+    "time": 1794048140177,
+    "cpu": 23.9,
+    "mem": 70.0
+   },
+   {
+    "time": 1794051740177,
+    "cpu": 24.1,
+    "mem": 72.1
+   },
+   {
+    "time": 1794055340177,
+    "cpu": 26.2,
+    "mem": 68.6
+   },
+   {
+    "time": 1794058940177,
+    "cpu": 22.1,
+    "mem": 71.1
+   },
+   {
+    "time": 1794062540177,
+    "cpu": 23.7,
+    "mem": 68.8
+   },
+   {
+    "time": 1794066140177,
+    "cpu": 24.5,
+    "mem": 72.0
+   },
+   {
+    "time": 1794069740177,
+    "cpu": 26.6,
+    "mem": 68.2
+   },
+   {
+    "time": 1794073340177,
+    "cpu": 27.2,
+    "mem": 69.9
+   },
+   {
+    "time": 1794076940177,
+    "cpu": 25.4,
+    "mem": 72.3
+   },
+   {
+    "time": 1794080540177,
+    "cpu": 35.0,
+    "mem": 68.9
+   },
+   {
+    "time": 1794084140177,
+    "cpu": 30.9,
+    "mem": 69.8
+   },
+   {
+    "time": 1794087740177,
+    "cpu": 30.2,
+    "mem": 70.8
+   },
+   {
+    "time": 1794091340177,
+    "cpu": 30.7,
+    "mem": 71.0
+   },
+   {
+    "time": 1794094940177,
+    "cpu": 33.9,
+    "mem": 69.5
+   },
+   {
+    "time": 1794098540177,
+    "cpu": 17.3,
+    "mem": 70.2
+   },
+   {
+    "time": 1794102140177,
+    "cpu": 17.4,
+    "mem": 70.2
+   },
+   {
+    "time": 1794105740177,
+    "cpu": 19.5,
+    "mem": 70.0
+   },
+   {
+    "time": 1794109340177,
+    "cpu": 15.2,
+    "mem": 70.2
+   },
+   {
+    "time": 1794112940177,
+    "cpu": 15.1,
+    "mem": 71.7
+   },
+   {
+    "time": 1794116540177,
+    "cpu": 19.1,
+    "mem": 72.5
+   },
+   {
+    "time": 1794120140177,
+    "cpu": 19.7,
+    "mem": 73.0
+   },
+   {
+    "time": 1794123740177,
+    "cpu": 15.4,
+    "mem": 72.4
+   },
+   {
+    "time": 1794127340177,
+    "cpu": 25.7,
+    "mem": 71.6
+   },
+   {
+    "time": 1794130940177,
+    "cpu": 26.1,
+    "mem": 68.8
+   }
+  ],
+  "ips_events": [
+   {
+    "timestamp": 1792665740177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.92.137.58",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "US"
+   },
+   {
+    "timestamp": 1793270540177,
+    "inner_alert_signature": "ET MALWARE Possible Mirai scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.151.35.53",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "NL"
+   },
+   {
+    "timestamp": 1791801740177,
+    "inner_alert_signature": "ET MALWARE Possible Mirai scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.122.41.35",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "CN"
+   },
+   {
+    "timestamp": 1792147340177,
+    "inner_alert_signature": "ET SCAN Potential SSH Scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.39.116.25",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "CN"
+   },
+   {
+    "timestamp": 1791715340177,
+    "inner_alert_signature": "ET SCAN Potential SSH Scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.171.201.70",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "US"
+   },
+   {
+    "timestamp": 1794048140177,
+    "inner_alert_signature": "ET DROP Dshield Block Listed Source",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.15.166.211",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "BR"
+   },
+   {
+    "timestamp": 1792406540177,
+    "inner_alert_signature": "ET DROP Dshield Block Listed Source",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.166.149.114",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "BR"
+   },
+   {
+    "timestamp": 1792060940177,
+    "inner_alert_signature": "ET MALWARE Possible Mirai scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.127.64.43",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "CN"
+   },
+   {
+    "timestamp": 1793961740177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.137.7.104",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "RU"
+   },
+   {
+    "timestamp": 1793616140177,
+    "inner_alert_signature": "ET SCAN Potential SSH Scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.15.234.200",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "CN"
+   },
+   {
+    "timestamp": 1792406540177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.142.169.241",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "RU"
+   },
+   {
+    "timestamp": 1792924940177,
+    "inner_alert_signature": "ET SCAN Potential SSH Scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.52.133.156",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "BR"
+   },
+   {
+    "timestamp": 1791801740177,
+    "inner_alert_signature": "ET POLICY RDP connection attempt",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.157.45.131",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "NL"
+   },
+   {
+    "timestamp": 1793270540177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.161.13.228",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "US"
+   },
+   {
+    "timestamp": 1794048140177,
+    "inner_alert_signature": "ET MALWARE Possible Mirai scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.97.217.112",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "US"
+   },
+   {
+    "timestamp": 1792060940177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.168.116.45",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "RU"
+   },
+   {
+    "timestamp": 1793356940177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.60.165.10",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "CN"
+   },
+   {
+    "timestamp": 1791628940177,
+    "inner_alert_signature": "ET DROP Dshield Block Listed Source",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.192.237.178",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "NL"
+   },
+   {
+    "timestamp": 1793356940177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.163.142.174",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "US"
+   },
+   {
+    "timestamp": 1793356940177,
+    "inner_alert_signature": "ET MALWARE Possible Mirai scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.76.165.238",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "RU"
+   },
+   {
+    "timestamp": 1791628940177,
+    "inner_alert_signature": "ET SCAN Suspicious inbound to mySQL port 3306",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.130.4.44",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "NL"
+   },
+   {
+    "timestamp": 1791801740177,
+    "inner_alert_signature": "ET SCAN Potential SSH Scan",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.191.52.242",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "RU"
+   },
+   {
+    "timestamp": 1793529740177,
+    "inner_alert_signature": "ET DROP Dshield Block Listed Source",
+    "inner_alert_category": "Attempted Information Leak",
+    "inner_alert_action": "allowed",
+    "src_ip": "185.226.100.85",
+    "dest_ip": "203.0.113.47",
+    "src_ip_country": "BR"
+   }
+  ],
+  "site_dpi": [
+   {
+    "by_cat": [
+     {
+      "cat": 4,
+      "rx_bytes": 310000000000.0,
+      "tx_bytes": 9000000000.0
+     },
+     {
+      "cat": 13,
+      "rx_bytes": 90000000000.0,
+      "tx_bytes": 20000000000.0
+     },
+     {
+      "cat": 24,
+      "rx_bytes": 30000000000.0,
+      "tx_bytes": 5000000000.0
+     },
+     {
+      "cat": 8,
+      "rx_bytes": 22000000000.0,
+      "tx_bytes": 3000000000.0
+     },
+     {
+      "cat": 6,
+      "rx_bytes": 4000000000.0,
+      "tx_bytes": 4000000000.0
+     },
+     {
+      "cat": 14,
+      "rx_bytes": 6000000000.0,
+      "tx_bytes": 100000000.0
+     }
+    ]
+   }
+  ],
+  "client_dpi": [
+   {
+    "mac": "a4:83:e7:00:75:b6",
+    "by_cat": [
+     {
+      "cat": 13,
+      "rx_bytes": 30000000000.0,
+      "tx_bytes": 4000000000.0
+     },
+     {
+      "cat": 4,
+      "rx_bytes": 20000000000.0,
+      "tx_bytes": 1000000000.0
+     },
+     {
+      "cat": 6,
+      "rx_bytes": 2000000000.0,
+      "tx_bytes": 2000000000.0
+     }
+    ]
+   }
+  ]
+ },
+ "v2": {
+  "firewall_zones": [
+   {
+    "_id": "z-int",
+    "name": "Internal",
+    "zone_key": "internal",
+    "network_ids": [
+     "n-default",
+     "n-iot",
+     "n-lab"
+    ]
+   },
+   {
+    "_id": "z-ext",
+    "name": "External",
+    "zone_key": "external"
+   },
+   {
+    "_id": "z-gw",
+    "name": "Gateway",
+    "zone_key": "gateway"
+   },
+   {
+    "_id": "z-hot",
+    "name": "Hotspot",
+    "zone_key": "hotspot",
+    "network_ids": [
+     "n-guest"
+    ]
+   }
+  ],
+  "firewall_policies": [
+   {
+    "_id": "fp1",
+    "name": "Allow Internal to External",
+    "action": "ALLOW",
+    "predefined": true,
+    "enabled": true,
+    "index": 1,
+    "source": {
+     "zone_id": "z-int"
+    },
+    "destination": {
+     "zone_id": "z-ext"
+    }
+   },
+   {
+    "_id": "fp2",
+    "name": "Block Hotspot to Internal",
+    "action": "BLOCK",
+    "predefined": true,
+    "enabled": true,
+    "index": 2,
+    "source": {
+     "zone_id": "z-hot"
+    },
+    "destination": {
+     "zone_id": "z-int"
+    }
+   },
+   {
+    "_id": "fp3",
+    "name": "Allow Lab to Default (temp)",
+    "action": "ALLOW",
+    "predefined": false,
+    "enabled": true,
+    "index": 10000,
+    "source": {
+     "zone_id": "z-int",
+     "matching_target": "NETWORK"
+    },
+    "destination": {
+     "zone_id": "z-int",
+     "matching_target": "NETWORK"
+    }
+   }
+  ],
+  "traffic_rules": [],
+  "traffic_routes": [],
+  "devices": {
+   "network_devices": [
+    {
+     "mac": "f4:e2:c6:aa:00:09",
+     "name": "Tower UPS",
+     "model": "UPSTOWER",
+     "state": 0,
+     "type": "uups"
+    }
+   ]
+  }
+ },
+ "meta": {
+  "host": "https://192.168.1.1",
+  "collected_at": "2026-11-07T18:00:00+0200",
+  "site": {
+   "name": "Default",
+   "legacy": "default"
+  },
+  "log": []
+ }
+}

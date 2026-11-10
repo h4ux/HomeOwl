@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>io.github.h4ux.homeowl</string>
+  <key>CFBundleName</key><string>HomeOwl</string>
+  <key>CFBundleDisplayName</key><string>HomeOwl</string>
+  <key>CFBundleExecutable</key><string>homeowl</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>NSLocalNetworkUsageDescription</key><string>HomeOwl connects to your UniFi console and receives its logs on your home network.</string>
+</dict>
+</plist>

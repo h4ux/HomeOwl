@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: vet
+        run: go vet -tags notsnet ./...
+      - name: test
+        run: go test -tags notsnet -race ./...
+      - name: JavaScript syntax
+        run: for f in web/static/*.js; do node --check "$f"; done
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    goos: linux,   goarch: amd64 }
+          - { os: ubuntu-24.04-arm, goos: linux,   goarch: arm64 }
+          - { os: macos-14,         goos: darwin,  goarch: arm64 }
+          - { os: macos-14,         goos: darwin,  goarch: amd64, cross: true }   # Intel build made on Apple Silicon
+          - { os: windows-latest,   goos: windows, goarch: amd64 }
+    runs-on: ${{ matrix.os }}
+    defaults: { run: { shell: bash } }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with: { go-version: stable }
+      - name: Version
+        run: echo "VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
+      - name: Fetch built-in Tailscale
+        run: go get tailscale.com/tsnet@latest && go mod tidy
+      - name: Build
+        env:
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          ext=""; [ "${{ matrix.goos }}" = windows ] && ext=".exe"
+          if [ "${{ matrix.cross }}" = true ]; then export CC="clang -arch x86_64" CXX="clang++ -arch x86_64"; fi
+          mkdir -p dist
+          ld="-s -w -X github.com/h4ux/homeowl/internal/config.Version=${VERSION}"
+          # macOS: embed an Info.plist so the Local Network privacy prompt names HomeOwl
+          if [ "${{ matrix.goos }}" = darwin ]; then ld="$ld -extldflags '-sectcreate __TEXT __info_plist $PWD/packaging/macos/Info.plist'"; fi
+          go build -trimpath -ldflags "$ld" -o "dist/homeowl${ext}" ./cmd/homeowl
+          if [ "${{ matrix.goos }}" = darwin ]; then codesign --force --sign - --identifier io.github.h4ux.homeowl "dist/homeowl"; fi
+          if [ "${{ matrix.cross }}" != true ]; then ./dist/homeowl${ext} version; fi
+      - name: Package
+        run: |
+          name="homeowl_${{ matrix.goos }}_${{ matrix.goarch }}"
+          cp LICENSE README.md dist/
+          cd dist
+          if [ "${{ matrix.goos }}" = windows ]; then 7z a "../${name}.zip" homeowl.exe LICENSE README.md >/dev/null; else tar czf "../${name}.tar.gz" homeowl LICENSE README.md; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: homeowl_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: homeowl_*.*
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - name: Checksums
+        run: cd artifacts && sha256sum homeowl_* > SHA256SUMS
+      - name: Publish release
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          cp scripts/install.sh scripts/install.ps1 artifacts/
+          gh release create "${GITHUB_REF_NAME}" artifacts/* --title "HomeOwl ${GITHUB_REF_NAME}" --generate-notes

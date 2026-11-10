@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeOwl</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#ff9f43">
+</head>
+<body>
+
+<!-- ============ SIGN IN ============ -->
+<section id="connect" class="connect">
+  <div class="connect-card">
+    <div class="brand"><img class="logo-img lg" src="icon.png" alt=""> HomeOwl</div>
+    <div id="auth-box"><div class="empty">Loading…</div></div>
+    <div class="alt">
+      <button class="btn ghost" id="btn-demo" type="button">Preview with demo data</button>
+      <label class="btn ghost file">Open saved report…<input type="file" id="f-file" accept=".json" hidden></label>
+    </div>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<div id="app" class="app" hidden>
+  <aside class="side">
+    <div class="brand"><img class="logo-img" src="icon.png" alt=""> HomeOwl</div>
+    <div class="site-chip" id="site-chip"></div>
+    <button class="btn sm lock" id="btn-lock" hidden>🔒 Changes locked</button>
+    <nav id="nav">
+      <a data-view="overview" class="active">Overview</a>
+      <a data-view="findings">Suggestions <span class="pill" id="nav-findings"></span></a>
+      <a data-view="topology">Topology</a>
+      <a data-view="devices">Devices <span class="pill" id="nav-devices"></span></a>
+      <a data-view="ports">Switch ports</a>
+      <a data-view="networks">Networks &amp; VLANs</a>
+      <a data-view="wifi">Wi-Fi &amp; Radios</a>
+      <a data-view="neighbors">Neighbour Wi-Fi</a>
+      <a data-view="security">Security &amp; Exposure</a>
+      <a data-view="dns">NextDNS &amp; Tailscale</a>
+      <a data-view="clients">Clients</a>
+      <a data-view="history">History &amp; Events</a>
+      <a data-view="analytics">Analytics</a>
+      <a data-view="changes">Changes</a>
+      <a data-view="cheatsheet">Cheatsheet</a>
+      <a data-view="raw">Raw data</a>
+      <a data-view="settings" id="nav-settings" hidden>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <button class="btn ghost sm" id="btn-refresh">Refresh</button>
+      <button class="btn ghost sm" id="btn-export">Save report</button>
+      <button class="btn ghost sm" id="btn-logout">Sign out</button>
+    </div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<div id="modal" class="modal" hidden><div id="modal-box" class="modal-box" role="dialog" aria-modal="true"></div></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="loading" class="loading" hidden><div class="spinner"></div><div id="loading-txt">Collecting configuration…</div></div>
+
+<script src="icons.js"></script>
+<script src="core.js"></script>
+<script src="app.js"></script>
+<script src="dnsvpn.js"></script>
+<script src="settings.js"></script>
+<script src="analytics.js"></script>
+<script src="explore.js"></script>
+</body>
+</html>
