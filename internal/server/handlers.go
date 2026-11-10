@@ -241,6 +241,22 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	case p == "speedtest-status":
 		st, d := a.UniFi.Request("POST", a.UniFi.SitePath("cmd/devmgr", false), map[string]any{"cmd": "speedtest-status"})
 		res = map[string]any{"status": st, "data": unifi.Redact(unifi.Data(d))}
+	case p == "doors":
+		res = a.doorsView(r.Context())
+	case p == "doors/connect":
+		res, err = a.doorsConnect(r.Context(), body)
+	case p == "doors/disconnect":
+		a.doorsDisconnect()
+		res = a.doorsView(r.Context())
+	case p == "doors/settings":
+		if r.Method != http.MethodPost {
+			err = errors.New("use POST")
+			break
+		}
+		err = a.Cfg.Update(func(c *config.Config) { c.Access.Unlock = b(body, "unlock") })
+		res = map[string]any{"unlock_allowed": a.Cfg.Get().Access.Unlock}
+	case p == "doors/unlock":
+		res, err = a.doorUnlock(r.Context(), body, by)
 	case p == "checkins":
 		res = a.checkinView()
 	case p == "checkins/approve":
@@ -452,6 +468,7 @@ func (a *App) connect(body map[string]any) (any, error) {
 		warning = "Connected, but the key couldn't be saved: " + err.Error()
 	}
 	_ = a.Cfg.Update(func(c *config.Config) { c.Host, c.Site, c.VerifyTLS, c.AutoConnect = host, site, verify, true })
+	a.configureAccess()
 	go a.Cache.Get(true, 0)
 	return map[string]any{"ok": true, "info": info, "warning": nilIfEmpty(warning)}, nil
 }

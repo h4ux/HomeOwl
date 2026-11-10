@@ -4268,5 +4268,74 @@
     "dur": 15
    }
   ]
+ },
+ "access": {
+  "doors": [
+   {
+    "id": "demo-door-front",
+    "name": "Front door",
+    "full_name": "Home - Ground floor - Front door",
+    "lock": "locked",
+    "position": "closed",
+    "hub": true
+   },
+   {
+    "id": "demo-door-garage",
+    "name": "Garage side door",
+    "lock": "locked",
+    "position": "unknown",
+    "hub": true
+   },
+   {
+    "id": "demo-door-gate",
+    "name": "Garden gate",
+    "lock": "unlocked",
+    "position": "open",
+    "hub": true
+   }
+  ],
+  "log": [
+   {
+    "ago": 900,
+    "door": "Front door",
+    "door_id": "demo-door-front",
+    "who": "Alex",
+    "result": "ACCESS",
+    "method": "NFC"
+   },
+   {
+    "ago": 7200,
+    "door": "Garden gate",
+    "door_id": "demo-door-gate",
+    "who": "Sam",
+    "result": "ACCESS",
+    "method": "MOBILE_TAP"
+   },
+   {
+    "ago": 18000,
+    "door": "Garage side door",
+    "door_id": "demo-door-garage",
+    "who": "",
+    "result": "BLOCKED",
+    "method": "PIN_CODE",
+    "message": "Access Denied (wrong PIN)"
+   },
+   {
+    "ago": 97200,
+    "door": "Front door",
+    "door_id": "demo-door-front",
+    "who": "Alex",
+    "result": "ACCESS",
+    "method": "PIN_CODE"
+   },
+   {
+    "ago": 259200,
+    "door": "Front door",
+    "door_id": "demo-door-front",
+    "who": "Sam",
+    "result": "ACCESS",
+    "method": "NFC"
+   }
+  ]
  }
 }

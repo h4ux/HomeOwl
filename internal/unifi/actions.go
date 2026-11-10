@@ -463,8 +463,12 @@ func (ch *Changes) Raw(c *Client, method, path string, body any, who string) (in
 }
 
 func (ch *Changes) record(c *Client, who string, pub Preview, st int, ok bool, d any, undo *req) Change {
+	return ch.recordAt(c.Host(), who, pub, st, ok, d, undo)
+}
+
+func (ch *Changes) recordAt(host, who string, pub Preview, st int, ok bool, d any, undo *req) Change {
 	ch.mu.Lock()
-	e := &Change{ID: len(ch.list) + 1, Time: time.Now().Format("2006-01-02 15:04:05"), Host: c.Host(), By: who,
+	e := &Change{ID: len(ch.list) + 1, Time: time.Now().Format("2006-01-02 15:04:05"), Host: host, By: who,
 		Method: pub.Method, Path: pub.Path, Target: pub.Target, Description: pub.Description, Before: pub.Before, After: pub.After,
 		Status: st, OK: ok}
 	if !ok {
@@ -513,3 +517,16 @@ func (ch *Changes) Undo(c *Client, id int, who string, requireUnlock bool) error
 }
 
 var ErrNotConnected = errors.New("not connected to a UniFi console")
+
+// External runs a write to another UniFi app (e.g. Access) under the same rules as Run: read-only mode and the
+// change lock are honoured, and it is logged with who did it. It can't be undone.
+func (ch *Changes) External(host, who string, pub Preview, requireUnlock bool, do func() (int, any)) (Change, error) {
+	if ch.ReadOnly {
+		return Change{}, aerr("HomeOwl was started in read-only mode")
+	}
+	if requireUnlock && !ch.Write {
+		return Change{}, aerr("change mode is locked - unlock it in the sidebar first")
+	}
+	st, d := do()
+	return ch.recordAt(host, who, pub, st, st >= 200 && st < 300, d, nil), nil
+}

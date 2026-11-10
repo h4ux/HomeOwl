@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/h4ux/homeowl/internal/access"
 	"github.com/h4ux/homeowl/internal/analytics"
 	"github.com/h4ux/homeowl/internal/auth"
 	"github.com/h4ux/homeowl/internal/config"
@@ -67,6 +68,7 @@ type App struct {
 	History  *history.Store
 	firmware *firmwareWatch
 	Protect  *protect.Watcher
+	Access   *access.Client
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -88,6 +90,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	unifi.RedactKey = fingerprintKey(dataDir)
 	a.History = history.New(filepath.Join(dataDir, "config-history"))
 	a.firmware = newFirmwareWatch(dataDir)
+	a.Access = &access.Client{}
 	a.Protect = &protect.Watcher{UniFi: a.UniFi, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
 	a.Cache.OnCollect = func(b map[string]any) {
 		a.firmware.Observe(b)
@@ -112,6 +115,7 @@ func (a *App) Run(ctx context.Context) error {
 		log.Printf("No users yet. Open HomeOwl on this computer to create the admin account, or use setup code %s from another device.", a.Users.SetupCode)
 	}
 	a.autoConnect()
+	a.configureAccess()
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)

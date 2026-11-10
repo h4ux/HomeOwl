@@ -71,6 +71,12 @@ type Updates struct {
 	Check bool `json:"check"` // ask GitHub once in a while whether a newer release exists
 }
 
+// Access is UniFi Access (doors). Its API token lives in the secrets store.
+type Access struct {
+	Host   string `json:"host,omitempty"` // https://host:port when Access isn't on the UniFi console at port 12445
+	Unlock bool   `json:"unlock"`         // admins may unlock doors remotely (guarded, logged)
+}
+
 type Cameras struct {
 	Viewers bool `json:"viewers"` // viewers may see camera pictures and detections too (otherwise admins only)
 }
@@ -92,6 +98,7 @@ type Config struct {
 	Updates        Updates   `json:"updates"`
 	Guest          Guest     `json:"guest"`
 	Cameras        Cameras   `json:"cameras"`
+	Access         Access    `json:"access"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`
