@@ -5,7 +5,10 @@ package unifi
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -276,6 +279,20 @@ func ConnectHint(status int, info any) string {
 
 var secretKeyRE = regexp.MustCompile(`(?i)(pass(word|phrase)?|secret|psk|private|token|x_.*key|auth_key|shared_key|wep_key|preshared|x_iapp)`)
 
+// RedactKey, when set, adds a short keyed fingerprint to redacted strings, so a changed password can be noticed
+// (e.g. in the configuration history) without keeping or revealing it. The key never leaves this computer.
+var RedactKey []byte
+
+func redacted(s string) map[string]any {
+	m := map[string]any{"__redacted__": true, "length": len(s)}
+	if len(RedactKey) > 0 {
+		h := hmac.New(sha256.New, RedactKey)
+		h.Write([]byte(s))
+		m["fp"] = hex.EncodeToString(h.Sum(nil)[:4])
+	}
+	return m
+}
+
 // Redact replaces passwords, PSKs and keys with {"__redacted__":true,"length":n} before data leaves the server.
 func Redact(v any) any {
 	switch t := v.(type) {
@@ -286,7 +303,7 @@ func Redact(v any) any {
 				switch s := x.(type) {
 				case string:
 					if s != "" {
-						out[k] = map[string]any{"__redacted__": true, "length": len(s)}
+						out[k] = redacted(s)
 						continue
 					}
 				case []any:

@@ -316,3 +316,12 @@ table.nd-prof td{font-size:12.5px;padding:6px 8px}
 .ci-main{flex:1;min-width:220px}
 .ci-how{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
 .ci-how>div:last-child{flex:1;min-width:240px}
+
+/* config history */
+.hist-grid{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){.hist-grid{grid-template-columns:1fr}}
+.hist-list{display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow:auto}
+.hist-item{display:flex;flex-direction:column;padding:6px 10px;border-radius:8px;text-decoration:none;color:var(--text);border:1px solid transparent}
+.hist-item:hover{border-color:var(--line)} .hist-item.on{background:var(--accent-soft);border-color:var(--accent)}
+.hist-ch{margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.hist-t{margin-top:6px;width:100%;table-layout:fixed} .hist-t td{overflow-wrap:anywhere}

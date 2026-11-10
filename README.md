@@ -19,6 +19,7 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **Configuration review** — scores your UniFi setup and explains each suggestion (Wi-Fi security, firmware, exposed ports, IoT isolation, DNS, VLANs…), with a one-click fix where it's safe.
 - **Devices & clients** — topology, switch ports, Wi-Fi radios and neighbours, a debugger for devices that went offline, and icons for every kind of device.
 - **Safe changes** — every change is allow-listed, previewed first, logged with who made it, and can be undone. Changes stay locked until an admin unlocks them.
+- **Config history** — a snapshot of your UniFi settings whenever they change, and a plain “what changed since yesterday” (also changes made in UniFi itself).
 - **Family analytics** — imports NextDNS query logs, UniFi traffic, sessions, events, threats and the gateway's syslog into a built-in DuckDB database. Drill down by person, device, category, domain, hour of day and weekday, down to individual DNS queries.
 - **People & categories** — group devices per family member; domains are sorted into subjects (Social, Video, Gaming, AI…) and you can add your own rules.
 - **NextDNS & Tailscale helpers** — per-network NextDNS profiles and device names, plus Tailscale guidance.

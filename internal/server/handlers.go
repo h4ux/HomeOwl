@@ -142,6 +142,18 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		}
 		send(w, 200, res)
 		return
+	case "history":
+		send(w, 200, map[string]any{"snapshots": a.History.List(), "checked": a.History.Checked})
+		return
+	case "history/diff":
+		q := r.URL.Query()
+		res, err := a.historyDiff(map[string]string{"from": q.Get("from"), "to": q.Get("to"), "since": q.Get("since")})
+		if err != nil {
+			fail(w, 400, err.Error())
+			return
+		}
+		send(w, 200, res)
+		return
 	case "isp-logos":
 		send(w, 200, map[string]any{"logos": a.logos.Versions()})
 		return

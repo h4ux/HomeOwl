@@ -25,6 +25,7 @@ import (
 	"github.com/h4ux/homeowl/internal/analytics"
 	"github.com/h4ux/homeowl/internal/auth"
 	"github.com/h4ux/homeowl/internal/config"
+	"github.com/h4ux/homeowl/internal/history"
 	"github.com/h4ux/homeowl/internal/mcp"
 	"github.com/h4ux/homeowl/internal/secrets"
 	"github.com/h4ux/homeowl/internal/tsnetx"
@@ -62,6 +63,7 @@ type App struct {
 	tsErr    string
 	logos    *ispLogos
 	checkins *checkins
+	History  *history.Store
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -80,6 +82,15 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
 	a.Cache = unifi.NewCache(a.UniFi)
+	unifi.RedactKey = fingerprintKey(dataDir)
+	a.History = history.New(filepath.Join(dataDir, "config-history"))
+	a.Cache.OnCollect = func(b map[string]any) {
+		if e, err := a.History.Record(b); err != nil {
+			log.Printf("config history: %v", err)
+		} else if e != nil && e.Changes > 0 {
+			log.Printf("config history: %d change(s) in %s", e.Changes, strings.Join(e.Areas, ", "))
+		}
+	}
 	a.An = analytics.New(cfg, dataDir, a.UniFi, a.Sec)
 	a.MCP = &mcp.Server{Name: "homeowl", Version: config.Version, Tools: a.mcpTools,
 		Instructions: "HomeOwl manages a home network built on UniFi (with NextDNS and Tailscale). Use the read tools to look up devices, " +

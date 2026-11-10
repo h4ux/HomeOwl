@@ -204,11 +204,13 @@ func get(m map[string]any, k string) any {
 
 // Cache keeps the last bundle and refreshes it in the background.
 type Cache struct {
-	c      *Client
-	mu     sync.Mutex
-	bundle map[string]any
-	at     time.Time
-	busy   sync.Mutex
+	// OnCollect, when set, gets every freshly collected bundle (e.g. for the configuration history).
+	OnCollect func(map[string]any)
+	c         *Client
+	mu        sync.Mutex
+	bundle    map[string]any
+	at        time.Time
+	busy      sync.Mutex
 }
 
 func NewCache(c *Client) *Cache { return &Cache{c: c} }
@@ -259,5 +261,8 @@ func (k *Cache) Get(fresh bool, maxAge time.Duration) map[string]any {
 	k.mu.Lock()
 	k.bundle, k.at = b, time.Now()
 	k.mu.Unlock()
+	if k.OnCollect != nil {
+		go k.OnCollect(b)
+	}
 	return b
 }

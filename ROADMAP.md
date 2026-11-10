@@ -8,7 +8,7 @@ Go version with built-in DuckDB, accounts and login, home-network HTTPS and buil
 ## Phase 2 — more of the UniFi family
 - **Cameras (UniFi Protect)** — camera grid with live snapshots, motion / person / vehicle / package detections timeline, camera health (offline, recording, storage), doorbell rings.
 - **Doors (UniFi Access)** — door and lock status, entry log, guarded remote unlock.
-- **Config history** — nightly UniFi backups and a "what changed since yesterday" diff.
+- **Config history** — ✅ a snapshot of the UniFi settings whenever they change, and a “what changed since yesterday” diff (passwords hidden; HomeOwl's own changes attributed). Next: optional downloads of UniFi's own `.unf` backups.
 - **Firmware watch** — pending updates with release notes, guarded one-click updates.
 
 ## Phase 3 — family & network health
