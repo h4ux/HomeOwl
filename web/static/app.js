@@ -92,10 +92,9 @@ V.overview = m => {
     <div class="card"><h2>Configuration score</h2><div class="score">${gauge(sc)}<div><div class="muted" style="font-size:13px">${F.length ? `${plural(F.filter(f => f.sev !== "info").length, "issue")} + ${cnt("info")} tips · ${F.filter(f => f.actions.length).length} fixable here` : "No issues found"}</div>
       <div class="sevbar">${SEV_ORDER.map(s => `<span class="sev ${s}">${cnt(s)} ${s}</span>`).join("")}</div>
       <p style="margin-top:12px"><a href="#" data-goto="findings">See all suggestions →</a></p></div></div></div>
-    <div class="card"><h2>Internet</h2><dl class="kv">
-      <dt>Status</dt><dd>${m.info.wanStatus ? `<span class="tag ${m.info.wanStatus === "ok" ? "good" : "bad"}">${esc(m.info.wanStatus)}</span>` : "–"}</dd>
-      <dt>ISP</dt><dd>${esc(m.info.isp || "–")}</dd><dt>WAN IP</dt><dd class="mono">${esc(m.info.wanIp || "–")}</dd>
-      <dt>Latency</dt><dd>${m.info.latency !== null ? m.info.latency + " ms" : "–"}</dd>
+    <div class="card"><h2>Internet${m.wanLinks.length > 1 ? ` <span class="muted" style="font-weight:400;font-size:13px">· ${m.wanLinks.length} connections</span>` : ""}</h2>
+      ${m.wanLinks.length ? `<div class="wan-list">${m.wanLinks.map(wanRow).join("")}</div>` : `<p class="muted">No internet connection reported.</p>`}
+      <dl class="kv" style="margin-top:10px">
       <dt>Speed test</dt><dd>${m.info.down !== null ? `↓ ${fmtMbps(m.info.down)} · ↑ ${fmtMbps(m.info.up)} <span class="muted">${m.info.speedtestAt ? ago(m.info.speedtestAt) : ""}</span>` : "–"} ${actBtn({ kind: "devcmd", cmd: "speedtest", description: "Run an internet speed test on the gateway (uses your bandwidth for ~30 s)" }, "Run now", "Speed test")}</dd>
       <dt>VPN</dt><dd>${m.vpn.remoteUser ? m.vpn.remoteUser + " remote-user server(s)" : "none"}${m.vpn.siteToSite ? ` · ${m.vpn.siteToSite} site-to-site` : ""}</dd></dl></div>
     <div class="card"><h2>Device status</h2>${donut(Object.entries(fw).map(([label, value], i) => ({ label, value, color: ["var(--ok)", "var(--high)", "var(--crit)"][i] })), m.devices.length, "devices")}</div>
@@ -111,6 +110,28 @@ V.overview = m => {
   </div>
   <div class="card section"><h2>Top suggestions</h2>${F.filter(f => f.sev !== "info").slice(0, 5).map(findingCard).join("") || `<div class="empty">Nothing urgent — nice.</div>`}</div>`;
 };
+
+// one internet connection on the Overview: provider badge, name, status, IP, latency
+function wanRow(l) {
+  const st = !l.enabled ? `<span class="tag">off</span>` : l.status ? `<span class="tag ${l.status === "ok" ? "good" : "bad"}">${esc(l.status === "ok" ? "up" : l.status)}</span>` : "";
+  const role = l.active ? `<span class="tag good" title="Traffic currently goes out this way">active</span>` : l.lb === "failover-only" ? `<span class="tag">backup</span>` : "";
+  const bits = [l.ip ? `<span class="mono">${esc(l.ip)}</span>` : "", l.latency !== null ? `${l.latency} ms` : "", l.availability !== null ? `${l.availability}% up` : "", l.speed ? `${fmtSpeed(l.speed)}bps link` : ""].filter(Boolean);
+  const canSet = S.role === "admin" && S.source === "live" && l.isp;
+  return `<div class="wan-row">${ispBadge(l.isp, 36)}<div class="wan-main"><div class="wan-top"><b>${esc(l.isp || l.name)}</b> ${st} ${role}</div>
+    <div class="muted wan-sub">${l.isp ? esc(l.name) + (bits.length ? " · " : "") : ""}${bits.join(" · ")}</div></div>
+    ${canSet ? `<button class="btn ghost sm" data-isplogo="${esc(l.isp)}" title="${ISP_LOGOS[String(l.isp).trim().toLowerCase()] ? "Change" : "Add"} ${esc(l.isp)}'s logo" aria-label="Provider logo">✎</button>` : ""}</div>`;
+}
+function editIspLogo(isp) {
+  openModal({ title: `Logo for ${isp}`, body: `<p>HomeOwl can show the provider's own icon. Enter their website and HomeOwl fetches its icon once and keeps it on this computer.</p>
+    <label>Provider website<input id="isp-site" placeholder="e.g. example.net" autocomplete="off"></label><div id="isp-msg" class="msg" role="status"></div>`,
+    buttons: [{ label: "Cancel" }, ...(ISP_LOGOS[isp.trim().toLowerCase()] ? [{ label: "Remove logo", onClick: () => saveIspLogo(isp, "") }] : []), { label: "Fetch logo", cls: "primary", onClick: () => saveIspLogo(isp, $("#isp-site").value) }] });
+}
+async function saveIspLogo(isp, site) {
+  try { const r = await api("/api/isp-logo", { name: isp, site }); Object.keys(ISP_LOGOS).forEach(k => delete ISP_LOGOS[k]); Object.assign(ISP_LOGOS, r.logos || {}); closeModal(); render(); toast(site ? "Logo saved" : "Logo removed", "ok"); }
+  catch (err) { const m = $("#isp-msg"); if (m) { m.className = "msg err"; m.textContent = err.message; } }
+}
+async function loadIspLogos() { try { const r = await api("/api/isp-logos"); Object.assign(ISP_LOGOS, r.logos || {}); if (S.model && S.view === "overview") render(); } catch { } }
+document.addEventListener("click", e => { const b = e.target.closest("[data-isplogo]"); if (b) { e.preventDefault(); editIspLogo(b.dataset.isplogo); } });
 
 function findingCard(f) {
   return `<div class="finding ${f.sev}"><div class="t">${sevTag(f.sev)}<span>${esc(f.title)}</span><span class="area">${esc(f.area)}</span>
@@ -604,6 +625,7 @@ async function startApp() {
   const st = await api("/api/status");
   S.token = st.token; S.write = st.write; S.readOnly = st.read_only; S.user = st.user; S.role = st.user?.role; S.remote = !!st.user?.remote; S.dataAge = st.data_age;
   S.connected = st.connected; S.lastError = st.last_error;
+  loadIspLogos();
   if (S.dataAge !== null && S.dataAge !== undefined) S.dataAt = Date.now() - S.dataAge * 1000;
   if (st.connected) {
     try { await collectLive(false, false); return; } catch (err) { toast(err.message, "err"); }

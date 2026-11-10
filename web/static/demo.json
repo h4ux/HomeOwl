@@ -81,7 +81,52 @@
      {
       "up": false
      }
-    ]
+    ],
+    "wan1": {
+     "name": "wan",
+     "ifname": "eth8",
+     "ip": "203.0.113.47",
+     "up": true,
+     "enabled": true,
+     "speed": 1000,
+     "rx_bytes-r": 2350000,
+     "tx_bytes-r": 410000
+    },
+    "wan2": {
+     "name": "wan2",
+     "ifname": "eth9",
+     "ip": "198.51.100.23",
+     "up": true,
+     "enabled": true,
+     "speed": 1000,
+     "rx_bytes-r": 1200,
+     "tx_bytes-r": 800
+    },
+    "geo_info": {
+     "WAN": {
+      "isp_name": "Example Fiber",
+      "isp_organization": "Example Fiber Ltd"
+     },
+     "WAN2": {
+      "isp_name": "Sample Cable Co",
+      "isp_organization": "Sample Cable Co"
+     }
+    },
+    "uptime_stats": {
+     "WAN": {
+      "availability": 100,
+      "latency_average": 9
+     },
+     "WAN2": {
+      "availability": 99.8,
+      "latency_average": 21
+     }
+    },
+    "last_wan_status": {
+     "WAN": "online",
+     "WAN2": "online"
+    },
+    "active_geo_info": "WAN"
    },
    {
     "_id": "d2",
@@ -870,6 +915,16 @@
     "purpose": "wan",
     "wan_type": "dhcp",
     "wan_networkgroup": "WAN",
+    "enabled": true,
+    "wan_load_balance_type": "failover-only"
+   },
+   {
+    "_id": "demo-wan2",
+    "name": "Backup (WAN2)",
+    "purpose": "wan",
+    "wan_networkgroup": "WAN2",
+    "wan_type": "dhcp",
+    "wan_load_balance_type": "failover-only",
     "enabled": true
    },
    {

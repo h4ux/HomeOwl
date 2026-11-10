@@ -56,6 +56,7 @@ type App struct {
 	handler http.Handler
 	started time.Time
 	tsErr   string
+	logos   *ispLogos
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -68,7 +69,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 		return nil, err
 	}
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
-		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now()}
+		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}}
 	a.Changes.ReadOnly = readOnly
 	a.Cache = unifi.NewCache(a.UniFi)
 	a.An = analytics.New(cfg, dataDir, a.UniFi, a.Sec)

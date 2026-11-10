@@ -122,6 +122,21 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		}
 		send(w, 200, res)
 		return
+	case "isp-logos":
+		send(w, 200, map[string]any{"logos": a.logos.Versions()})
+		return
+	case "isp-logo":
+		if r.Method == http.MethodGet {
+			img, typ, ok := a.logos.Get(r.URL.Query().Get("name"))
+			if !ok {
+				fail(w, 404, "no logo")
+				return
+			}
+			w.Header().Set("Content-Type", typ)
+			w.Header().Set("Cache-Control", "private, max-age=86400")
+			_, _ = w.Write(img)
+			return
+		}
 	case "analytics/meta":
 		res, err := a.An.Meta()
 		if err != nil {
@@ -178,6 +193,13 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	case p == "speedtest-status":
 		st, d := a.UniFi.Request("POST", a.UniFi.SitePath("cmd/devmgr", false), map[string]any{"cmd": "speedtest-status"})
 		res = map[string]any{"status": st, "data": unifi.Redact(unifi.Data(d))}
+	case p == "isp-logo":
+		if s(body, "site") == "" {
+			err = a.logos.Remove(s(body, "name"))
+		} else {
+			err = a.logos.Set(r.Context(), s(body, "name"), s(body, "site"))
+		}
+		res = map[string]any{"logos": a.logos.Versions()}
 	case p == "settings":
 		res, err = a.saveSettings(who, r, body)
 	case p == "users/save":

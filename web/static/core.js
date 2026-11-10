@@ -253,6 +253,7 @@ function normalise(b) {
     wanIp: w.wan_ip, isp: w.isp_name || w.isp_organization, wanStatus: w.status, latency: num(www.latency), down: num(www.xput_down), up: num(www.xput_up),
     speedtestAt: www.speedtest_lastrun, drops: num(www.drops), wanUptime: num(www.uptime),
   };
+  const wanLinks = buildWanLinks(gw?.sources?.["stat/device"] || {}, wans, w, www);
   const vpn = { remoteUser: networks.filter(n => /remote-user-vpn/.test(n.purpose)).length + arr(I.vpn_servers).length, siteToSite: networks.filter(n => /site-vpn/.test(n.purpose)).length + arr(I.vpn_tunnels).length };
 
   // ---- neighbours
@@ -279,10 +280,54 @@ function normalise(b) {
 
   const coverage = arr(b.meta?.log).reduce((a, l) => { (a[l.source] ||= { ok: 0, total: 0 }); a[l.source].total++; if (l.ok) a[l.source].ok++; return a; }, {});
   return {
-    info, devices, clients, known, knownByMac, networks, wans, wlans, rules, policies, zones, portForwards, settings: st, vpn, coverage, neighbors, history, events, alarms, ips, dpiCats, clientDpi,
+    info, devices, clients, known, knownByMac, networks, wans, wanLinks, wlans, rules, policies, zones, portForwards, settings: st, vpn, coverage, neighbors, history, events, alarms, ips, dpiCats, clientDpi,
     routes: arr(L.routes), netById, defaultNet, netForIp, hasLegacy: !!(arr(L.networks).length || arr(L.devices).length),
     devByMac: Object.fromEntries(devices.map(d => [d.mac, d])),
   };
+}
+
+// ------------------------------------------------------------------ internet connections
+// One entry per WAN port. The gateway reports wan1, wan2… plus geo_info / uptime_stats / last_wan_status keyed
+// "WAN", "WAN2"…; the health "wan" subsystem only describes the active one, so it fills gaps for that one.
+function buildWanLinks(g, wans, hw, www) {
+  const geo = g.geo_info || {}, upt = { ...(hw.uptime_stats || {}), ...(g.uptime_stats || {}) }, last = g.last_wan_status || {};
+  const links = [];
+  for (let i = 1; i <= 4; i++) {
+    const port = g["wan" + i], key = i === 1 ? "WAN" : "WAN" + i;
+    const conf = wans.find(x => (x.group || "WAN") === key);
+    if (!port && !geo[key] && !conf) continue;
+    if (port && port.enabled === false && !conf) continue;
+    const p = port || {}, gi = geo[key] || {}, u = upt[key] || {};
+    const st = String(last[key] || "").toLowerCase();
+    let status = p.up === false || /down|offline|fail/.test(st) ? "down" : p.up === true || /up|online|active/.test(st) ? "ok" : null;
+    links.push({
+      key, name: conf?.name || (i === 1 ? "Primary (WAN1)" : `WAN${i}`), ip: p.ip || conf?.ip || null, isp: gi.isp_name || gi.isp_organization || null,
+      status, latency: num(u.latency_average), availability: num(u.availability), speed: num(p.speed), type: conf?.type || null,
+      lb: conf?.lb || null, enabled: conf ? conf.enabled : true, rx: num(p["rx_bytes-r"]), tx: num(p["tx_bytes-r"]), active: g.active_geo_info ? g.active_geo_info === key : null,
+    });
+  }
+  // the active connection (or the only one we know about) gets the health data
+  const act = links.find(l => l.ip && l.ip === hw.wan_ip) || links.find(l => l.active) || (links.length ? links[0] : null);
+  if (act) {
+    act.active = true; act.ip ||= hw.wan_ip || null; act.isp ||= hw.isp_name || hw.isp_organization || null;
+    act.status ||= hw.status || null; if (act.latency === null) act.latency = num(www.latency);
+  } else if (hw.wan_ip || hw.isp_name || hw.status) {
+    links.push({ key: "WAN", name: "Internet", ip: hw.wan_ip || null, isp: hw.isp_name || hw.isp_organization || null, status: hw.status || null,
+      latency: num(www.latency), availability: null, speed: null, type: null, lb: null, enabled: true, rx: null, tx: null, active: true });
+  }
+  links.forEach(l => { if (l.active === null) l.active = false; });
+  return links;
+}
+
+// Provider badge: the cached favicon when an admin has given the provider's website, else a lettered badge.
+const ISP_LOGOS = {};
+function ispInitials(n) { const w = String(n || "?").replace(/\(.*?\)/g, "").split(/[\s\-–,.&]+/).filter(x => x && !/^(the|of|and|ltd|inc|llc|plc|sa|ag|gmbh)$/i.test(x)); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || "?").slice(0, 2)).toUpperCase(); }
+function ispHue(n) { let h = 0; for (const c of String(n || "")) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
+function ispBadge(isp, size = 32) {
+  const k = String(isp || "").trim().toLowerCase();
+  const logo = ISP_LOGOS[k];
+  const mono = `<span class="isp-badge" style="--h:${ispHue(k)};width:${size}px;height:${size}px;font-size:${Math.round(size * .38)}px" aria-hidden="true">${esc(ispInitials(isp))}</span>`;
+  return logo ? `<img class="isp-logo" src="api/isp-logo?name=${encodeURIComponent(k)}&v=${encodeURIComponent(logo)}" width="${size}" height="${size}" alt="">` : mono;
 }
 
 // ------------------------------------------------------------------ channel planning
