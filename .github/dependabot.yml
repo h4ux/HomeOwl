@@ -1,8 +1,13 @@
 version: 2
 updates:
+  # one combined pull request per week for Go libraries, and one for CI actions
   - package-ecosystem: gomod
     directory: /
     schedule: { interval: weekly }
+    groups:
+      go-libraries: { patterns: ["*"] }
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    groups:
+      ci-actions: { patterns: ["*"] }

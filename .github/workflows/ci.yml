@@ -13,8 +13,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with: { go-version: stable }
       - name: gofmt
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
@@ -33,15 +33,15 @@ jobs:
         include:
           - { os: ubuntu-latest,    goos: linux,   goarch: amd64 }
           - { os: ubuntu-24.04-arm, goos: linux,   goarch: arm64 }
-          - { os: macos-14,         goos: darwin,  goarch: arm64 }
-          - { os: macos-14,         goos: darwin,  goarch: amd64, cross: true }   # Intel build made on Apple Silicon
+          - { os: macos-15,         goos: darwin,  goarch: arm64 }
+          - { os: macos-15,         goos: darwin,  goarch: amd64, cross: true }   # Intel build made on Apple Silicon
           - { os: windows-latest,   goos: windows, goarch: amd64 }
     runs-on: ${{ matrix.os }}
     defaults: { run: { shell: bash } }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with: { go-version: stable }
       - name: Version
         run: echo "VERSION=$(git describe --tags --always)" >> "$GITHUB_ENV"
@@ -68,7 +68,7 @@ jobs:
           cp LICENSE README.md dist/
           cd dist
           if [ "${{ matrix.goos }}" = windows ]; then 7z a "../${name}.zip" homeowl.exe LICENSE README.md >/dev/null; else tar czf "../${name}.tar.gz" homeowl LICENSE README.md; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: homeowl_${{ matrix.goos }}_${{ matrix.goarch }}
           path: homeowl_*.*
@@ -81,8 +81,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with: { path: artifacts, merge-multiple: true }
       - name: Checksums
         run: cd artifacts && sha256sum homeowl_* > SHA256SUMS
