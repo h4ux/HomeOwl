@@ -14,5 +14,6 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - NextDNS: several accounts, all profiles imported automatically, newest data first.
 
 ### Changed
+- DuckDB 2.0 (driver `github.com/duckdb/duckdb-go/v2`). Databases from earlier versions open as they are.
 - Renamed from "Big Mama" / "UniFi Audit". Settings, keys and data from those versions are moved over automatically.
 - Threat detections are also read from syslog and the UniFi system log on UniFi versions without the threat API.

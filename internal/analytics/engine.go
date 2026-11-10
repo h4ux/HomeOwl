@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/marcboeker/go-duckdb/v2" // embedded DuckDB (statically linked)
+	_ "github.com/duckdb/duckdb-go/v2" // embedded DuckDB (statically linked)
 
 	"github.com/h4ux/homeowl/internal/config"
 )
