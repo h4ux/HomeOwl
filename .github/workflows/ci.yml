@@ -68,7 +68,7 @@ jobs:
           cp LICENSE README.md dist/
           cd dist
           if [ "${{ matrix.goos }}" = windows ]; then 7z a "../${name}.zip" homeowl.exe LICENSE README.md >/dev/null; else tar czf "../${name}.tar.gz" homeowl LICENSE README.md; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: homeowl_${{ matrix.goos }}_${{ matrix.goarch }}
           path: homeowl_*.*
