@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -156,6 +157,18 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		return
 	case "firmware":
 		send(w, 200, map[string]any{"pending": a.firmware.Pending(), "recent": a.recentFirmware(30)})
+		return
+	case "cameras", "cameras/snapshot":
+		if !who.Admin() && !a.Cfg.Get().Cameras.Viewers {
+			fail(w, 403, "Only admins can see the cameras. An admin can share them with viewers in Settings.")
+			return
+		}
+		if p == "cameras" {
+			days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+			send(w, 200, a.camerasView(days))
+		} else {
+			a.cameraSnapshot(w, r)
+		}
 		return
 	case "isp-logos":
 		send(w, 200, map[string]any{"logos": a.logos.Versions()})
@@ -498,6 +511,7 @@ func (a *App) settingsView(who *Who, r *http.Request) map[string]any {
 		"system":  map[string]any{"os": runtime.GOOS, "arch": runtime.GOARCH, "version": config.Version, "uptime_s": int(time.Since(a.started).Seconds())},
 		"version": config.Version,
 		"updates": map[string]any{"check": c.Updates.Check},
+		"cameras": map[string]any{"viewers": c.Cameras.Viewers},
 	}
 }
 
@@ -512,6 +526,9 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 	}
 	if u, ok := body["updates"].(map[string]any); ok && has(u, "check") {
 		c.Updates.Check = b(u, "check")
+	}
+	if u, ok := body["cameras"].(map[string]any); ok && has(u, "viewers") {
+		c.Cameras.Viewers = b(u, "viewers")
 	}
 	if l, ok := body["lan"].(map[string]any); ok {
 		nl := c.LAN
@@ -578,7 +595,7 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 		return nil, verr
 	}
 	if err := a.Cfg.Update(func(x *config.Config) {
-		x.RefreshMinutes, x.LAN, x.Tailscale, x.MCP.Mode, x.Updates = c.RefreshMinutes, c.LAN, c.Tailscale, c.MCP.Mode, c.Updates
+		x.RefreshMinutes, x.LAN, x.Tailscale, x.MCP.Mode, x.Updates, x.Cameras = c.RefreshMinutes, c.LAN, c.Tailscale, c.MCP.Mode, c.Updates, c.Cameras
 	}); err != nil {
 		return nil, err
 	}

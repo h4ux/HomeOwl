@@ -6,7 +6,7 @@ What's planned, roughly in this order. Ideas and help are welcome — open an is
 Go version with built-in DuckDB, accounts and login, home-network HTTPS and built-in Tailscale, MCP server, install scripts, device icons.
 
 ## Phase 2 — more of the UniFi family
-- **Cameras (UniFi Protect)** — camera grid with live snapshots, motion / person / vehicle / package detections timeline, camera health (offline, recording, storage), doorbell rings.
+- **Cameras (UniFi Protect)** — ✅ a Cameras page: the latest picture per camera, which cameras are online, and a timeline of detections and doorbell rings recorded from Protect’s event stream (30 days). Next: thumbnails per event, recording and storage health (not in Protect’s official API yet), and alerts.
 - **Doors (UniFi Access)** — door and lock status, entry log, guarded remote unlock.
 - **Config history** — ✅ a snapshot of the UniFi settings whenever they change, and a “what changed since yesterday” diff (passwords hidden; HomeOwl's own changes attributed). Next: optional downloads of UniFi's own `.unf` backups.
 - **Firmware watch** — ✅ a Firmware page: what's waiting and for how long, console and Network app versions, guarded one-click updates per device, and firmware changes from the config history. Next: release notes fetched per model, staged “one AP at a time” updates.

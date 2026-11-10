@@ -27,6 +27,7 @@ import (
 	"github.com/h4ux/homeowl/internal/config"
 	"github.com/h4ux/homeowl/internal/history"
 	"github.com/h4ux/homeowl/internal/mcp"
+	"github.com/h4ux/homeowl/internal/protect"
 	"github.com/h4ux/homeowl/internal/secrets"
 	"github.com/h4ux/homeowl/internal/tsnetx"
 	"github.com/h4ux/homeowl/internal/unifi"
@@ -65,6 +66,7 @@ type App struct {
 	checkins *checkins
 	History  *history.Store
 	firmware *firmwareWatch
+	Protect  *protect.Watcher
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -86,6 +88,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	unifi.RedactKey = fingerprintKey(dataDir)
 	a.History = history.New(filepath.Join(dataDir, "config-history"))
 	a.firmware = newFirmwareWatch(dataDir)
+	a.Protect = &protect.Watcher{UniFi: a.UniFi, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
 	a.Cache.OnCollect = func(b map[string]any) {
 		a.firmware.Observe(b)
 		if e, err := a.History.Record(b); err != nil {
@@ -113,6 +116,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)
 	go a.watchExecutable(ctx)
+	go a.Protect.Run(ctx)
 	if err := a.StartLAN(); err != nil {
 		return err
 	}

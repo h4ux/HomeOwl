@@ -71,6 +71,10 @@ type Updates struct {
 	Check bool `json:"check"` // ask GitHub once in a while whether a newer release exists
 }
 
+type Cameras struct {
+	Viewers bool `json:"viewers"` // viewers may see camera pictures and detections too (otherwise admins only)
+}
+
 type Guest struct {
 	SSIDs []string `json:"ssids"` // Wi-Fi ids shown on the Guest Wi-Fi page besides UniFi's guest networks
 }
@@ -87,6 +91,7 @@ type Config struct {
 	Analytics      Analytics `json:"analytics"`
 	Updates        Updates   `json:"updates"`
 	Guest          Guest     `json:"guest"`
+	Cameras        Cameras   `json:"cameras"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`

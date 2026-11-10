@@ -78,12 +78,15 @@ async function loadSettings() {
 
   <div class="card section" id="st-updates"></div>
 
+  <div class="card section" id="st-cameras"></div>
+
   <div class="card section"><h2>Files &amp; system</h2><dl class="kv">
     <dt>Version</dt><dd>${esc(se.system.version)} · ${esc(se.system.os)}/${esc(se.system.arch)} · up ${fmtDur(se.system.uptime_s)}</dd>
     <dt>Data folder</dt><dd class="mono">${esc(se.files.data)}</dd><dt>Change log</dt><dd class="mono">${esc(se.files.change_log)}</dd>
     <dt>Analytics database</dt><dd class="mono">${esc(se.files.analytics)}</dd><dt>Logs</dt><dd class="mono">${esc(se.files.log)}</dd><dt>Program</dt><dd class="mono">${esc(se.files.binary)}</dd></dl></div>`;
   if (typeof loadAnSettings === "function") loadAnSettings();
   if (typeof renderUpdateSettings === "function") { renderUpdateSettings(); if (!S.update) loadUpdate().then(renderUpdateSettings); }
+  if (typeof renderCameraSettings === "function") renderCameraSettings();
 }
 
 function fmtDur(s) { s = +s || 0; return s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} days`; }

@@ -4058,5 +4058,215 @@
    "legacy": "default"
   },
   "log": []
+ },
+ "protect": {
+  "status": {
+   "state": "live",
+   "version": "6.1.0"
+  },
+  "cameras": [
+   {
+    "id": "demo-cam-door",
+    "name": "Front door",
+    "state": "CONNECTED",
+    "mac": "",
+    "model": "Doorbell",
+    "doorbell": true,
+    "smart": [
+     "person",
+     "package",
+     "vehicle"
+    ],
+    "mic": true,
+    "hdr": "normal",
+    "mode": "default"
+   },
+   {
+    "id": "demo-cam-drive",
+    "name": "Driveway",
+    "state": "CONNECTED",
+    "mac": "",
+    "model": "Bullet",
+    "doorbell": false,
+    "smart": [
+     "person",
+     "vehicle",
+     "animal",
+     "licensePlate"
+    ],
+    "mic": false,
+    "mode": "default"
+   },
+   {
+    "id": "demo-cam-yard",
+    "name": "Back yard",
+    "state": "CONNECTED",
+    "mac": "",
+    "model": "Turret",
+    "doorbell": false,
+    "smart": [
+     "person",
+     "animal",
+     "alrmSmoke"
+    ],
+    "mic": true,
+    "hdr": "off",
+    "mode": "highFps"
+   },
+   {
+    "id": "demo-cam-garage",
+    "name": "Garage",
+    "state": "DISCONNECTED",
+    "mac": "",
+    "model": "Instant",
+    "doorbell": false,
+    "smart": [],
+    "mic": false
+   }
+  ],
+  "events": [
+   {
+    "ago": 240,
+    "type": "smart",
+    "camera": "demo-cam-door",
+    "kinds": [
+     "person"
+    ],
+    "dur": 25
+   },
+   {
+    "ago": 300,
+    "type": "ring",
+    "camera": "demo-cam-door",
+    "kinds": [],
+    "dur": 0
+   },
+   {
+    "ago": 2280,
+    "type": "smart",
+    "camera": "demo-cam-drive",
+    "kinds": [
+     "vehicle"
+    ],
+    "dur": 40
+   },
+   {
+    "ago": 3120,
+    "type": "motion",
+    "camera": "demo-cam-yard",
+    "kinds": [],
+    "dur": 12
+   },
+   {
+    "ago": 4800,
+    "type": "smart",
+    "camera": "demo-cam-door",
+    "kinds": [
+     "package"
+    ],
+    "dur": 15
+   },
+   {
+    "ago": 7500,
+    "type": "smart",
+    "camera": "demo-cam-yard",
+    "kinds": [
+     "animal"
+    ],
+    "dur": 60
+   },
+   {
+    "ago": 13200,
+    "type": "smart",
+    "camera": "demo-cam-drive",
+    "kinds": [
+     "person",
+     "vehicle"
+    ],
+    "dur": 95
+   },
+   {
+    "ago": 18000,
+    "type": "motion",
+    "camera": "demo-cam-drive",
+    "kinds": [],
+    "dur": 8
+   },
+   {
+    "ago": 26100,
+    "type": "ring",
+    "camera": "demo-cam-door",
+    "kinds": [],
+    "dur": 0
+   },
+   {
+    "ago": 26160,
+    "type": "smart",
+    "camera": "demo-cam-door",
+    "kinds": [
+     "person"
+    ],
+    "dur": 50
+   },
+   {
+    "ago": 93600,
+    "type": "smart",
+    "camera": "demo-cam-drive",
+    "kinds": [
+     "vehicle"
+    ],
+    "dur": 30
+   },
+   {
+    "ago": 97200,
+    "type": "line",
+    "camera": "demo-cam-drive",
+    "kinds": [
+     "person"
+    ],
+    "dur": 0
+   },
+   {
+    "ago": 108000,
+    "type": "audio",
+    "camera": "demo-cam-yard",
+    "kinds": [
+     "alrmBark"
+    ],
+    "dur": 6
+   },
+   {
+    "ago": 180000,
+    "type": "ring",
+    "camera": "demo-cam-door",
+    "kinds": [],
+    "dur": 0
+   },
+   {
+    "ago": 183600,
+    "type": "smart",
+    "camera": "demo-cam-yard",
+    "kinds": [
+     "person"
+    ],
+    "dur": 70
+   },
+   {
+    "ago": 345600,
+    "type": "smart",
+    "camera": "demo-cam-door",
+    "kinds": [
+     "package"
+    ],
+    "dur": 20
+   },
+   {
+    "ago": 777600,
+    "type": "motion",
+    "camera": "demo-cam-yard",
+    "kinds": [],
+    "dur": 15
+   }
+  ]
  }
 }

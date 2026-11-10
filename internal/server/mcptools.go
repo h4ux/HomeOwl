@@ -319,6 +319,14 @@ func (a *App) allTools() []mcp.Tool {
 			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
 				return map[string]any{"people": a.An.People()}, nil
 			}},
+		{Name: "cameras", Title: "Cameras & detections", Level: "read",
+			Description: "UniFi Protect cameras (online or not, doorbell, what they detect) and the motion, person/vehicle/package detections and doorbell rings " +
+				"HomeOwl recorded (newest first; times in ms since 1970). No pictures.",
+			Schema: obj(map[string]any{"days": map[string]any{"type": "integer", "description": "how many days back (1-30, default 1)"}}),
+			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
+				days, _ := args["days"].(float64)
+				return a.camerasView(int(days)), nil
+			}},
 		{Name: "analytics_sql", Title: "Analytics SQL (read-only)", Level: "read",
 			Description: "Run one read-only DuckDB query on HomeOwl's analytics database. Tables: dns_queries, dns_hourly_device, dns_daily_domain, client_hourly, " +
 				"site_hourly, sessions, clients, events, threats, syslog, syslog_hourly, people, person_devices; views dnsq (queries with device/category/person), trafq.",
