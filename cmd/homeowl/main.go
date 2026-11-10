@@ -136,8 +136,11 @@ func (p *program) run() {
 	if err := app.Run(ctx); err != nil {
 		log.Fatalf("%v", err)
 	}
-	if p.restart && p.service {
-		restartService() // the service manager starts the new program
+	if p.restart {
+		if p.service {
+			restartService() // launchd / systemd / the Windows service manager starts the new program
+		}
+		restartSelf() // run the new program in place of this one
 	}
 }
 
@@ -159,9 +162,6 @@ func runCmd(args []string) {
 		case <-sig:
 			_ = p.Stop(nil)
 		case <-p.done:
-		}
-		if p.restart {
-			restartSelf() // run the new program in place of this one
 		}
 		return
 	}
