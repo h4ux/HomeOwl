@@ -4,6 +4,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.13] — 2026-11-11
+
+### Added
+- **Alerts** (Records › Alerts, with an unread count): HomeOwl tells you when a device it has never seen joins your network, with buttons to name it, give it to someone, block it or see its details. Settings › Alerts picks what to alert about (your own networks, guest Wi-Fi too, or never) and where else alerts go: a notification on this Mac, phone push with ntfy, or a webhook (Home Assistant, Slack, Discord, n8n). The ntfy and webhook addresses are kept in the keychain, and alerts never carry passwords. "Send a test" checks the setup.
+- **Guest Wi-Fi password on a schedule** (Settings › Home): a new password every week or every month, on the day and hour you pick, or "Change it now". Each change goes through the usual allow-list, is logged in Records › Changes and can be undone. You get an alert each time, and the guest card and wifi.local show the new password.
+- **Reports** (Records › Reports): Weekly summary, Network health, Internet, Device inventory (also as CSV), Family & usage, Security, and Changes & alerts. Pick 7 or 30 days, then print, save as PDF or download a copy.
+
+### Fixed
+- **Easy names** (hi.local, wifi.local):
+  - Port 80 is now on by default, so the plain names work without typing the port.
+  - HomeOwl also answers over IPv6, which some phones use to look up names.
+  - It announces the names when it starts.
+  - Settings › Access shows whether it's working: how many questions it heard and answered, the last device that asked, and any error, with a hint about the Mac's Local Network permission. It also gives IP-address links that always work, and the guest card opens by IP address too.
+
 ## [0.1.12] — 2026-11-11
 
 ### Added

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/h4ux/homeowl/internal/access"
+	"github.com/h4ux/homeowl/internal/alerts"
 	"github.com/h4ux/homeowl/internal/analytics"
 	"github.com/h4ux/homeowl/internal/auth"
 	"github.com/h4ux/homeowl/internal/config"
@@ -65,6 +66,9 @@ type App struct {
 	names        mdns.Responder // answers for the easy .local names (Settings › Access)
 	port80       *http.Server
 	port80Err    string
+	Alerts       *alerts.Store
+	alertErr     string
+	seen         *seenClients
 	cert         tls.Certificate
 	handler      http.Handler
 	started      time.Time
@@ -108,6 +112,8 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.Access = &access.Client{}
 	a.UPS = newUPSMonitor(a)
 	a.presence, a.presenceKick = newPresence(dataDir), make(chan struct{}, 1)
+	a.Alerts, a.seen = alerts.Open(dataDir), newSeen(dataDir)
+	a.Alerts.Send = a.deliverAlert
 	a.ProtectUniFi = unifi.New()
 	a.Protect = &protect.Watcher{Client: a.protectClient, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
 	a.Cache.OnCollect = func(b map[string]any) {
@@ -136,6 +142,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.configureAccess()
 	go a.connectProtectSaved(ctx)
 	go a.presenceLoop(ctx)
+	go a.guestRotateLoop(ctx)
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)
@@ -435,7 +442,8 @@ func (a *App) routes() http.Handler {
 
 // The device check-in page also works over plain HTTP, so a phone can open it without a certificate warning.
 // It only shows the device itself and the family's first names, and only queues a request for an admin.
-var plainHTTPOK = map[string]bool{"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true}
+var plainHTTPOK = map[string]bool{"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true,
+	"/wifi": true, "/wifi.js": true, "/qr.js": true, "/api/wifi": true} // the guest card (Settings › Access › Easy names)
 
 // guard applies the Host check and sends plain-HTTP visitors from other devices to HTTPS.
 func (a *App) guard(h http.Handler) http.Handler {

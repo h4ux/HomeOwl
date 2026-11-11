@@ -18,7 +18,7 @@ import (
 
 // pages each name may serve; anything else on that name goes back to its page
 var namePaths = map[string]map[string]bool{
-	"checkin": plainHTTPOK,
+	"checkin": {"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true},
 	"guest":   {"/wifi": true, "/wifi.js": true, "/qr.js": true, "/style.css": true, "/icon.png": true, "/api/wifi": true},
 }
 var nameHome = map[string]string{"checkin": "/hi", "guest": "/wifi"}
@@ -116,9 +116,30 @@ func (a *App) serveName(kind string, w http.ResponseWriter, r *http.Request, h h
 	h.ServeHTTP(w, r)
 }
 
-// wifiAPI: the guest networks' names and passwords, for the card at http://<guest name>.local only.
+// fallbackLinks: the same pages by IP address, for devices that can't look up .local names.
+func (a *App) fallbackLinks() map[string]string {
+	c := a.Cfg.Get()
+	_, ips := localNames()
+	for _, ip := range ips {
+		if ip.To4() != nil && ip.IsPrivate() {
+			base := "http://" + net.JoinHostPort(ip.String(), strconv.Itoa(c.LAN.Port))
+			out := map[string]string{"checkin": base + "/hi"}
+			if c.Names.Guest != "" {
+				out["guest"] = base + "/wifi"
+			}
+			return out
+		}
+	}
+	return nil
+}
+
+// wifiAPI: the guest networks' names and passwords for the guest card — only while the card is turned on
+// (it has a name), and only from the home network or this computer.
 func (a *App) wifiAPI(w http.ResponseWriter, r *http.Request) {
-	if a.nameHost(r) != "guest" {
+	c := a.Cfg.Get()
+	ip := net.ParseIP(clientIP(r))
+	home := ip != nil && (ip.IsLoopback() || c.LAN.Enabled && (ip.IsPrivate() || isLocalIP(ip)))
+	if c.Names.Guest == "" || !home {
 		fail(w, 404, "not found")
 		return
 	}
@@ -143,7 +164,7 @@ func (a *App) wifiAPI(w http.ResponseWriter, r *http.Request) {
 // namesView is the Settings › Access part: the names, the links and whether they work.
 func (a *App) namesView() map[string]any {
 	c := a.Cfg.Get()
-	ifaces, err := a.names.Status()
+	ifaces, err, st := a.names.Status()
 	a.mu.Lock()
 	p80, p80err := a.port80 != nil, a.port80Err
 	a.mu.Unlock()
@@ -159,7 +180,8 @@ func (a *App) namesView() map[string]any {
 	}
 	return map[string]any{"checkin": c.Names.Checkin, "guest": c.Names.Guest, "port80": c.Names.Port80,
 		"checkin_url": link(c.Names.Checkin), "guest_url": link(c.Names.Guest), "lan": c.LAN.Enabled,
-		"interfaces": ifaces, "error": nilIfEmpty(err), "port80_error": nilIfEmpty(p80err), "port80_on": p80}
+		"interfaces": ifaces, "error": nilIfEmpty(err), "port80_error": nilIfEmpty(p80err), "port80_on": p80, "stats": st,
+		"fallback": a.fallbackLinks()}
 }
 
 func parseNames(m map[string]any, old config.Names) (config.Names, error) {

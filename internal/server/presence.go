@@ -69,17 +69,23 @@ func (a *App) presenceLoop(ctx context.Context) {
 	}
 }
 
+// presenceTick reads the clients online once a minute: for Who's home and for the new-device alert.
 func (a *App) presenceTick() {
 	people := a.presencePeople()
-	if len(people) == 0 || !a.UniFi.Connected() {
+	if (len(people) == 0 && a.Cfg.Get().Alerts.NewDevice == "off") || !a.UniFi.Connected() {
 		return
 	}
 	st, d := a.UniFi.Get(a.UniFi.SitePath("stat/sta", false))
 	if st != 200 {
 		return // can't see the network: say nothing rather than send everyone away
 	}
+	list := unifi.List(d)
+	a.watchNewDevices(list)
+	if len(people) == 0 {
+		return
+	}
 	online := map[string]string{}
-	for _, c := range unifi.List(d) {
+	for _, c := range list {
 		mac, _ := c["mac"].(string)
 		if mac == "" {
 			continue

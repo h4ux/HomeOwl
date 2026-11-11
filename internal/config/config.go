@@ -119,6 +119,17 @@ type UPSAction struct {
 type Guest struct {
 	SSIDs   []string `json:"ssids"`              // Wi-Fi ids shown on the Guest Wi-Fi page besides UniFi's guest networks
 	QRTheme string   `json:"qr_theme,omitempty"` // style of the join code: classic, rounded (default), blue, night, fridge
+	// a new password on a schedule: "" (off), "weekly" (RotateDay = weekday, 0 = Sunday) or "monthly" (RotateDay = 1–28)
+	Rotate      string `json:"rotate,omitempty"`
+	RotateDay   int    `json:"rotate_day,omitempty"`
+	RotateHour  int    `json:"rotate_hour,omitempty"`
+	RotateSince int64  `json:"rotate_since,omitempty"` // ms: the last rotation, or when the schedule was set
+}
+
+// Alerts: what HomeOwl tells you about. Where it sends them (ntfy, webhook) is kept in the secrets store.
+type Alerts struct {
+	NewDevice string `json:"new_device,omitempty"` // "" = devices joining your own networks, "all" = guest Wi-Fi too, "off"
+	MacOS     bool   `json:"macos,omitempty"`      // also show a macOS notification
 }
 
 // Presence is "who's home": the devices that say a person is home, and the history of arrivals and departures.
@@ -143,6 +154,7 @@ type Config struct {
 	RefreshMinutes int       `json:"refresh_minutes"`
 	LAN            LAN       `json:"lan"`
 	Names          Names     `json:"names"`
+	Alerts         Alerts    `json:"alerts"`
 	Tailscale      Tailscale `json:"tailscale"`
 	MCP            MCP       `json:"mcp"`
 	Analytics      Analytics `json:"analytics"`

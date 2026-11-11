@@ -107,3 +107,28 @@ document.addEventListener("change", async e => {
 });
 
 { const _render = render; render = function () { _render(); if (S.view === "guest") loadGuest(); }; }
+
+// ---- Settings › Home: a new guest password on a schedule (each change is logged and can be undone)
+const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+async function renderGuestRotation() {
+  const el = $("#st-guestrot"); if (!el) return;
+  let g; try { g = await api("/api/guest-wifi/schedule"); } catch (e) { el.innerHTML = `<h2>Guest Wi-Fi password</h2><div class="empty bad-t">${esc(e.message)}</div>`; return; }
+  const days = g.rotate === "monthly" ? Array.from({ length: 28 }, (_, i) => [i + 1, `Day ${i + 1}`]) : WEEKDAYS.map((d, i) => [i, d]);
+  el.innerHTML = `<h2>Guest Wi-Fi password ${hint("A new password for every guest Wi-Fi with a shared password, on a schedule. Guests join again with the new one; the guest card and wifi.local show it right away. Each change is in Records › Changes and can be undone.")}</h2>
+    <div class="grid g3"><label>New password<select id="gr-rot"><option value="">Never (change it by hand)</option><option value="weekly" ${g.rotate === "weekly" ? "selected" : ""}>Every week</option><option value="monthly" ${g.rotate === "monthly" ? "selected" : ""}>Every month</option></select></label>
+      <label>On<select id="gr-day" ${g.rotate ? "" : "disabled"}>${days.map(([v, l]) => `<option value="${v}" ${g.day === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label>At<select id="gr-hour" ${g.rotate ? "" : "disabled"}>${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${g.hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></label></div>
+    <p class="fine">${g.next ? `Next new password: <b>${esc(new Date(g.next).toLocaleString([], { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }))}</b>. You get an alert each time.` : "Off."}</p>
+    <div class="btnrow"><button class="btn sm" id="gr-now">Change it now…</button><a class="btn sm" href="#" data-goto="guest">Guest Wi-Fi page</a></div>`;
+}
+document.addEventListener("change", e => {
+  if (!["gr-rot", "gr-day", "gr-hour"].includes(e.target.id)) return;
+  const rot = $("#gr-rot").value, day = e.target.id === "gr-rot" ? 1 : +$("#gr-day").value;
+  const hour = $("#gr-day").disabled ? 4 : +$("#gr-hour").value;   // first time on: 04:00, when nobody is likely online
+  api("/api/guest-wifi/schedule", { rotate: rot, day, hour }).then(() => { toast(rot ? "Schedule saved" : "Schedule off", "ok"); renderGuestRotation(); }).catch(err => toast(err.message, "err"));
+});
+document.addEventListener("click", e => {
+  if (e.target.id !== "gr-now") return;
+  openModal({ title: "New guest password now?", body: "<p>Every guest Wi-Fi with a shared password gets a new one. Guests already connected have to join again, and printed cards stop working. It's logged in Records › Changes and can be undone.</p>",
+    buttons: [{ label: "Cancel" }, { label: "Change it", cls: "primary", onClick: async () => { try { const r = await api("/api/guest-wifi/rotate-now", {}); closeModal(); toast(`${plural(r.rotated, "network")} changed`, "ok"); renderGuestRotation(); } catch (err) { toast(err.message, "err"); } } }] });
+});

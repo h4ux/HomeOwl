@@ -43,9 +43,19 @@ func TestEasyNames(t *testing.T) {
 	if w := get("http://wifi.local/api/wifi"); w.Code != 503 { // not connected to UniFi in the test
 		t.Fatalf("wifi.local/api/wifi: %d", w.Code)
 	}
-	if w := get("http://192.168.1.10:8555/api/wifi"); w.Code == 200 || w.Code == 503 {
-		t.Fatalf("the guest password API must not answer by IP: %d", w.Code)
+	if w := get("http://192.168.1.10:8555/api/wifi"); w.Code != 503 { // by IP from the home network: the fallback link
+		t.Fatalf("the guest card by IP: %d", w.Code)
 	}
+	r := httptest.NewRequest("GET", "http://192.168.1.10:8555/api/wifi", nil)
+	r.RemoteAddr = "203.0.113.9:4000"
+	if w := httptest.NewRecorder(); func() int { a.handler.ServeHTTP(w, r); return w.Code }() != 404 {
+		t.Fatalf("the guest password must not be served outside the home network")
+	}
+	_ = a.Cfg.Update(func(c *config.Config) { c.Names.Guest = "" })
+	if w := get("http://192.168.1.10:8555/api/wifi"); w.Code != 404 {
+		t.Fatalf("the guest card is off without a name: %d", w.Code)
+	}
+	_ = a.Cfg.Update(func(c *config.Config) { c.Names.Guest = "wifi" })
 	if w := get("http://hi.local/api/wifi"); w.Code != http.StatusFound {
 		t.Fatalf("hi.local/api/wifi: %d", w.Code)
 	}

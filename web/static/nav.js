@@ -47,6 +47,8 @@ const NAV = [
     { label: "SQL", views: [["an-sql", "SQL"]], id: "nav-ansql", hidden: true },
   ] },
   { id: "records", name: "Records", pages: [
+    { label: "Alerts", views: [["alerts", "Alerts"]], pill: "nav-alerts" },
+    { label: "Reports", views: [["reports", "Reports"]] },
     { label: "History & events", views: [["history", "History & events"]] },
     { label: "Changes", views: [["changes", "Changes"]] },
     { label: "Config history", views: [["confighistory", "Config history"]] },

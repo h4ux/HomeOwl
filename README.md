@@ -33,6 +33,8 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **Menu bar (macOS)** — an owl in the menu bar (five icon styles, optionally with a status dot or a problem count). Click it for internet, network, UPS and who's home, the guest Wi-Fi code, updates and start at login. Turn it off or pick the icon in **Settings › System**.
 - **Device check-in** — family members open `http://<HomeOwl>:8555/hi` (or scan its QR code) on their own phone, tablet or laptop and say what it is and whose; HomeOwl finds the device by its address, and an admin's approval sets its UniFi name and gives it to that person.
 - **Easy names** — HomeOwl answers `http://hi.local` (device check-in) and `http://wifi.local` (a guest Wi-Fi card with the join code) on your home network; pick the names in Settings › Access.
+- **Alerts** — a device HomeOwl has never seen joins, the guest password changed: in the app, as a Mac notification, by ntfy push or to a webhook.
+- **Reports** — weekly summary, network health, internet, device inventory, family usage, security, changes; print, PDF or download.
 - **Accounts** — admin and view-only users with passwords; optional sign-in through Tailscale.
 
 <p align="center"><img src="docs/images/explore.png" width="860" alt="Explore: drill down by person, category, hour and weekday"></p>

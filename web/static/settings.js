@@ -46,10 +46,11 @@ async function loadSettings() {
       ${(() => { const nm = se.names || {}; return `<div class="grid g2">
         <label>Check-in page<span class="name-in"><span class="fine">http://</span><input id="st-nm-ci" value="${esc(nm.checkin || "")}" placeholder="hi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label>
         <label>Guest Wi-Fi card<span class="name-in"><span class="fine">http://</span><input id="st-nm-guest" value="${esc(nm.guest || "")}" placeholder="wifi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label></div>
-      <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 ? "checked" : ""}> <span>Also answer on port 80, so the names work without “:${esc(lan.port)}”</span></label>
+      <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 || (!nm.checkin && !nm.guest) ? "checked" : ""}> <span>Also answer on port 80, so the names work without “:${esc(lan.port)}”</span></label>
       ${nm.checkin_url || nm.guest_url ? `<p class="fine">${[nm.checkin_url ? `Check-in: <a class="mono" href="${esc(nm.checkin_url)}" target="_blank" rel="noopener">${esc(nm.checkin_url)}</a>` : "", nm.guest_url ? `Guest card: <a class="mono" href="${esc(nm.guest_url)}" target="_blank" rel="noopener">${esc(nm.guest_url)}</a> <span class="muted">(shows the guest password to anyone on your network)</span>` : ""].filter(Boolean).join("<br>")}</p>` : ""}
       ${(nm.checkin || nm.guest) && !nm.lan ? `<div class="msg warn">Turn on home-network access above, or other devices can't open these names.</div>` : ""}
-      ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}`; })()}
+      ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
+      ${(nm.checkin || nm.guest) && nm.lan ? namesStatus(nm) : ""}`; })()}
       <h3 style="margin-top:14px">Built-in Tailscale</h3>
       ${!ts.built_in ? `<p class="muted">This build has no built-in Tailscale.</p>` : `
       <label class="check"><input type="checkbox" id="st-ts" ${ts.enabled ? "checked" : ""}> <span>Run HomeOwl as its own device on my tailnet</span></label>
@@ -93,7 +94,8 @@ async function loadSettings() {
 
   <div class="spane" data-spane="analytics"><div id="an-settings"></div></div>
 
-  <div class="spane" data-spane="home"><div class="card" id="st-cameras"></div>
+  <div class="spane" data-spane="alerts"><div class="card" id="st-alerts"><div class="empty">Loading…</div></div></div>
+  <div class="spane" data-spane="home"><div class="card" id="st-guestrot"></div><div class="card section" id="st-cameras"></div>
     <div class="card section"><h2>Doors, UPS and guest Wi-Fi</h2><p class="fine">These are set up on their own pages.</p>
       <div class="btnrow"><a class="btn sm" href="#" data-goto="doors">Doors</a><a class="btn sm" href="#" data-goto="ups">UPS</a><a class="btn sm" href="#" data-goto="guest">Guest Wi-Fi</a><a class="btn sm" href="#" data-goto="checkins">Device check-in</a></div></div></div>
 
@@ -110,10 +112,24 @@ async function loadSettings() {
   if (typeof loadAnSettings === "function") loadAnSettings();
   if (typeof renderUpdateSettings === "function") { renderUpdateSettings(); if (!S.update) loadUpdate().then(renderUpdateSettings); }
   if (typeof renderCameraSettings === "function") renderCameraSettings();
+  if (typeof renderAlertSettings === "function") renderAlertSettings();
+  if (typeof renderGuestRotation === "function") renderGuestRotation();
 }
 
 // Settings side menu: one section at a time, remembered in this browser; a dot shows what needs attention
-const SET_TABS = [["connection", "Connection"], ["access", "Access"], ["users", "Users"], ["analytics", "Analytics"], ["home", "Home"], ["ai", "AI & MCP"], ["system", "System"]];
+// is the .local answering working? what it heard, what it sent, and the IP links that always work
+function namesStatus(nm) {
+  const st = nm.stats || {}, ifs = arr(nm.interfaces);
+  const line = !ifs.length ? `<span class="warn-t">Not listening yet.</span>`
+    : st.send_error ? `<span class="bad-t">Answers can't be sent: ${esc(st.send_error)}.</span> On a Mac, allow HomeOwl under System Settings › Privacy & Security › Local Network, then restart HomeOwl.`
+    : st.heard ? `<span class="ok-t">Working</span>: answered ${plural(st.answered, "question")}, last from <span class="mono">${esc(st.last_asker)}</span> ${ago(st.last_heard)}.`
+    : `Listening on ${esc(ifs.join(", "))}, but no device has asked for these names yet. Open one of the links on a phone, then <a href="#" id="st-nm-check">check again</a>.`;
+  const fb = nm.fallback || {};
+  return `<div class="names-st fine"><div>${line}</div>
+    ${fb.checkin ? `<div class="muted">Without the name (always works): <span class="mono">${esc(fb.checkin)}</span>${fb.guest ? ` · <span class="mono">${esc(fb.guest)}</span>` : ""}</div>` : ""}
+    ${!nm.port80_on ? `<div class="muted">Without port 80, type the port too: <span class="mono">${esc(nm.checkin_url || nm.guest_url)}</span>.</div>` : ""}</div>`;
+}
+const SET_TABS = [["connection", "Connection"], ["access", "Access"], ["users", "Users"], ["alerts", "Alerts"], ["analytics", "Analytics"], ["home", "Home"], ["ai", "AI & MCP"], ["system", "System"]];
 try { S.setTab = localStorage.getItem("homeowl-settings-tab") || "connection"; } catch { S.setTab = "connection"; }
 function setTabs() {
   const nav = $("#set-nav"), se = S.settings; if (!nav || !se) return;
@@ -121,7 +137,7 @@ function setTabs() {
   const ts = se.tailscale || {}, dot = {
     connection: se.unifi?.connected ? "ok" : "bad",
     access: ts.enabled && ts.status?.state && ts.status.state !== "Running" ? "warn" : "",
-    users: "", analytics: "", home: "", ai: se.mcp?.mode === "god" ? "warn" : "",
+    users: "", alerts: "", analytics: "", home: "", ai: se.mcp?.mode === "god" ? "warn" : "",
     system: S.update?.available ? "warn" : "",
   };
   const count = { users: (se.users || []).length };
@@ -256,6 +272,7 @@ document.addEventListener("submit", async e => {
 document.addEventListener("click", async e => {
   const id = e.target.id;
   const post = async (path, body, okMsg) => { try { const r = await api(path, body); if (okMsg) toast(okMsg, "ok"); loadSettings(); return r; } catch (err) { toast(err.message, "err"); } };
+  if (id === "st-nm-check") { e.preventDefault(); return loadSettings(); }
   if (id === "st-disconnect") { await post("/api/disconnect", {}, "Disconnected"); load(EMPTY_BUNDLE, "none"); S.view = "settings"; render(); }
   if (id === "st-access-save") {
     const body = { refresh_minutes: +$("#st-refresh").value || 5, lan: { enabled: $("#st-lan").checked, port: +$("#st-port").value, tls: $("#st-tls").checked } };
@@ -263,6 +280,7 @@ document.addEventListener("click", async e => {
     if ($("#st-ts")) body.tailscale = { enabled: $("#st-ts").checked, hostname: $("#st-tsname").value.trim(), auto_login: $("#st-tsauto").checked, auth_key: $("#st-tskey").value.trim() };
     const oldPort = S.settings.lan.port;
     await post("/api/settings", body, "Access settings saved");
+    setTimeout(() => { if (S.view === "settings") loadSettings(); }, 2000);   // names restart in the background
     if (body.lan.port !== oldPort && location.port === String(oldPort)) setTimeout(() => { location.port = body.lan.port; }, 1200);
     if (body.tailscale?.enabled) setTimeout(loadSettings, 4000);
   }

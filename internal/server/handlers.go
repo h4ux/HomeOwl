@@ -90,7 +90,7 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		c := a.Cfg.Get()
 		send(w, 200, map[string]any{"connected": a.UniFi.Connected(), "host": a.UniFi.Host(), "last_error": nilIfEmpty(a.UniFi.LastError),
 			"configured": c.Host != "", "write": a.Changes.Write, "read_only": a.ReadOnly, "token": who.csrf, "version": config.Version,
-			"user": who, "data_age": dataAge, "refresh_minutes": c.RefreshMinutes, "mcp_mode": c.MCP.Mode, "checkins_pending": a.pendingFor(who)})
+			"user": who, "data_age": dataAge, "refresh_minutes": c.RefreshMinutes, "mcp_mode": c.MCP.Mode, "checkins_pending": a.pendingFor(who), "alerts_unread": a.Alerts.Unread()})
 		return
 	case "changes":
 		send(w, 200, a.Changes.List())
@@ -144,6 +144,16 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			st.Commands, st.CanApply = nil, false
 		}
 		send(w, 200, st)
+		return
+	case "alerts":
+		send(w, 200, a.alertsView(who.Admin()))
+		return
+	case "alerts/read":
+		if r.Method == http.MethodPost {
+			id, _ := n(body, "id")
+			a.Alerts.MarkRead(int64(id))
+		}
+		send(w, 200, map[string]any{"unread": a.Alerts.Unread()})
 		return
 	case "guest-wifi":
 		res, err := a.guestWiFi(who.Admin())
@@ -343,6 +353,27 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			res, err = a.setMenubar(body)
 		} else {
 			res = a.menubarSettings()
+		}
+	case p == "alerts/settings":
+		if err = a.alertsSettings(body); err == nil {
+			res = a.alertsView(true)
+		}
+	case p == "alerts/test":
+		err = a.testAlert(r.Context())
+	case p == "alerts/clear":
+		a.Alerts.Clear()
+	case p == "alerts/assign":
+		err = a.An.AssignDevice(s(body, "person"), "mac", s(body, "mac"))
+	case p == "guest-wifi/schedule":
+		if r.Method == http.MethodPost {
+			res, err = a.guestSchedule(body)
+		} else {
+			res = a.guestScheduleView()
+		}
+	case p == "guest-wifi/rotate-now":
+		var k int
+		if k, err = a.rotateGuestPasswords(by); err == nil {
+			res = map[string]any{"rotated": k}
 		}
 	case p == "guest-wifi/theme":
 		res, err = a.setQRTheme(body)

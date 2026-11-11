@@ -30,6 +30,16 @@ type Responder struct {
 	cancel context.CancelFunc
 	err    string
 	ifaces []string
+	st     Stats
+}
+
+// Stats say whether the answering works: questions heard for our names, answers sent, and the last problem.
+type Stats struct {
+	Heard     int    `json:"heard"`
+	Answered  int    `json:"answered"`
+	LastAsker string `json:"last_asker,omitempty"`
+	LastHeard int64  `json:"last_heard,omitempty"` // ms since 1970
+	SendError string `json:"send_error,omitempty"`
 }
 
 // Set replaces the names (bare labels like "hi" or full "hi.local"); an empty list stops answering.
@@ -42,12 +52,19 @@ func (r *Responder) Set(names []string) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	same := len(m) == len(r.names) && r.cancel != nil
+	for k := range m {
+		same = same && r.names[k]
+	}
 	r.names = m
+	if same {
+		return
+	}
 	if r.cancel != nil {
 		r.cancel()
 		r.cancel = nil
 	}
-	r.err, r.ifaces = "", nil
+	r.err, r.ifaces, r.st = "", nil, Stats{}
 	if len(m) == 0 {
 		return
 	}
@@ -56,11 +73,11 @@ func (r *Responder) Set(names []string) {
 	go r.run(ctx)
 }
 
-// Status: the interfaces it answers on, or why it can't.
-func (r *Responder) Status() (ifaces []string, err string) {
+// Status: the interfaces it answers on, or why it can't, and what it has heard.
+func (r *Responder) Status() (ifaces []string, err string, st Stats) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]string(nil), r.ifaces...), r.err
+	return append([]string(nil), r.ifaces...), r.err, r.st
 }
 
 // FQDN turns "Hi", "hi.local" or "hi.local." into "hi.local."; "" if it isn't a valid single label.
@@ -92,8 +109,19 @@ func (r *Responder) has(name string) bool {
 	return r.names[name]
 }
 
-// run listens on every IPv4 multicast interface; each socket only answers questions from its own subnet,
-// so a question seen on several sockets is answered once, with the right address.
+func (r *Responder) names4() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := []string{}
+	for n := range r.names {
+		out = append(out, n)
+	}
+	return out
+}
+
+// run listens on every multicast interface (IPv4 and IPv6: some phones only ask over IPv6); each socket only
+// answers questions from its own network, so a question seen on several sockets is answered once, with the
+// right address.
 func (r *Responder) run(ctx context.Context) {
 	for ctx.Err() == nil {
 		n, stop := r.listenAll(ctx)
@@ -127,9 +155,9 @@ func (r *Responder) listenAll(ctx context.Context) (int, context.CancelFunc) {
 		if ifi.Flags&net.FlagUp == 0 || ifi.Flags&net.FlagMulticast == 0 || ifi.Flags&net.FlagLoopback != 0 {
 			continue
 		}
-		nets := ipv4Nets(&ifi)
-		if len(nets) == 0 {
-			continue
+		v4, v6 := ifaceNets(&ifi)
+		if len(v4) == 0 {
+			continue // nothing to answer with
 		}
 		ifc := ifi
 		conn, err := net.ListenMulticastUDP("udp4", &ifc, group)
@@ -137,10 +165,36 @@ func (r *Responder) listenAll(ctx context.Context) (int, context.CancelFunc) {
 			lastErr = err
 			continue
 		}
-		multicastLoop(conn)
+		multicastLoop(conn, false)
 		names = append(names, ifi.Name)
 		go func() { <-lctx.Done(); _ = conn.Close() }()
-		go r.serve(conn, nets)
+		local4 := func(src *net.UDPAddr) net.IP {
+			for _, nt := range v4 {
+				if nt.Contains(src.IP) {
+					return nt.IP.To4()
+				}
+			}
+			return nil
+		}
+		go r.serve(conn, local4, group)
+		r.announce(conn, v4[0].IP.To4(), group)
+		g6 := &net.UDPAddr{IP: group6, Port: 5353, Zone: ifi.Name}
+		if c6, err := net.ListenMulticastUDP("udp6", &ifc, g6); err == nil {
+			multicastLoop(c6, true)
+			go func() { <-lctx.Done(); _ = c6.Close() }()
+			ip := v4[0].IP.To4()
+			go r.serve(c6, func(src *net.UDPAddr) net.IP {
+				if src.IP.IsLinkLocalUnicast() && (src.Zone == "" || src.Zone == ifc.Name) {
+					return ip
+				}
+				for _, nt := range v6 {
+					if nt.Contains(src.IP) {
+						return ip
+					}
+				}
+				return nil
+			}, g6)
+		}
 	}
 	if len(names) == 0 && lastErr != nil {
 		r.setErr("can't listen for .local names: "+lastErr.Error(), nil)
@@ -150,51 +204,86 @@ func (r *Responder) listenAll(ctx context.Context) (int, context.CancelFunc) {
 	return len(names), stop
 }
 
+var group6 = net.ParseIP("ff02::fb")
+
 func (r *Responder) setErr(e string, ifaces []string) {
 	r.mu.Lock()
 	r.err, r.ifaces = e, ifaces
 	r.mu.Unlock()
 }
 
-func ipv4Nets(ifi *net.Interface) []*net.IPNet {
+func ifaceNets(ifi *net.Interface) (v4, v6 []*net.IPNet) {
 	addrs, _ := ifi.Addrs()
-	var out []*net.IPNet
 	for _, a := range addrs {
-		if n, ok := a.(*net.IPNet); ok && n.IP.To4() != nil && !n.IP.IsLinkLocalUnicast() {
-			out = append(out, n)
+		n, ok := a.(*net.IPNet)
+		if !ok || n.IP.IsLinkLocalUnicast() {
+			continue
+		}
+		if n.IP.To4() != nil {
+			v4 = append(v4, n)
+		} else {
+			v6 = append(v6, n)
 		}
 	}
-	return out
+	return v4, v6
 }
 
-func (r *Responder) serve(conn *net.UDPConn, nets []*net.IPNet) {
+// announce tells the network our names once when we start (so caches pick them up and a send problem shows early).
+func (r *Responder) announce(conn *net.UDPConn, ip net.IP, to *net.UDPAddr) {
+	for _, n := range r.names4() {
+		q := append([]byte{0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0}, encodeName(n)...)
+		q = append(q, 0, typeA, 0, 1)
+		if resp, _ := Answer(q, ip, r.has, false); resp != nil {
+			if _, err := conn.WriteToUDP(resp, to); err != nil {
+				r.sendErr(err)
+			}
+		}
+	}
+}
+
+func (r *Responder) sendErr(err error) {
+	r.mu.Lock()
+	r.st.SendError = err.Error()
+	r.mu.Unlock()
+}
+
+func (r *Responder) serve(conn *net.UDPConn, local func(*net.UDPAddr) net.IP, grp *net.UDPAddr) {
 	buf := make([]byte, 9000)
 	for {
 		n, src, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			return
 		}
-		var local net.IP
-		for _, nt := range nets {
-			if nt.Contains(src.IP) {
-				local = nt.IP.To4()
-			}
+		ip := local(src)
+		if ip == nil {
+			continue // asked on another network: that interface's socket answers
 		}
-		if local == nil {
-			continue // asked on another subnet: that interface's socket answers
-		}
-		resp, unicast := Answer(buf[:n], local, r.has, src.Port != 5353)
+		resp, unicast := Answer(buf[:n], ip, r.has, src.Port != 5353)
 		if resp == nil {
 			continue
 		}
+		r.mu.Lock()
+		r.st.Heard++
+		r.st.LastAsker, r.st.LastHeard = src.IP.String(), time.Now().UnixMilli()
+		r.mu.Unlock()
+		var sendErr error
 		if unicast || src.Port != 5353 {
-			_, _ = conn.WriteToUDP(resp, src)
+			_, sendErr = conn.WriteToUDP(resp, src)
 		}
 		if src.Port == 5353 {
-			if _, err := conn.WriteToUDP(resp, group); err != nil {
-				log.Printf("mdns: %v", err)
+			if _, err := conn.WriteToUDP(resp, grp); err != nil {
+				sendErr = err
 			}
 		}
+		r.mu.Lock()
+		if sendErr != nil {
+			r.st.SendError = sendErr.Error()
+			log.Printf("mdns: %v", sendErr)
+		} else {
+			r.st.Answered++
+			r.st.SendError = ""
+		}
+		r.mu.Unlock()
 	}
 }
 
