@@ -79,6 +79,7 @@ async function loadSettings() {
       { k: "id", label: "", fmt: t => `<button class="btn sm" data-mcprevoke="${esc(t.id)}">Revoke</button>` },
     ], mcp.tokens) : `<p class="fine">No tokens yet.</p>`}
     <div class="ovr" style="grid-template-columns:1fr auto"><input id="st-mcpname" placeholder="Token name, e.g. Claude Desktop on my laptop"><button class="btn sm primary" id="st-mcpnew">Create token</button></div>
+    ${mcp.mode !== "off" ? `<p class="fine"><a href="#" id="st-mcpprompt">Connection prompt for ChatGPT, Claude, Grok…</a></p>` : ""}
     <details><summary class="fine">Tools available in each mode</summary><p class="fine">${(mcp.tools || []).map(t => `<span class="tag ${t.level === "god" ? "bad" : t.level === "guarded" ? "warn" : ""}">${esc(t.name)}</span>`).join(" ")}</p></details>
   </div></div>
 
@@ -197,14 +198,42 @@ function userModal(x) {
 function mcpSnippets(token) {
   const se = S.settings, local = `https://127.0.0.1:${se.lan.port}/mcp`;
   const remote = se.tailscale.status?.url ? se.tailscale.status.url + "/mcp" : (se.lan.urls?.[0] ? se.lan.urls[0] + "/mcp" : local);
-  const bin = se.files.binary || "homeowl";
-  const desktop = JSON.stringify({ mcpServers: { homeowl: { command: bin, args: ["mcp", "--url", local, "--token", token] } } }, null, 2);
-  return `<p>Copy the token now — it isn't shown again.</p><pre class="codebox" id="mcp-tok">${esc(token)}</pre>
-    <h3>Claude Code</h3><pre class="codebox">claude mcp add --transport http homeowl ${esc(remote)} --header "Authorization: Bearer ${esc(token)}"</pre>
-    <p class="fine">Over HTTPS with HomeOwl's self-signed certificate, prefer the Tailscale address (real certificate) or the command below.</p>
-    <h3>Claude Desktop (claude_desktop_config.json)</h3><pre class="codebox">${esc(desktop)}</pre>
-    <p class="fine">On another computer, use HomeOwl's address with <span class="mono">--url</span> and add <span class="mono">--insecure</span> for the self-signed certificate (not needed with the Tailscale address).</p>`;
+  const tok = token || "<paste your HomeOwl token>", bin = se.files.binary || "homeowl";
+  const mode = (MCP_MODES.find(m => m[0] === se.mcp.mode) || MCP_MODES[0])[1];
+  const selfSigned = remote.startsWith("https:") && !se.tailscale.status?.url;
+  const desktop = JSON.stringify({ mcpServers: { homeowl: { command: bin, args: ["mcp", "--url", local, "--token", tok] } } }, null, 2);
+  const prompt = `Please connect yourself to my HomeOwl MCP server so you can look at my home network.
+
+- Server URL: ${remote}
+- Transport: Streamable HTTP
+- Authentication: HTTP header  Authorization: Bearer ${tok}
+- Access mode: ${mode}${selfSigned ? "\n- The server uses a self-signed certificate. If your client can't accept it, use HomeOwl's stdio bridge instead: command \"" + bin + "\" with args [\"mcp\", \"--url\", \"" + remote + "\", \"--token\", \"" + tok + "\", \"--insecure\"]" : ""}
+
+Steps:
+1. Add this server to your MCP settings under the name "homeowl" (for Claude Code: claude mcp add --transport http homeowl ${remote} --header "Authorization: Bearer ${tok}"; for Claude Desktop, Cursor, Codex and others: your MCP config file).
+2. Restart or reload if your client needs it, then call the network_overview tool and summarise what you see in a few lines.
+3. Keep the token private: don't repeat it in chat or save it anywhere except the MCP settings.
+
+Rules while using HomeOwl: ask me before any change to my network (block, restart, setting changes), say what will change first, and prefer read-only tools.`;
+  const tabs = [
+    ["prompt", "AI prompt", `<p class="fine">Paste this into an assistant that can change its own settings — Claude Code, Codex, Cursor, or a desktop app with an agent. It sets up the connection and checks it.</p>
+      <pre class="codebox" id="mcp-prompt">${esc(prompt)}</pre><button class="btn sm primary" data-copytext="mcp-prompt">Copy prompt</button>`],
+    ["code", "Claude Code", `<pre class="codebox" id="mcp-cc">claude mcp add --transport http homeowl ${esc(remote)} --header "Authorization: Bearer ${esc(tok)}"</pre><button class="btn sm" data-copytext="mcp-cc">Copy</button>`],
+    ["desktop", "Claude Desktop", `<p class="fine">Settings › Developer › Edit config, add this, restart Claude Desktop.${selfSigned ? "" : " From another computer, use HomeOwl's address with --url."}</p><pre class="codebox" id="mcp-cd">${esc(desktop)}</pre><button class="btn sm" data-copytext="mcp-cd">Copy</button>`],
+    ["web", "ChatGPT, Grok & web apps", `<p class="fine">Chat apps in the browser (ChatGPT, claude.ai, Grok) connect from their own servers on the internet, not from your computer, so they can't reach HomeOwl at a home or Tailscale address. Use a desktop assistant with the prompt instead, or put HomeOwl behind a public HTTPS address you trust and add it as a custom connector with:</p>
+      <pre class="codebox" id="mcp-web">URL: ${esc(remote)}\nHeader: Authorization: Bearer ${esc(tok)}</pre><button class="btn sm" data-copytext="mcp-web">Copy</button>`],
+  ];
+  return `${token ? `<p>Copy the token now — it isn't shown again.</p><pre class="codebox" id="mcp-tok">${esc(token)}</pre>` : `<p class="fine">Replace the placeholder with a token you created (tokens are shown only once).</p>`}
+    <div class="seg mcp-tabs">${tabs.map(([k, l], i) => `<button class="${i ? "" : "on"}" data-mcptab="${k}">${l}</button>`).join("")}</div>
+    ${tabs.map(([k, , h], i) => `<div class="mcp-tab" data-mcppane="${k}" ${i ? "hidden" : ""}>${h}</div>`).join("")}`;
 }
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-mcptab]");
+  if (t) { document.querySelectorAll("[data-mcptab]").forEach(b => b.classList.toggle("on", b === t)); document.querySelectorAll("[data-mcppane]").forEach(p => { p.hidden = p.dataset.mcppane !== t.dataset.mcptab; }); return; }
+  const c = e.target.closest("[data-copytext]");
+  if (c) { try { await navigator.clipboard.writeText($("#" + c.dataset.copytext).textContent); toast("Copied", "ok"); } catch { toast("Select the text and copy it", "err"); } }
+});
 
 document.addEventListener("submit", async e => {
   if (e.target.id !== "st-connect") return;
@@ -234,6 +263,7 @@ document.addEventListener("click", async e => {
   const ue = e.target.closest("[data-useredit]"); if (ue) userModal(S.settings.users.find(x => x.username === ue.dataset.useredit));
   if (id === "st-mypass") { e.preventDefault(); openModal({ title: "Change my password", body: `<label>Current password<input id="mp-cur" type="password" autocomplete="current-password"></label><label>New password<input id="mp-new" type="password" autocomplete="new-password" minlength="10"></label>`,
     buttons: [{ label: "Cancel" }, { label: "Change", cls: "primary", onClick: async () => { try { await api("/api/me/password", { current: $("#mp-cur").value, new: $("#mp-new").value }); closeModal(); toast("Password changed — sign in again", "ok"); setTimeout(() => location.reload(), 1500); } catch (err) { toast(err.message, "err"); } } }] }); }
+  if (id === "st-mcpprompt") { e.preventDefault(); openModal({ title: "Connect an AI assistant", wide: true, body: mcpSnippets(null), buttons: [{ label: "Done" }] }); }
   if (id === "st-mcpnew") {
     try { const r = await api("/api/mcp/token", { name: $("#st-mcpname").value.trim() }); openModal({ title: "MCP token created", wide: true, body: mcpSnippets(r.token), buttons: [{ label: "Done", onClick: () => { closeModal(); loadSettings(); } }] }); }
     catch (err) { toast(err.message, "err"); }

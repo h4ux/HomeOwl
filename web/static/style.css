@@ -516,3 +516,4 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .cam-found-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .cam-found-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line)}
 .cam-found-row:first-child{border-top:0}.cam-found-row.likely{background:var(--ok-bg)}
+.mcp-tabs{margin:12px 0 8px;flex-wrap:wrap}.mcp-tab pre.codebox{white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto}
