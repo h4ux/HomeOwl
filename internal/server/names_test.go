@@ -65,7 +65,33 @@ func TestEasyNames(t *testing.T) {
 	if _, err := parseNames(map[string]any{"checkin": "two words"}, config.Names{}); err == nil {
 		t.Fatal("a bad name must fail")
 	}
-	if n, err := parseNames(map[string]any{"checkin": "Hi.local", "guest": "", "port80": true}, config.Names{Guest: "wifi"}); err != nil || n.Checkin != "hi" || n.Guest != "" || !n.Port80 {
+	if n, err := parseNames(map[string]any{"checkin": "Hi.local", "guest": "", "port80": true}, config.Names{Guest: "wifi"}); err != nil || n.Checkin != "hi" || n.Guest != "" || n.Short != "" {
 		t.Fatalf("parse: %+v %v", n, err)
+	}
+}
+
+// On port 80, http://<IP>/hi and /wifi are served directly; anything else goes to HomeOwl's real port.
+func TestShortLinks(t *testing.T) {
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = a.Cfg.Update(func(c *config.Config) { c.Names.Guest = "wifi" })
+	h := a.port80Handler()
+	get := func(path string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", "http://192.168.1.10"+path, nil)
+		r.RemoteAddr = "192.168.1.40:50000"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	if w := get("/hi"); w.Code != 200 || !strings.Contains(w.Body.String(), "Hi HomeOwl") {
+		t.Fatalf("/hi: %d", w.Code)
+	}
+	if w := get("/wifi"); w.Code != 200 || !strings.Contains(w.Body.String(), "Guest Wi-Fi") {
+		t.Fatalf("/wifi: %d", w.Code)
+	}
+	if w := get("/app.js"); w.Code != http.StatusFound || !strings.Contains(w.Header().Get("Location"), ":8555/") {
+		t.Fatalf("/app.js must go to the real port: %d %s", w.Code, w.Header().Get("Location"))
 	}
 }

@@ -649,6 +649,19 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .wifi-qr svg{max-width:100%;height:auto}
 .wifi-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;text-align:left;margin:14px auto 0;max-width:320px}
 .wifi-kv dt{color:var(--muted)}.wifi-kv dd{margin:0;font-size:20px;font-weight:700;word-break:break-all}
+.wifi-txt{display:flex;flex-direction:column;gap:6px}
+@media (orientation:landscape) and (min-width:700px){
+  .wifi-card{max-width:880px;display:flex;align-items:center;gap:32px;text-align:left;padding:28px 36px}
+  .wifi-card .wifi-qr{flex:0 0 auto;margin:0}.wifi-card .wifi-qr svg{width:min(42vh,300px)}
+  .wifi-card .brand{justify-content:flex-start;font-size:26px}
+  .wifi-txt{flex:1;min-width:0}.wifi-txt .wifi-kv{margin:8px 0;max-width:none}.wifi-txt .wifi-kv dd{font-size:clamp(22px,4vh,38px)}
+}
+.ez-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin:6px 0 8px}
+.ez-card{display:flex;gap:12px;align-items:flex-start;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.ez-card svg{flex:0 0 auto;width:104px;height:104px;background:#fff;border-radius:6px;padding:4px}
+.ez-txt{display:flex;flex-direction:column;gap:5px;min-width:0}
+.ez-url{font-size:17px;font-weight:700;word-break:break-all}
+.ez-more{margin-top:8px}.ez-more summary{cursor:pointer;color:var(--muted)}
 .name-in{display:flex;align-items:center;gap:4px}.name-in input{flex:1;min-width:0}
 .names-st{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--panel2);display:flex;flex-direction:column;gap:4px}
 

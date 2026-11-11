@@ -1,4 +1,4 @@
-/* HomeOwl — the guest Wi-Fi card at http://<name>.local (Settings › Access › Easy names): network, password and
+/* HomeOwl — the guest Wi-Fi card at http://<address>/wifi and http://<name>.local (Settings › Access): network, password and
    a join code, big enough to leave open on a tablet by the door. No sign-in; only the guest networks. */
 "use strict";
 
@@ -17,12 +17,13 @@ async function loadWifi() {
   }
   const nets = d.networks || [];
   if (!nets.length) { box.innerHTML = `<div class="wifi-card"><div class="brand"><img class="logo-img lg" src="icon.png" alt=""> Guest Wi-Fi</div><p class="muted">There's no guest Wi-Fi to show right now.</p></div>`; return; }
+  // landscape screens (an Echo Show, a tablet on its side): code on the left, name and password on the right
   box.innerHTML = nets.map(n => `<div class="wifi-card">
-      <div class="brand"><img class="logo-img lg" src="icon.png" alt=""> Join our Wi-Fi</div>
       <div class="wifi-qr">${QR.themed(QR.wifi(n), { theme: d.qr_theme || "rounded", size: 260, label: `Join ${n.ssid}`, caption: `${n.ssid} · scan to join` })}</div>
-      <p class="muted">Point your phone's camera at the code and tap the Wi-Fi banner.</p>
+      <div class="wifi-txt"><div class="brand"><img class="logo-img lg" src="icon.png" alt=""> Join our Wi-Fi</div>
       <dl class="wifi-kv"><dt>Network</dt><dd>${esc(n.ssid)}</dd>
         <dt>Password</dt><dd class="mono">${n.security === "nopass" ? "none, it's open" : esc(n.password)}</dd></dl>
+      <p class="muted">Point your phone's camera at the code and tap the Wi-Fi banner.</p></div>
     </div>`).join("");
 }
 loadWifi();

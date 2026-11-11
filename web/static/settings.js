@@ -42,15 +42,8 @@ async function loadSettings() {
         <label class="check" style="align-self:end"><input type="checkbox" id="st-tls" ${lan.tls ? "checked" : ""}> <span>HTTPS (self-signed)</span></label></div>
       ${lan.urls?.length ? `<p class="fine">Open from other devices: ${lan.urls.map(x => `<span class="mono">${esc(x)}</span>`).join(" · ")}${lan.tls ? "<br>Your browser warns about the self-signed certificate the first time — that's expected; the connection is still encrypted." : ""}</p>` : ""}
       ${lan.error ? `<div class="msg err">${esc(lan.error)}</div>` : ""}
-      <h3 style="margin-top:14px">Easy names ${hint("HomeOwl answers these names on your home network itself (Bonjour / mDNS), so nobody needs an IP address. Works on iPhone, iPad, Mac, Windows and most Android phones. Leave a name empty to turn it off.")}</h3>
-      ${(() => { const nm = se.names || {}; return `<div class="grid g2">
-        <label>Check-in page<span class="name-in"><span class="fine">http://</span><input id="st-nm-ci" value="${esc(nm.checkin || "")}" placeholder="hi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label>
-        <label>Guest Wi-Fi card<span class="name-in"><span class="fine">http://</span><input id="st-nm-guest" value="${esc(nm.guest || "")}" placeholder="wifi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label></div>
-      <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 || (!nm.checkin && !nm.guest) ? "checked" : ""}> <span>Also answer on port 80, so the names work without “:${esc(lan.port)}”</span></label>
-      ${nm.checkin_url || nm.guest_url ? `<p class="fine">${[nm.checkin_url ? `Check-in: <a class="mono" href="${esc(nm.checkin_url)}" target="_blank" rel="noopener">${esc(nm.checkin_url)}</a>` : "", nm.guest_url ? `Guest card: <a class="mono" href="${esc(nm.guest_url)}" target="_blank" rel="noopener">${esc(nm.guest_url)}</a> <span class="muted">(shows the guest password to anyone on your network)</span>` : ""].filter(Boolean).join("<br>")}</p>` : ""}
-      ${(nm.checkin || nm.guest) && !nm.lan ? `<div class="msg warn">Turn on home-network access above, or other devices can't open these names.</div>` : ""}
-      ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
-      ${(nm.checkin || nm.guest) && nm.lan ? namesStatus(nm) : ""}`; })()}
+      <h3 style="margin-top:14px">Check-in page and guest Wi-Fi card ${hint("Two small pages other devices can open without signing in: the check-in page (family members name their device) and the guest Wi-Fi card (network, password and join code). The links by address work on every device; the .local names work on Apple devices, Windows and most Android phones.")}</h3>
+      ${easyLinks(se.names || {}, lan)}
       <h3 style="margin-top:14px">Built-in Tailscale</h3>
       ${!ts.built_in ? `<p class="muted">This build has no built-in Tailscale.</p>` : `
       <label class="check"><input type="checkbox" id="st-ts" ${ts.enabled ? "checked" : ""}> <span>Run HomeOwl as its own device on my tailnet</span></label>
@@ -117,17 +110,44 @@ async function loadSettings() {
 }
 
 // Settings side menu: one section at a time, remembered in this browser; a dot shows what needs attention
+// the two public pages: a link by address (works everywhere) with its QR code, the .local name, and the settings behind them
+function easyLinks(nm, lan) {
+  const fb = nm.fallback || {}, ip = fb.ip, m = S.model;
+  if (!nm.lan) return `<div class="msg warn">Turn on home-network access above so other devices can open these pages.</div>`;
+  const page = (title, url, name, extra) => `<div class="ez-card">${url ? QR.svg(url, { size: 104, label: `${title}: ${url}` }) : ""}
+    <div class="ez-txt"><b>${esc(title)}</b>${url ? `<span class="ez-url mono">${esc(url.replace(/^http:\/\//, ""))}</span><span class="btnrow"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">Open</a><button class="btn sm" data-copy="${esc(url)}">Copy</button></span>` : `<span class="fine muted">Off</span>`}
+    ${name ? `<span class="fine muted">Also <span class="mono">http://${esc(name)}.local</span> on Apple devices, Windows and most Android phones</span>` : ""}${extra || ""}</div></div>`;
+  // the computer's address can change (DHCP): offer to keep it, through the usual previewed change
+  const host = ip && m?.clients.find(c => c.ip === ip), k = host && m.knownByMac?.[host.mac];
+  const keep = host && !host.fixedIp && !k?.fixedIp && S.role === "admin" && S.source === "live" && (host.userId || k?.id)
+    ? `<div class="msg warn">This computer's address (${esc(ip)}) can change, and then these links stop working. <button class="btn sm" id="st-keepip" data-mac="${esc(host.mac)}">Keep ${esc(ip)} for this computer…</button></div>` : "";
+  return `<div class="ez-grid">${page("Check-in page", fb.checkin, nm.checkin)}
+    ${page("Guest Wi-Fi card", nm.guest ? fb.guest : "", nm.guest, nm.guest ? `<span class="fine">On an Echo Show: say “Alexa, open Silk”, go to <span class="mono">${esc((fb.guest || "").replace(/^http:\/\//, ""))}</span> and bookmark it. Anyone on your network can see the guest password there.</span>` : "")}</div>
+    <label class="check"><input type="checkbox" id="st-nm-guestcard" ${nm.guest ? "checked" : ""}> <span>Show the guest Wi-Fi card</span></label>
+    ${keep}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
+    <details class="ez-more"><summary>Names and options</summary>
+      <div class="grid g2" style="margin-top:8px">
+        <label>Check-in name<span class="name-in"><input id="st-nm-ci" value="${esc(nm.checkin || "")}" placeholder="hi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label>
+        <label>Guest card name<span class="name-in"><input id="st-nm-guest" value="${esc(nm.guest || "")}" placeholder="wifi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label></div>
+      <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 ? "checked" : ""}> <span>Use port 80, so the links don't need “:${esc(lan.port)}”</span></label>
+      ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.checkin || nm.guest ? namesStatus(nm) : ""}</details>`;
+}
+document.addEventListener("change", e => { if (e.target.id === "st-nm-guestcard") { const g = $("#st-nm-guest"); if (g) g.value = e.target.checked ? (g.value || "wifi") : ""; } });
+document.addEventListener("click", e => {
+  if (e.target.id !== "st-keepip") return;
+  const m = S.model, c = m.clients.find(x => x.mac === e.target.dataset.mac), k = m.knownByMac?.[c?.mac]; if (!c) return;
+  runActions([{ kind: "rest", resource: "user", id: c.userId || k.id, fields: { use_fixedip: true, fixed_ip: c.ip, network_id: c.networkId || k?.networkId }, description: `Keep ${c.ip} for ${c.label} (HomeOwl)` }], "Keep this computer's address");
+});
+
 // is the .local answering working? what it heard, what it sent, and the IP links that always work
 function namesStatus(nm) {
   const st = nm.stats || {}, ifs = arr(nm.interfaces);
-  const line = !ifs.length ? `<span class="warn-t">Not listening yet.</span>`
-    : st.send_error ? `<span class="bad-t">Answers can't be sent: ${esc(st.send_error)}.</span> On a Mac, allow HomeOwl under System Settings › Privacy & Security › Local Network, then restart HomeOwl.`
+  const line = st.system && st.registered ? `<span class="ok-t">Working</span>: ${plural(st.registered, "name")} registered with this Mac's Bonjour service. If a device still can't open the .local name, use the link by address above.`
+    : st.send_error ? `<span class="bad-t">${esc(st.send_error)}.</span>${st.system ? "" : " On a Mac, allow HomeOwl under System Settings › Privacy & Security › Local Network, then restart HomeOwl."}`
+    : !ifs.length ? `<span class="warn-t">Not announced yet.</span>`
     : st.heard ? `<span class="ok-t">Working</span>: answered ${plural(st.answered, "question")}, last from <span class="mono">${esc(st.last_asker)}</span> ${ago(st.last_heard)}.`
-    : `Listening on ${esc(ifs.join(", "))}, but no device has asked for these names yet. Open one of the links on a phone, then <a href="#" id="st-nm-check">check again</a>.`;
-  const fb = nm.fallback || {};
-  return `<div class="names-st fine"><div>${line}</div>
-    ${fb.checkin ? `<div class="muted">Without the name (always works): <span class="mono">${esc(fb.checkin)}</span>${fb.guest ? ` · <span class="mono">${esc(fb.guest)}</span>` : ""}</div>` : ""}
-    ${!nm.port80_on ? `<div class="muted">Without port 80, type the port too: <span class="mono">${esc(nm.checkin_url || nm.guest_url)}</span>.</div>` : ""}</div>`;
+    : `Announcing on ${esc(ifs.join(", "))}. Open one of the .local names on a phone, then <a href="#" id="st-nm-check">check again</a>.`;
+  return `<div class="names-st fine"><div>${line}</div></div>`;
 }
 const SET_TABS = [["connection", "Connection"], ["access", "Access"], ["users", "Users"], ["alerts", "Alerts"], ["analytics", "Analytics"], ["home", "Home"], ["ai", "AI & MCP"], ["system", "System"]];
 try { S.setTab = localStorage.getItem("homeowl-settings-tab") || "connection"; } catch { S.setTab = "connection"; }

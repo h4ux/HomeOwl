@@ -165,7 +165,7 @@ func (a *App) Run(ctx context.Context) error {
 		_ = a.port80.Shutdown(sctx)
 	}
 	a.mu.Unlock()
-	a.names.Set(nil)
+	a.names.Set(nil, 0)
 	a.TS.Stop()
 	return nil
 }

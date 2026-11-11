@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.14] — 2026-11-11
+
+### Changed
+- **Check-in page and guest Wi-Fi card, made simple** (Settings › Access): each page now has a short link by address, such as `192.168.1.10/wifi`, that works on every device, plus a QR code, Open and Copy. The guest card is a single on/off switch. Names and port options are under "Names and options".
+- **The guest Wi-Fi card fits a smart display**: on a landscape screen (Echo Show, a tablet on its side), the join code sits next to the network name and password, in large type. Settings explains how to open it on an Echo Show: say "Alexa, open Silk" and bookmark the link.
+
+### Fixed
+- **hi.local and wifi.local on a Mac**: the names are now registered with the Mac's own Bonjour service, the same one that answers for the computer's name. They no longer depend on HomeOwl's Local Network permission, and they are registered again when the address changes. Settings shows when they're registered.
+- The short links on port 80 work by address even when no .local name is set.
+- **"Keep this address"**: if the computer's address could change (it isn't fixed in UniFi), Settings offers to fix it, through the usual previewed and undoable change.
+
 ## [0.1.13] — 2026-11-11
 
 ### Added

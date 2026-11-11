@@ -31,19 +31,23 @@ type Responder struct {
 	err    string
 	ifaces []string
 	st     Stats
+	port   int
 }
 
 // Stats say whether the answering works: questions heard for our names, answers sent, and the last problem.
 type Stats struct {
-	Heard     int    `json:"heard"`
-	Answered  int    `json:"answered"`
-	LastAsker string `json:"last_asker,omitempty"`
-	LastHeard int64  `json:"last_heard,omitempty"` // ms since 1970
-	SendError string `json:"send_error,omitempty"`
+	Heard      int    `json:"heard"`
+	Answered   int    `json:"answered"`
+	LastAsker  string `json:"last_asker,omitempty"`
+	LastHeard  int64  `json:"last_heard,omitempty"` // ms since 1970
+	SendError  string `json:"send_error,omitempty"`
+	System     bool   `json:"system,omitempty"`     // the Mac's own Bonjour service answers (see system.go)
+	Registered int    `json:"registered,omitempty"` // names it has registered and confirmed
 }
 
 // Set replaces the names (bare labels like "hi" or full "hi.local"); an empty list stops answering.
-func (r *Responder) Set(names []string) {
+// port is the web port the names lead to (only used in the Bonjour service record).
+func (r *Responder) Set(names []string, port int) {
 	m := map[string]bool{}
 	for _, n := range names {
 		if fq := FQDN(n); fq != "" {
@@ -52,11 +56,11 @@ func (r *Responder) Set(names []string) {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	same := len(m) == len(r.names) && r.cancel != nil
+	same := len(m) == len(r.names) && r.cancel != nil && r.port == port
 	for k := range m {
 		same = same && r.names[k]
 	}
-	r.names = m
+	r.names, r.port = m, port
 	if same {
 		return
 	}
@@ -70,6 +74,11 @@ func (r *Responder) Set(names []string) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
+	if tool := systemTool(); tool != "" {
+		r.st.System = true
+		go r.runSystem(ctx, tool, port)
+		return
+	}
 	go r.run(ctx)
 }
 

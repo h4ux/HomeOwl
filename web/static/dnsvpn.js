@@ -57,7 +57,7 @@ function tsPolicySnippet(c) {
 }
 
 const copyBox = (id, text) => `<div class="codebox"><button class="btn sm copy" data-copy="${id}">Copy</button><pre id="${id}" class="json">${esc(text)}</pre></div>`;
-document.addEventListener("click", async e => { const b = e.target.closest("[data-copy]"); if (!b) return; const t = $("#" + b.dataset.copy)?.textContent || ""; try { await navigator.clipboard.writeText(t); toast("Copied", "ok"); } catch { toast("Couldn't copy — select the text manually", "err"); } });
+document.addEventListener("click", async e => { const b = e.target.closest("[data-copy]"); if (!b) return; let t; try { t = document.getElementById(b.dataset.copy)?.textContent; } catch { } t = t ?? b.dataset.copy; try { await navigator.clipboard.writeText(t); toast("Copied", "ok"); } catch { toast("Couldn't copy — select the text manually", "err"); } });
 
 V.dns = m => {
   const c = dnsCfg();

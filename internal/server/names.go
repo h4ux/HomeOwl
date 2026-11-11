@@ -16,6 +16,10 @@ import (
 // Easy names on the home network (Settings › Access): HomeOwl answers mDNS for e.g. hi.local and wifi.local,
 // and a visit by that name gets only its own small page — the check-in page or the guest Wi-Fi card — over plain HTTP.
 
+// short links by IP on port 80 (http://192.168.1.10/wifi): only these pages, everything else goes to the real port
+var shortPaths = map[string]bool{"/hi": true, "/hi.js": true, "/api/hi": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
+	"/api/wifi": true, "/style.css": true, "/icon.png": true}
+
 // pages each name may serve; anything else on that name goes back to its page
 var namePaths = map[string]map[string]bool{
 	"checkin": {"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true},
@@ -34,8 +38,15 @@ func (a *App) ApplyNames() {
 			}
 		}
 	}
-	a.names.Set(list)
-	want := c.Names.Port80 && c.LAN.Enabled && len(list) > 0
+	want := c.Names.Short != "off" && c.LAN.Enabled
+	a.mu.Lock()
+	running := a.port80 != nil
+	a.mu.Unlock()
+	webPort := c.LAN.Port
+	if want && (running || canListen80()) {
+		webPort = 80
+	}
+	a.names.Set(list, webPort)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !want {
@@ -50,7 +61,7 @@ func (a *App) ApplyNames() {
 	}
 	ln, err := net.Listen("tcp", ":80")
 	if err != nil {
-		a.port80Err = "Port 80 is busy or not allowed here (" + err.Error() + "). The names still work with :" + strconv.Itoa(c.LAN.Port) + "."
+		a.port80Err = "Port 80 is busy or not allowed here (" + err.Error() + "), so the links need :" + strconv.Itoa(c.LAN.Port) + "."
 		return
 	}
 	srv := &http.Server{Handler: a.port80Handler(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: time.Minute}
@@ -65,7 +76,7 @@ func (a *App) ApplyNames() {
 // port80Handler serves the easy names; any other visit is sent to HomeOwl's real port.
 func (a *App) port80Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if a.nameHost(r) != "" {
+		if a.nameHost(r) != "" || shortPaths[r.URL.Path] {
 			a.handler.ServeHTTP(w, r)
 			return
 		}
@@ -116,21 +127,35 @@ func (a *App) serveName(kind string, w http.ResponseWriter, r *http.Request, h h
 	h.ServeHTTP(w, r)
 }
 
-// fallbackLinks: the same pages by IP address, for devices that can't look up .local names.
+// fallbackLinks: the pages by IP address — they work on every device (an Echo Show too), no name lookup needed.
 func (a *App) fallbackLinks() map[string]string {
 	c := a.Cfg.Get()
-	_, ips := localNames()
-	for _, ip := range ips {
-		if ip.To4() != nil && ip.IsPrivate() {
-			base := "http://" + net.JoinHostPort(ip.String(), strconv.Itoa(c.LAN.Port))
-			out := map[string]string{"checkin": base + "/hi"}
-			if c.Names.Guest != "" {
-				out["guest"] = base + "/wifi"
-			}
-			return out
-		}
+	ip := mdns.PrimaryIPv4()
+	if ip == "" {
+		return nil
 	}
-	return nil
+	a.mu.Lock()
+	p80 := a.port80 != nil
+	a.mu.Unlock()
+	base := "http://" + ip
+	if !p80 {
+		base = "http://" + net.JoinHostPort(ip, strconv.Itoa(c.LAN.Port))
+	}
+	out := map[string]string{"ip": ip, "checkin": base + "/hi"}
+	if c.Names.Guest != "" {
+		out["guest"] = base + "/wifi"
+	}
+	return out
+}
+
+// canListen80: can this process take port 80? (Macs allow it without admin rights; Linux usually doesn't.)
+func canListen80() bool {
+	ln, err := net.Listen("tcp", ":80")
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
 }
 
 // wifiAPI: the guest networks' names and passwords for the guest card — only while the card is turned on
@@ -178,7 +203,7 @@ func (a *App) namesView() map[string]any {
 		}
 		return u
 	}
-	return map[string]any{"checkin": c.Names.Checkin, "guest": c.Names.Guest, "port80": c.Names.Port80,
+	return map[string]any{"checkin": c.Names.Checkin, "guest": c.Names.Guest, "port80": c.Names.Short != "off",
 		"checkin_url": link(c.Names.Checkin), "guest_url": link(c.Names.Guest), "lan": c.LAN.Enabled,
 		"interfaces": ifaces, "error": nilIfEmpty(err), "port80_error": nilIfEmpty(p80err), "port80_on": p80, "stats": st,
 		"fallback": a.fallbackLinks()}
@@ -205,7 +230,7 @@ func parseNames(m map[string]any, old config.Names) (config.Names, error) {
 		}
 	}
 	if has(m, "port80") {
-		n.Port80 = b(m, "port80")
+		n.Short = map[bool]string{true: "", false: "off"}[b(m, "port80")]
 	}
 	if n.Checkin != "" && n.Checkin == n.Guest {
 		return old, errors.New("the check-in page and the guest Wi-Fi card need different names")

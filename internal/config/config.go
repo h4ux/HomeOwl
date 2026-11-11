@@ -53,7 +53,9 @@ type LAN struct {
 type Names struct {
 	Checkin string `json:"checkin,omitempty"` // a single label like "hi" → hi.local ("" = off)
 	Guest   string `json:"guest,omitempty"`   // a single label like "wifi" → wifi.local ("" = off)
-	Port80  bool   `json:"port80,omitempty"`  // also listen on port 80 so the names work without ":8555"
+	Port80  bool   `json:"port80,omitempty"`  // older versions: port 80 only with names (now see Short)
+	// "" = also listen on port 80, so http://<this computer's IP>/hi and /wifi (and the names) work without a port; "off" = don't
+	Short string `json:"short,omitempty"`
 }
 
 type Tailscale struct {
