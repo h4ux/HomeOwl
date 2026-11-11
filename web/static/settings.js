@@ -176,7 +176,8 @@ function cfBlock(cf, guestOn) {
     <div class="ez-dns-row"><input id="cf-token" type="password" placeholder="Cloudflare API token" autocomplete="off" style="flex:1;min-width:200px"><button class="btn sm primary" id="cf-connect">Connect</button></div></div>`;
   if (!S.cfZones) setTimeout(cfLoadZones, 0);
   const st = cf.state || {}, zones = S.cfZones || (cf.zone_id ? [{ id: cf.zone_id, name: cf.zone }] : []);
-  const links = arr(cf.links).map(l => `<div class="cf-link"><span class="tag">${l.kind === "wifi" ? "Guest Wi-Fi" : "Check-in"}</span> <a class="mono" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url.replace("https://", ""))}</a> <span class="fine muted">→ <span class="mono">${esc(l.target)}</span></span> <button class="btn sm" data-copy="${esc(l.url)}">Copy</button></div>`).join("");
+  const links = arr(cf.links).map(l => `<div class="cf-link"><span class="tag">${l.kind === "wifi" ? "Guest Wi-Fi" : "Check-in"}</span> <a class="mono" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url.replace("https://", ""))}</a> <span class="fine muted">→ <span class="mono">${esc(l.target)}</span></span> <button class="btn sm" data-copy="${esc(l.url)}">Copy</button>
+    ${l.check === "ok" ? `<span class="tag good">works</span>` : ""}</div>${l.check && l.check !== "ok" ? `<div class="msg warn">${esc(l.url.replace("https://", ""))}: ${esc(l.check)}</div>` : ""}`).join("");
   return `<div class="ez-dns">${head}
     <div class="ez-dns-row"><label>Domain<select id="cf-zone"><option value="">Off</option>${zones.map(z => `<option value="${esc(z.id)}" ${z.id === cf.zone_id ? "selected" : ""}>${esc(z.name)}</option>`).join("")}</select></label>
       <label>Guest Wi-Fi<span class="name-in"><input id="cf-wifi" value="${esc(cf.wifi ?? "wifi")}" placeholder="wifi" maxlength="40"><span class="fine">.${esc(cf.zone || "your-domain")}</span></span></label>

@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.19] — 2026-11-11
+
+### Added
+- **Cloudflare links check themselves**: after each change HomeOwl opens each link the way a browser at home would, and shows "works" or what went wrong. For example, Cloudflare's error 522 (the redirect rule didn't apply to this visit), or another rule on the domain sending visitors elsewhere first. A failing link is checked again every 10 minutes.
+
 ## [0.1.18] — 2026-11-11
 
 ### Fixed

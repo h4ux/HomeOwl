@@ -28,8 +28,9 @@ import (
 
 const cfSlot = "cloudflare-token"
 
-// cfHome finds this home's public addresses (tests replace it).
+// cfHome finds this home's public addresses, cfCheck tests a link (tests replace them).
 var cfHome = cloudflare.HomeAddresses
+var cfCheck = cloudflare.Check
 
 type cfName struct {
 	Kind   string `json:"kind"` // "wifi" or "hi"
@@ -38,6 +39,7 @@ type cfName struct {
 	Target string `json:"target"`
 	Zone   string `json:"zone,omitempty"`  // the zone ID it lives in
 	Stale  bool   `json:"stale,omitempty"` // to be removed (an earlier try failed)
+	Check  string `json:"check,omitempty"` // what HomeOwl saw opening the link itself ("ok", or the problem)
 }
 
 type cfState struct {
@@ -255,6 +257,28 @@ func (a *App) syncCloudflare(by string) cfState {
 			}
 		}
 	}
+	// open each link the way a browser here would (a new rule can take a few seconds to apply)
+	for i, n := range st.Names {
+		if n.Stale {
+			continue
+		}
+		res := ""
+		for try := 0; try < 3; try++ {
+			if try > 0 {
+				time.Sleep(4 * time.Second)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			res = cfCheck(ctx, n.Host, n.Target)
+			cancel()
+			if res == "" {
+				break
+			}
+		}
+		st.Names[i].Check = "ok"
+		if res != "" {
+			st.Names[i].Check = res
+		}
+	}
 	a.cfSave(st)
 	if len(did) > 0 {
 		pub := unifi.Preview{Method: "PUT", Path: "/zones/*/rulesets", Target: "Cloudflare links", Description: "Cloudflare: " + strings.Join(did, ", "),
@@ -286,7 +310,11 @@ func (a *App) cfDue() bool {
 		}
 	}
 	age := time.Since(time.UnixMilli(st.Time))
-	if len(st.Errors) > 0 && age > 10*time.Minute || age > 12*time.Hour {
+	failing := len(st.Errors) > 0
+	for _, n := range st.Names {
+		failing = failing || n.Check != "" && n.Check != "ok"
+	}
+	if failing && age > 10*time.Minute || age > 12*time.Hour {
 		return true
 	}
 	if !c.Cloudflare.AnyIP && len(want) > 0 { // the home's public address may have changed
@@ -319,7 +347,7 @@ func (a *App) cloudflareView() map[string]any {
 	var links []map[string]string
 	for _, n := range st.Names {
 		if !n.Stale {
-			links = append(links, map[string]string{"kind": n.Kind, "url": "https://" + n.Host, "target": n.Target})
+			links = append(links, map[string]string{"kind": n.Kind, "url": "https://" + n.Host, "target": n.Target, "check": n.Check})
 		}
 	}
 	return map[string]any{"connected": a.Sec.Get(cfSlot) != "", "zone": cf.Zone, "zone_id": cf.ZoneID, "wifi": cf.Wifi, "hi": cf.Hi,

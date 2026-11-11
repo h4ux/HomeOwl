@@ -244,3 +244,25 @@ func trace(ctx context.Context, nw string) net.IP {
 	}
 	return nil
 }
+
+// Check opens https://host/ the way a browser at home would and reports where Cloudflare sends it: "" when it
+// redirects to target, else what went wrong.
+func Check(ctx context.Context, host, target string) string {
+	hc := &http.Client{Timeout: 15 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	req, _ := http.NewRequestWithContext(ctx, "GET", "https://"+host+"/", nil)
+	resp, err := hc.Do(req)
+	if err != nil {
+		return fmt.Sprintf("couldn't open it (%v) — Cloudflare may still be setting the name up; try again in a minute", err)
+	}
+	resp.Body.Close()
+	loc := resp.Header.Get("Location")
+	switch {
+	case (resp.StatusCode == 301 || resp.StatusCode == 302) && loc == target:
+		return ""
+	case resp.StatusCode == 301 || resp.StatusCode == 302 || resp.StatusCode == 307 || resp.StatusCode == 308:
+		return fmt.Sprintf("Cloudflare sends it to %s instead of %s — another redirect rule or page rule on this domain runs first", loc, target)
+	case resp.StatusCode == 522 || resp.StatusCode == 521 || resp.StatusCode == 523:
+		return fmt.Sprintf("Cloudflare answered %d: the redirect rule didn't apply to this visit. Check Rules › Redirect Rules on Cloudflare, or untick “Only from my home's internet address”", resp.StatusCode)
+	}
+	return fmt.Sprintf("Cloudflare answered %d instead of redirecting", resp.StatusCode)
+}

@@ -126,8 +126,9 @@ func TestCloudflareLinks(t *testing.T) {
 		rules: []map[string]any{{"id": "other", "ref": "users_rule", "expression": "true", "action": "redirect"}}}
 	srv := httptest.NewServer(f)
 	defer srv.Close()
-	oldAPI, oldHome, oldIP := cloudflare.API, cfHome, homeIP
-	defer func() { cloudflare.API, cfHome, homeIP = oldAPI, oldHome, oldIP }()
+	oldAPI, oldHome, oldIP, oldCheck := cloudflare.API, cfHome, homeIP, cfCheck
+	defer func() { cloudflare.API, cfHome, homeIP, cfCheck = oldAPI, oldHome, oldIP, oldCheck }()
+	cfCheck = func(context.Context, string, string) string { return "" }
 	cloudflare.API = srv.URL
 	wan := []string{"203.0.113.7"}
 	cfHome = func(context.Context) []string { return wan }
