@@ -227,7 +227,7 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		people := []map[string]string{}
 		for _, p := range a.An.People() {
-			people = append(people, map[string]string{"id": p.ID, "name": p.Name})
+			people = append(people, map[string]string{"id": p.ID, "name": p.Name, "kind": p.Kind})
 		}
 		waiting := false
 		for _, x := range a.checkins.List() {
@@ -355,6 +355,9 @@ func (a *App) checkinView() map[string]any {
 	}
 	if c.LAN.ExtraHost != "" {
 		links = append([]string{"http://" + net.JoinHostPort(c.LAN.ExtraHost, strconv.Itoa(c.LAN.Port)) + "/hi"}, links...)
+	}
+	if u, ok := a.namesView()["checkin_url"].(string); ok && c.LAN.Enabled {
+		links = append([]string{u}, links...)
 	}
 	return map[string]any{"items": a.checkins.List(), "links": links, "lan": c.LAN.Enabled}
 }

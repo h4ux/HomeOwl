@@ -81,7 +81,7 @@ function prStrip(p, events) {
 function prBody(d) {
   const people = arr(d.people), tagged = people.filter(p => arr(p.devices).length), devs = prDevices(), now = Date.now();
   const ev = arr(d.events), admin = !!d.admin && (S.role === "admin" || d.demo);
-  if (!people.length) return `<div class="card"><h2>No people yet</h2><p>Add the family first under <a href="#" data-goto="analytics">Family › Analytics › People</a>, then come back to tag each person's phone.</p></div>`;
+  if (!people.length) return `<div class="card"><h2>No people yet</h2><p>Add the family first under <a href="#" data-goto="an-people">Family › People & groups</a>, then come back to tag each person's phone.</p></div>`;
   const card = p => {
     const st = p.state, home = !!st?.home, dev = st?.device_name || devs.get(st?.device)?.label || "";
     const sub = !arr(p.devices).length ? "no device tagged yet" : !st ? "watching…" :
@@ -119,14 +119,10 @@ function prHistory(d, tagged, ev) {
 }
 
 function prAdmin(d, people, devs) {
-  const taken = new Set(people.flatMap(p => arr(p.devices)));
-  const choices = [...devs.values()].filter(x => !taken.has(x.mac)).sort((a, b) => (b.online - a.online) || String(a.label).localeCompare(b.label));
-  const opts = `<option value="">Add a device…</option>${choices.map(x => `<option value="${esc(x.mac)}">${x.online ? "● " : ""}${esc(x.label)}${x.vendor ? ` (${esc(x.vendor)})` : ""}</option>`).join("")}`;
-  return `<div class="card section"><h2>Devices that say someone is home</h2>
-    <p class="fine">Tag the device each person takes with them, usually their phone. A tagged device also counts as theirs in Analytics. ● = connected now.</p>
+  return `<div class="card section"><h2>Devices that say someone is home ${hint("Tag the device each person takes with them, usually their phone. A tagged device also counts as theirs in Analytics.")}</h2>
     ${people.map(p => `<div class="pr-tagrow"><span class="pr-name"><i class="pr-swatch" style="background:${esc(p.color || "var(--muted)")}"></i>${esc(p.name)}</span>
-      <div class="pr-tags">${arr(p.devices).map(mac => { const x = devs.get(mac); return `<span class="pr-tag">${x?.online ? "● " : ""}${esc(x?.label || mac)} <span class="mono fine">${esc(mac)}</span>${privateMac(mac) ? ` <span class="fine warn-t" title="A private Wi-Fi address. Keep it fixed for your home Wi-Fi, or HomeOwl loses track when the phone changes it.">private address</span>` : ""}<button class="x" data-pruntag="${esc(mac)}" aria-label="Untag ${esc(x?.label || mac)}">×</button></span>`; }).join("")}
-        <select data-prtag="${esc(p.id)}" aria-label="Add a device for ${esc(p.name)}">${opts}</select></div></div>`).join("")}
+      <div class="pr-tags">${arr(p.devices).map(mac => { const x = devs.get(mac); return `<span class="pr-tag${x?.online ? " on" : ""}">${cliIcon({ name: x?.label, vendor: x?.vendor }, 16)}<span>${esc(x?.label || mac)}${privateMac(mac) ? ` <span class="fine warn-t" title="A private Wi-Fi address. Keep it fixed for your home Wi-Fi, or HomeOwl loses track when the phone changes it.">private</span>` : ""}</span>${canRename(mac) && !d.demo ? `<button class="x" data-rename="${esc(mac)}" title="Rename" aria-label="Rename ${esc(x?.label || mac)}">✎</button>` : ""}<button class="x" data-pruntag="${esc(mac)}" aria-label="Untag ${esc(x?.label || mac)}">×</button></span>`; }).join("")}
+        <button class="btn sm" data-prpick="${esc(p.id)}">+ Device</button></div></div>`).join("")}
     <p class="fine">iPhone and Android use a <b>private Wi-Fi address</b> per network. That's fine while it stays the same: on iPhone set <i>Settings › Wi-Fi › (your network) › Private Wi-Fi Address</i> to <b>Fixed</b> (not Rotating); on Android keep “Use randomized MAC” per network, not per connection.</p></div>
 
   <div class="card section"><h2>History settings</h2>
@@ -145,8 +141,6 @@ async function prPost(path, body, msg) {
 
 document.addEventListener("change", e => {
   if (!e.target.closest("#pr-body")) return;
-  const tag = e.target.closest("[data-prtag]");
-  if (tag && tag.value) { prPost("/api/presence/tag", { mac: tag.value, person: tag.dataset.prtag }, "Tagged"); return; }
   if (e.target.id === "pr-history") {
     if (!e.target.checked && arr(S.pr?.events).length) {
       e.target.checked = true;
@@ -159,7 +153,27 @@ document.addEventListener("change", e => {
   if (e.target.id === "pr-keep") { prPost("/api/presence/settings", { keep_days: +e.target.value }, "Saved"); return; }
   if (e.target.id === "pr-away") { prPost("/api/presence/settings", { away_minutes: +e.target.value || 10 }, "Saved"); }
 });
+// pick a device for one person: suggestions are their check-ins, devices already theirs in Analytics and names that match
+async function prPick(pid) {
+  const d = S.pr, p = arr(d?.people).find(x => x.id === pid); if (!p) return;
+  const taken = new Map(); arr(d.people).forEach(x => arr(x.devices).forEach(m => taken.set(m, x)));
+  const items = [...prDevices().values()].map(x => ({ id: x.mac, mac: x.mac, name: x.label, vendor: x.vendor, online: x.online, wifi: true }));
+  let checkins = [], mine = new Set();
+  if (S.source === "live") {
+    const [ci, meta] = await Promise.all([api("/api/checkins").catch(() => ({})), api("/api/analytics/meta", {}).catch(() => ({}))]);
+    checkins = ci.items || [];
+    arr(meta.people).find(x => x.id === pid)?.devices.forEach(k => { if (k.kind === "mac") mine.add(k.key); });
+  }
+  openModal({ title: `A device for ${p.name}`, wide: true, body: `<p class="fine muted">Usually the phone ${esc(p.name)} carries. They count as home while it's on your Wi-Fi.</p><div id="pr-picker"></div>`, buttons: [{ label: "Cancel" }] });
+  devPicker($("#pr-picker"), { items, single: true, rank: it => ["phone", "watch"].includes(clientKind(it)) ? 1 : 0,
+    ownerOf: it => it && taken.get(it.mac) && taken.get(it.mac).id !== pid ? taken.get(it.mac) : null,
+    suggest: () => { const m = dpSuggest(items, { name: p.name, id: pid, checkins }); items.forEach(it => { if (mine.has(it.mac) && !m.has(it.id)) m.set(it.id, "theirs in Analytics"); });
+      [...m.keys()].forEach(id => { if (arr(p.devices).includes(id)) m.delete(id); }); return m; },
+    onPick: it => { closeModal(); prPost("/api/presence/tag", { mac: it.mac, person: pid }, `${it.name} tagged`); } });
+}
+
 document.addEventListener("click", e => {
+  const pk = e.target.closest("[data-prpick]"); if (pk) { prPick(pk.dataset.prpick); return; }
   if (!e.target.closest("#pr-body")) return;
   const un = e.target.closest("[data-pruntag]");
   if (un) { prPost("/api/presence/tag", { mac: un.dataset.pruntag, person: "" }, "Untagged"); return; }

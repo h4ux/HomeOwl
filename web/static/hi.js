@@ -39,7 +39,8 @@ async function start() {
       <label>Whose device is it?
         <select id="hi-person" required>
           <option value="">Choose…</option>
-          ${st.people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}
+          ${st.people.filter(p => p.kind !== "group").map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}
+          ${st.people.some(p => p.kind === "group") ? `<optgroup label="Shared by everyone">${st.people.filter(p => p.kind === "group").map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</optgroup>` : ""}
           <option value="__new">${st.people.length ? "Someone else…" : "Type a name…"}</option>
         </select></label>
       <label id="hi-newwrap" hidden>Name<input id="hi-newname" maxlength="40" placeholder="e.g. Alex"></label>

@@ -48,6 +48,14 @@ type LAN struct {
 	ExtraHost string `json:"extra_host"` // extra hostname allowed in the Host header (e.g. a DNS name you gave it)
 }
 
+// Names are easy addresses on the home network, answered by HomeOwl itself over mDNS (Bonjour):
+// e.g. http://hi.local opens the device check-in page and http://wifi.local the guest Wi-Fi card.
+type Names struct {
+	Checkin string `json:"checkin,omitempty"` // a single label like "hi" → hi.local ("" = off)
+	Guest   string `json:"guest,omitempty"`   // a single label like "wifi" → wifi.local ("" = off)
+	Port80  bool   `json:"port80,omitempty"`  // also listen on port 80 so the names work without ":8555"
+}
+
 type Tailscale struct {
 	Enabled   bool   `json:"enabled"`    // run HomeOwl as its own device on your tailnet
 	Hostname  string `json:"hostname"`   // name on the tailnet → https://<hostname>.<tailnet>.ts.net
@@ -134,6 +142,7 @@ type Config struct {
 	AutoConnect    bool      `json:"auto_connect"`
 	RefreshMinutes int       `json:"refresh_minutes"`
 	LAN            LAN       `json:"lan"`
+	Names          Names     `json:"names"`
 	Tailscale      Tailscale `json:"tailscale"`
 	MCP            MCP       `json:"mcp"`
 	Analytics      Analytics `json:"analytics"`

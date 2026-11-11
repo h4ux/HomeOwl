@@ -1,0 +1,61 @@
+package server
+
+import (
+	"crypto/tls"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/h4ux/homeowl/internal/config"
+)
+
+// http://hi.local and http://wifi.local only serve their own page, over plain HTTP; the guest password API answers
+// on the guest name only.
+func TestEasyNames(t *testing.T) {
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.cert = tls.Certificate{Certificate: [][]byte{{1}}}
+	if err := a.Cfg.Update(func(c *config.Config) { c.Names = config.Names{Checkin: "hi", Guest: "wifi"} }); err != nil {
+		t.Fatal(err)
+	}
+	get := func(url string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", url, nil)
+		r.RemoteAddr = "192.168.1.40:50000"
+		w := httptest.NewRecorder()
+		a.handler.ServeHTTP(w, r)
+		return w
+	}
+	if w := get("http://hi.local/"); w.Code != 200 || !strings.Contains(w.Body.String(), "Hi HomeOwl") {
+		t.Fatalf("hi.local/: %d", w.Code)
+	}
+	if w := get("http://HI.local:8555/app.js"); w.Code != http.StatusFound || w.Header().Get("Location") != "/" {
+		t.Fatalf("hi.local must not serve the app: %d %s", w.Code, w.Header().Get("Location"))
+	}
+	if w := get("http://wifi.local/"); w.Code != 200 || !strings.Contains(w.Body.String(), "Guest Wi-Fi") {
+		t.Fatalf("wifi.local/: %d", w.Code)
+	}
+	if w := get("http://wifi.local/api/status"); w.Code != http.StatusFound {
+		t.Fatalf("wifi.local must not reach the API: %d", w.Code)
+	}
+	if w := get("http://wifi.local/api/wifi"); w.Code != 503 { // not connected to UniFi in the test
+		t.Fatalf("wifi.local/api/wifi: %d", w.Code)
+	}
+	if w := get("http://192.168.1.10:8555/api/wifi"); w.Code == 200 || w.Code == 503 {
+		t.Fatalf("the guest password API must not answer by IP: %d", w.Code)
+	}
+	if w := get("http://hi.local/api/wifi"); w.Code != http.StatusFound {
+		t.Fatalf("hi.local/api/wifi: %d", w.Code)
+	}
+	if _, err := parseNames(map[string]any{"checkin": "x", "guest": "X.local"}, config.Names{}); err == nil {
+		t.Fatal("the same name twice must fail")
+	}
+	if _, err := parseNames(map[string]any{"checkin": "two words"}, config.Names{}); err == nil {
+		t.Fatal("a bad name must fail")
+	}
+	if n, err := parseNames(map[string]any{"checkin": "Hi.local", "guest": "", "port80": true}, config.Names{Guest: "wifi"}); err != nil || n.Checkin != "hi" || n.Guest != "" || !n.Port80 {
+		t.Fatalf("parse: %+v %v", n, err)
+	}
+}

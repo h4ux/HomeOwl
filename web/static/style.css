@@ -47,7 +47,7 @@ details.adv{margin:4px 0 14px} details.adv summary{cursor:pointer;color:var(--mu
 .connect-card form{margin-top:18px}
 .connect-card .btn.primary{width:100%;padding:11px}
 .alt{display:flex;gap:8px;margin:14px 0 6px;flex-wrap:wrap}.alt .btn{flex:1}
-.msg{margin-top:10px;font-size:13px;min-height:1em}.msg.err{color:var(--crit)}
+.msg{margin-top:10px;font-size:13px;min-height:1em}.msg.err{color:var(--crit)}.msg.warn{color:var(--high)}
 
 /* layout */
 .app{display:grid;grid-template-columns:268px 1fr;min-height:100vh}
@@ -599,3 +599,54 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .td-ups{display:grid;gap:6px}.td-ups b{font-size:16px}
 .td-net{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.td-net>span{display:flex;flex-direction:column}.td-net b{font-size:22px;font-variant-numeric:tabular-nums}
 .status-list{max-width:680px}
+
+/* People & groups, device picker (devpick.js) */
+.an-meta{margin:-6px 0 12px}
+.pp-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pp-top .btnrow{margin-left:auto}
+.pp-title{display:flex;flex-direction:column;min-width:0}
+.pp-title b{font-size:15px}
+.pp-av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700}
+.pp-av.grp{border-radius:9px}
+.pp-sec{display:flex;align-items:center;gap:6px;margin-bottom:8px}.pp-sec h2{margin:0}
+.pp-tpl{margin-top:10px;align-items:center}
+.pp-un{display:flex;flex-direction:column}
+.pp-unrow{display:grid;grid-template-columns:22px minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.pp-unrow:first-child{border-top:0}
+.pp-unrow a{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pp-unrow select{width:auto;padding:4px 8px}
+.pp-form{display:grid;grid-template-columns:minmax(0,1fr) 70px auto;gap:12px;align-items:end}
+.pp-form input[type=color]{height:40px;padding:4px}
+.pp-form .lbl{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+.pp-profs{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}
+.pp-profs summary{cursor:pointer;font-weight:600}
+.dp-sel{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px dashed var(--line);border-radius:10px;min-height:44px;align-items:center}
+.dp-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 3px 3px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px}
+.dp-chip .x,.pr-tag .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 6px;border-radius:50%}
+.dp-chip .x:hover{color:var(--crit)}
+.dp-sug{margin-top:12px;border:1px solid var(--accent);border-radius:10px;padding:4px 10px;background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.dp-h{display:flex;align-items:center;justify-content:space-between;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 0}
+.dp-q{margin-top:12px;width:100%}
+.dp-list{margin-top:6px;max-height:330px;overflow:auto}
+.dp-row{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 2px;border-top:1px solid var(--line)}
+.dp-list .dp-row:first-child,.dp-h+.dp-row{border-top:0}
+.dp-row.on{opacity:.65}
+.dp-name{display:flex;flex-direction:column;min-width:0}
+.dp-name b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dp-name .fine{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dp-more{margin:8px 0}
+.pr-tag.on{border-color:var(--ok)}
+.pr-tag .dic{color:var(--muted)}
+@media (max-width:640px){.pp-form{grid-template-columns:1fr 70px}.pp-form>div{grid-column:1/-1}.pp-unrow{grid-template-columns:22px minmax(0,1fr) auto}.pp-unrow .fine{display:none}}
+.dp-row .dic,.dp-chip .dic,.pr-tag .dic,.pp-unrow .dic{margin:0}
+.pp-devs{display:flex;flex-wrap:wrap;gap:6px;margin:-2px 0 10px}
+.icon-btn{border:0;background:none;color:var(--muted);cursor:pointer;padding:0 4px;font-size:13px;opacity:.6}.icon-btn:hover{opacity:1;color:var(--accent)}
+.wifi-page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:16px;gap:16px}
+.wifi-page main{display:flex;flex-wrap:wrap;gap:16px;justify-content:center}
+.wifi-card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;max-width:420px;width:100%;text-align:center;box-shadow:0 6px 30px rgba(0,0,0,.08)}
+.wifi-card .brand{justify-content:center;margin-bottom:12px;font-size:20px}
+.wifi-qr{display:flex;justify-content:center;margin:8px 0}
+.wifi-qr svg{max-width:100%;height:auto}
+.wifi-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;text-align:left;margin:14px auto 0;max-width:320px}
+.wifi-kv dt{color:var(--muted)}.wifi-kv dd{margin:0;font-size:20px;font-weight:700;word-break:break-all}
+.name-in{display:flex;align-items:center;gap:4px}.name-in input{flex:1;min-width:0}

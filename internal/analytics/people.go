@@ -230,6 +230,7 @@ type Person struct {
 	Name    string         `json:"name"`
 	Color   string         `json:"color"`
 	Note    string         `json:"note"`
+	Kind    string         `json:"kind"` // "person" (default) or "group": shared things like the TV, servers or smart-home gear
 	Devices []PersonDevice `json:"devices"`
 }
 
@@ -238,13 +239,13 @@ func (e *Engine) People() []Person {
 	if e.db == nil {
 		return out
 	}
-	rs, err := e.db.Query("SELECT id, name, coalesce(color,''), coalesce(note,'') FROM people ORDER BY name")
+	rs, err := e.db.Query("SELECT id, name, coalesce(color,''), coalesce(note,''), coalesce(nullif(kind,''),'person') FROM people ORDER BY name")
 	if err != nil {
 		return out
 	}
 	for rs.Next() {
 		var p Person
-		if rs.Scan(&p.ID, &p.Name, &p.Color, &p.Note) == nil {
+		if rs.Scan(&p.ID, &p.Name, &p.Color, &p.Note, &p.Kind) == nil {
 			p.Devices = []PersonDevice{}
 			out = append(out, p)
 		}
@@ -301,6 +302,9 @@ func (e *Engine) SavePerson(p Person) (string, error) {
 	if !colorRE.MatchString(p.Color) {
 		p.Color = ""
 	}
+	if p.Kind != "group" {
+		p.Kind = "person"
+	}
 	if len(p.Note) > 300 {
 		p.Note = p.Note[:300]
 	}
@@ -318,7 +322,7 @@ func (e *Engine) SavePerson(p Person) (string, error) {
 		}
 	}
 	err := e.tx(func(tx *sql.Tx) error {
-		if _, err := tx.Exec("INSERT OR REPLACE INTO people VALUES (?,?,?,?)", p.ID, p.Name, p.Color, p.Note); err != nil {
+		if _, err := tx.Exec("INSERT OR REPLACE INTO people(id, name, color, note, kind) VALUES (?,?,?,?,?)", p.ID, p.Name, p.Color, p.Note, p.Kind); err != nil {
 			return err
 		}
 		if _, err := tx.Exec("DELETE FROM person_devices WHERE person_id=?", p.ID); err != nil {

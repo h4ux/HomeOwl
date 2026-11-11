@@ -56,7 +56,7 @@ function filterSelects(meta) {
   const f = S.ex.filters, ppl = meta.people || [];
   return `<div class="ex-selects">
     <input id="ex-q" class="search" placeholder="Search domains, devices, IPs…" value="${esc(f.q || "")}">
-    <select data-exsel="person"><option value="">Everyone</option>${ppl.map(p => `<option value="${esc(p.id)}" ${f.person === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}<option value="__none__" ${f.person === "__none__" ? "selected" : ""}>Not assigned</option></select>
+    <select data-exsel="person"><option value="">Everyone</option>${ppl.filter(p => p.kind !== "group").map(p => `<option value="${esc(p.id)}" ${f.person === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}${ppl.some(p => p.kind === "group") ? `<optgroup label="Groups">${ppl.filter(p => p.kind === "group").map(p => `<option value="${esc(p.id)}" ${f.person === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</optgroup>` : ""}<option value="__none__" ${f.person === "__none__" ? "selected" : ""}>Not assigned</option></select>
     <select data-exsel="category"><option value="">All categories</option>${meta.categories.map(c => `<option ${f.category === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>
     <select data-exsel="status"><option value="">Any status</option>${["default", "blocked", "allowed", "relayed", "error"].map(s => `<option ${f.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
     ${Object.keys(meta.profiles || {}).length > 1 ? `<select data-exsel="profile"><option value="">All profiles</option>${Object.entries(meta.profiles).map(([id, n]) => `<option value="${esc(id)}" ${f.profile === id ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}
@@ -182,7 +182,7 @@ function hmNote(r) {
 }
 function exRest(r) {
   fill("ex-person", blist(r.by_person, "person", { label: i => i.name || personName(i.key), color: i => i.key === "__none__" ? "var(--c7)" : personColor(i.key), sub: subActive,
-    empty: "No people yet — add them in the People tab" }) + (isAdmin() ? `<p class="fine"><a href="#" data-antab="people">Manage people →</a></p>` : ""));
+    empty: "No people yet — add them in Family › People & groups" }) + (isAdmin() ? `<p class="fine"><a href="#" data-antab="people">Manage people & groups →</a></p>` : ""));
   fill("ex-cat", blist(r.by_category, "category", { color: i => catColor(i.key), sub: subActive }));
   fill("ex-dev", blist(r.by_device, "device", { icon: i => cliIcon({ name: i.key }, 16), color: i => i.person_id ? personColor(i.person_id) : "var(--c1)", sub: subActive,
     tag: i => i.person_id ? ` <span class="tag">${esc(personName(i.person_id))}</span>` : "" }));
@@ -243,90 +243,119 @@ async function exportCsv() {
   } catch (e) { toast(e.message, "err"); }
 }
 
-// ------------------------------------------------------------------ People tab
+// ------------------------------------------------------------------ People & groups
+const isGroup = p => p?.kind === "group";
+const ppAvatar = p => `<span class="pp-av${isGroup(p) ? " grp" : ""}" style="background:${esc(p.color || "var(--c4)")}">${isGroup(p) ? iconSvg(GROUP_TPL.find(g => g.re.test(p.name.toLowerCase()))?.kinds[0] || "iot", 16) : esc((p.name || "?").slice(0, 1).toUpperCase())}</span>`;
 function peopleBody() {
-  return `<div class="head" style="margin:0 0 12px"><div class="muted">Group devices by person to see each person's online habits — what they use and when. A device can belong to one person.</div>
-    ${isAdmin() ? `<button class="btn primary" id="pp-add">+ Add person</button>` : ""}</div><div id="pp-list"><div class="empty">Loading…</div></div>`;
+  return `${isAdmin() ? `<div class="btnrow" style="margin-bottom:12px"><button class="btn primary" id="pp-add">+ Person</button><button class="btn" id="pp-addg">+ Group</button></div>` : ""}<div id="pp-list"><div class="empty">Loading…</div></div>`;
 }
 async function loadPeople() {
   let meta; try { meta = await exMeta(true); } catch (e) { return fill("pp-list", `<div class="empty bad-t">${esc(e.message)}</div>`); }
-  const ppl = meta.people;
-  if (!ppl.length) return fill("pp-list", `<div class="card"><h2>No people yet</h2><p>Add a person (e.g. each family member, “Guests”, “TV & IoT”) and pick their devices. Then every chart can be filtered by person, and you get a usage profile per person.</p>${isAdmin() ? `<button class="btn primary" id="pp-add2">Add the first person</button>` : ""}</div>`);
-  fill("pp-list", `<div class="grid g2">${ppl.map(p => `<div class="card person" id="pp-${esc(p.id)}" style="border-top:3px solid ${esc(p.color || "var(--c4)")}">
-    <div class="head" style="margin:0 0 6px"><h2 style="margin:0">${esc(p.name)} <span class="muted fine">${ppCount(p)}</span></h2>
-      <div class="btnrow"><button class="btn sm primary" data-exgo="person|${esc(p.id)}">Explore</button>${isAdmin() ? `<button class="btn sm" data-ppedit="${esc(p.id)}">Edit</button>` : ""}</div></div>
-    <div class="pp-body"><div class="empty">Loading…</div></div></div>`).join("")}</div>
-    <div class="card section"><h2>Devices not assigned to anyone</h2><div id="pp-unassigned"><div class="empty">Loading…</div></div></div>`);
-  ppl.forEach(async p => {
+  const ppl = meta.people.filter(p => !isGroup(p)), grps = meta.people.filter(isGroup);
+  const card = p => `<div class="card person" id="pp-${esc(p.id)}">
+    <div class="pp-top">${ppAvatar(p)}<div class="pp-title"><b>${esc(p.name)}</b><span class="fine muted">${ppCount(p)}</span></div>
+      <div class="btnrow"><button class="btn sm" data-exgo="person|${esc(p.id)}">Explore</button>${isAdmin() ? `<button class="btn sm" data-ppedit="${esc(p.id)}">Edit</button>` : ""}</div></div>
+    ${ppDevChips(p)}<div class="pp-body"><div class="empty">Loading…</div></div></div>`;
+  const tpl = GROUP_TPL.filter(g => !grps.some(x => x.name.toLowerCase() === g.name.toLowerCase()));
+  fill("pp-list", `${ppl.length ? `<div class="grid g2">${ppl.map(card).join("")}</div>`
+      : emptyState({ title: "Add the people in your home", text: "Pick each person's phone, laptop and tablet. Every chart can then be filtered by person, and Who's home knows when they're in.", btn: isAdmin() ? `<button class="btn primary" id="pp-add2">Add the first person</button>` : "" })}
+    <div class="section"><div class="pp-sec"><h2>Groups</h2>${hint("For things everyone uses or nobody owns: the living-room TV, servers, smart-home gear. Groups count in Analytics but never in Who's home.")}</div>
+      ${grps.length ? `<div class="grid g2">${grps.map(card).join("")}</div>` : `<p class="fine muted">No groups yet.</p>`}
+      ${isAdmin() && tpl.length ? `<div class="btnrow pp-tpl"><span class="fine muted">Quick start:</span>${tpl.map(g => `<button class="btn sm" data-pptpl="${esc(g.name)}">+ ${esc(g.name)}</button>`).join("")}</div>` : ""}</div>
+    <div class="card section"><h2>Not assigned yet</h2><div id="pp-unassigned"><div class="empty">Loading…</div></div></div>`);
+  meta.people.forEach(async p => {
     const el = $(`#pp-${CSS.escape(p.id)} .pp-body`);
     try {
       const r = await explore(["summary", "by_category", "heatmap", "by_device", "traffic"], { person: p.id });
       const s = r.summary || {}, days = s.active_days || 1, tr = r.traffic?.summary || {};
+      if (!s.total && !tr.rx && !tr.tx) { el.innerHTML = `<p class="fine muted">${p.devices.length ? "No activity from these devices in this period." : "No devices yet."}</p>`; return; }
       el.innerHTML = `<div class="pp-kpis"><div><b>${fmtNum(Math.round((s.total || 0) / days))}</b><span>queries a day</span></div>
           <div><b>${s.active_min ? fmtMin(s.active_min / days) : "–"}</b><span>active a day ≈</span></div><div><b>${pct(s.blocked, s.total)}</b><span>blocked</span></div>
           <div><b>${tr.rx || tr.tx ? fmtBytes((tr.rx + tr.tx) / days) : "–"}</b><span>data a day</span></div></div>
-        <h3>Top categories</h3>${blist((r.by_category || []).slice(0, 6), "category", { color: i => catColor(i.key), sub: subActive })}
-        <h3>When</h3>${heatmap(r.heatmap, { metric: "n", fmt: v => fmtNum(Math.round(v)), clickable: false, color: p.color || "var(--c4)" })}
-        <p class="fine">${(r.by_device || []).map(d => `<a href="#" data-exgo="device|${esc(d.key)}">${esc(d.key)}</a>`).join(" · ") || "No DNS activity from these devices in this period."}</p>`;
-      // clicking a category inside a person card explores person + category
+        ${insights(`pp-${p.id}`, `<h3>Top categories</h3>${blist((r.by_category || []).slice(0, 6), "category", { color: i => catColor(i.key), sub: subActive })}
+          <h3>When</h3>${heatmap(r.heatmap, { metric: "n", fmt: v => fmtNum(Math.round(v)), clickable: false, color: p.color || "var(--c4)" })}
+          <p class="fine">${(r.by_device || []).map(d => `<a href="#" data-exgo="device|${esc(d.key)}">${esc(d.key)}</a>`).join(" · ")}</p>`, "Categories and hours")}`;
+      // clicking a category inside a card explores that person + category
       $$(".bl-row", el).forEach(b => { b.dataset.exgo = `person|${p.id};;${b.dataset.exf}`; delete b.dataset.exf; });
     } catch (e) { el.innerHTML = `<div class="empty bad-t">${esc(e.message)}</div>`; }
   });
   try {
-    const r = await explore(["by_device"], { person: "__none__" });
-    fill("pp-unassigned", blist(r.by_device, "device", { sub: subActive, empty: "Every device with DNS activity is assigned 🎉" }).replace(/data-exf="device\|/g, 'data-exgo="device|'));
+    const r = await explore(["by_device"], { person: "__none__" }), list = (r.by_device || []).slice(0, 30);
+    const all = meta.people;
+    fill("pp-unassigned", list.length ? `<div class="pp-un">${list.map(d => `<div class="pp-unrow">${cliIcon({ name: d.key }, 18)}<a href="#" data-exgo="device|${esc(d.key)}">${esc(d.key)}</a>
+        <span class="fine muted">${subActive(d)}</span>${isAdmin() && all.length ? `<select data-ppgive="${esc(d.key)}" aria-label="Give ${esc(d.key)} to"><option value="">Give to…</option>${all.map(p => `<option value="${esc(p.id)}">${isGroup(p) ? "▣ " : ""}${esc(p.name)}</option>`).join("")}</select>` : ""}</div>`).join("")}</div>`
+      : `<div class="empty">Every device with DNS activity belongs to someone 🎉</div>`);
   } catch (e) { fill("pp-unassigned", `<div class="empty bad-t">${esc(e.message)}</div>`); }
 }
 
+// the UniFi devices a person or group has, as chips (admins can rename them in UniFi from here)
+function ppDevChips(p) {
+  const names = new Map(arr(S.ex.meta?.clients).map(c => [c.mac, c.name || c.hostname || c.mac]));
+  const macs = p.devices.filter(d => d.kind === "mac").map(d => d.key);
+  if (!macs.length) return "";
+  return `<div class="pp-devs">${macs.map(mac => `<span class="dp-chip">${cliIcon({ name: names.get(mac) }, 16)}${esc(names.get(mac) || mac)}${canRename(mac) ? `<button type="button" class="x" data-rename="${esc(mac)}" title="Rename in UniFi" aria-label="Rename ${esc(names.get(mac) || mac)}">✎</button>` : ""}</span>`).join("")}</div>`;
+}
 function ppCount(p) {
   const prof = p.devices.filter(d => d.kind === "profile").length, dev = p.devices.length - prof;
   return [prof ? plural(prof, "NextDNS profile") : "", dev || !prof ? plural(dev, "device") : ""].filter(Boolean).join(" + ");
 }
-function personModal(p) {
+
+// give one unassigned NextDNS device (as named in the logs) to a person: every profile that has a device by that name
+async function ppGive(name, pid) {
+  const meta = S.ex.meta, p = meta.people.find(x => x.id === pid); if (!p) return;
+  const keys = arr(meta.dns_devices).filter(d => d.device === name).map(d => d.profile ? { kind: "ndev", key: `${d.profile}/${d.device}` } : { kind: "dns", key: d.device });
+  if (!keys.length) keys.push({ kind: "dns", key: name });
+  try { await api("/api/analytics/person-save", { ...p, devices: [...p.devices, ...keys] }); toast(`${name} → ${p.name}`, "ok"); S.ex.meta = null; loadAnalytics(); } catch (e) { toast(e.message, "err"); }
+}
+
+async function personModal(p, opts = {}) {
   const meta = S.ex.meta, owner = {};
   meta.people.forEach(x => x.devices.forEach(d => { owner[`${d.kind}|${d.key}`] = x; }));
-  p = p || { id: "", name: "", color: ["#4c8dff", "#13a49b", "#d9480f", "#8a5cf6", "#c2a000", "#d6336c"][meta.people.length % 6], devices: [] };
-  const mine = new Set(p.devices.map(d => `${d.kind}|${d.key}`));
-  const shown = new Set();   // keys this editor shows; anything else the person owns is kept as it is
-  const isMine = (kind, key, legacy) => mine.has(`${kind}|${key}`) || (legacy && mine.has(`dns|${legacy}`));
-  const ownerOf = (kind, key, legacy) => owner[`${kind}|${key}`] || (legacy && owner[`dns|${legacy}`]);
-  const row = (kind, key, label, sub, legacy) => { shown.add(`${kind}|${key}`); if (legacy) shown.add(`dns|${legacy}`);
-    const o = ownerOf(kind, key, legacy); const other = o && o.id !== p.id;
-    return `<label class="check pp-dev" data-txt="${esc((label + " " + sub).toLowerCase())}"><input type="checkbox" data-ppdev="${kind}|${esc(key)}" ${isMine(kind, key, legacy) ? "checked" : ""}>
-      <span>${esc(label)} <span class="fine">${esc(sub)}</span>${other ? ` <span class="tag warn">now ${esc(o.name)}'s</span>` : ""}</span></label>`; };
-  // NextDNS: devices grouped under their profile; a profile can belong to one person as a whole
-  const profName = id => (meta.nd_profiles || []).find(x => x.id === id)?.name || meta.profiles?.[id] || id;
-  const byProf = {};
-  meta.dns_devices.forEach(d => { (byProf[d.profile || ""] ||= []).push(d); });
-  const profIds = [...new Set([...(meta.nd_profiles || []).map(x => x.id), ...Object.keys(byProf)])];
-  const ndGroup = pid => { const devs = byProf[pid] || [], info = (meta.nd_profiles || []).find(x => x.id === pid) || {};
-    const head = pid ? `<div class="pp-prof">${row("profile", pid, `All of “${profName(pid)}”`, [plural(info.devices ?? devs.length, "device"), info.queries ? fmtNum(info.queries) + " q" : ""].filter(Boolean).join(" · "))}</div>` : "";
-    return `<div class="pp-group"><div class="pp-ghead">${pid ? `NextDNS profile <b>${esc(profName(pid))}</b> <span class="fine mono">${esc(pid)}</span>` : "Other"}</div>${head}
-      ${devs.map(d => row(pid ? "ndev" : "dns", pid ? `${pid}/${d.device}` : d.device, d.device, [d.local_ip, d.model, d.queries ? fmtNum(d.queries) + " q" : ""].filter(Boolean).join(" · "), d.device)).join("") || `<div class="fine muted">No devices in the last 30 days</div>`}</div>`; };
+  const group = p ? isGroup(p) : !!opts.group;
+  const pal = ["#4c8dff", "#13a49b", "#d9480f", "#8a5cf6", "#c2a000", "#d6336c"];
+  p = p || { id: "", name: opts.name || "", kind: group ? "group" : "person", color: pal[meta.people.length % 6], devices: [] };
+  let checkins = [];
+  if (S.source === "live" && isAdmin()) { try { checkins = (await api("/api/checkins")).items || []; } catch { /* suggestions without check-ins */ } }
+  const items = dpFromMeta(meta);
+  const keys = new Set(p.devices.map(d => `${d.kind}|${d.key}`));
+  const isSel = it => it.keys.some(k => keys.has(k)) || (it.legacy && keys.has(`dns|${it.legacy}`));
+  const selected = new Set(items.filter(isSel).map(it => it.id));
+  const ownerOf = it => { if (!it) return null; for (const k of [...it.keys, it.legacy ? `dns|${it.legacy}` : ""]) { const o = owner[k]; if (o && o.id !== p.id) return o; } return null; };
+  const profs = (meta.nd_profiles || []).map(x => ({ ...x, mine: keys.has(`profile|${x.id}`), other: owner[`profile|${x.id}`] && owner[`profile|${x.id}`].id !== p.id ? owner[`profile|${x.id}`] : null }));
+  let kind = p.kind || "person";
   openModal({
-    title: p.id ? `Edit ${p.name}` : "Add a person", wide: true,
-    body: `<div class="grid g2"><label>Name<input id="pp-name" value="${esc(p.name)}" placeholder="e.g. Noa"></label><label>Colour<input id="pp-color" type="color" value="${esc(p.color || "#8a5cf6")}" style="height:40px;padding:4px"></label></div>
-      <div class="ovr" style="grid-template-columns:1fr auto"><input id="pp-find" placeholder="Filter devices… (typing the name above also suggests matches)"><button class="btn sm" id="pp-suggest" type="button">Select name matches</button></div>
-      <div class="grid g2 section"><div><h3>NextDNS <span class="fine muted">(by profile, last 30 days)</span></h3><div class="pp-pick">${profIds.map(ndGroup).join("") || `<div class="empty">No DNS devices yet</div>`}</div></div>
-        <div><h3>UniFi clients <span class="fine muted">(adds data usage)</span></h3><div class="pp-pick">${meta.clients.map(c => row("mac", c.mac, c.name || c.hostname || c.mac, [c.ip, c.network, c.vendor, c.mac].filter(Boolean).join(" · "))).join("") || `<div class="empty">No UniFi clients imported yet</div>`}</div></div></div>
-      <p class="fine">If a NextDNS profile is just for this person, tick <b>All of “profile”</b> — handy when its devices have generic names like “iPhone 16”. A device ticked for someone else still counts as theirs. Pick the matching UniFi client too, so data usage is counted.</p>`,
+    title: p.id ? `Edit ${p.name}` : group ? "New group" : "New person", wide: true,
+    body: `<div class="pp-form"><label>Name<input id="pp-name" value="${esc(p.name)}" placeholder="${group ? "e.g. TV & streaming" : "e.g. Alex"}" autocomplete="off"></label>
+        <label>Colour<input id="pp-color" type="color" value="${esc(p.color || "#8a5cf6")}"></label>
+        <div><span class="lbl">Type</span><div class="seg" id="pp-kind"><button type="button" data-ppkind="person" class="${kind === "person" ? "on" : ""}">Person</button><button type="button" data-ppkind="group" class="${kind === "group" ? "on" : ""}">Group</button></div></div></div>
+      <p class="fine muted" id="pp-kindnote"></p>
+      <h3>Devices</h3><div id="pp-picker"></div>
+      ${profs.length ? `<details class="pp-profs"${profs.some(x => x.mine) ? " open" : ""}><summary>Whole NextDNS profiles</summary>
+        <p class="fine">Tick a profile if every device in it is ${group ? "this group's" : "this person's"}, e.g. a phone's own profile with generic names like “iPhone 16”.</p>
+        ${profs.map(x => `<label class="check"><input type="checkbox" data-ppprof="${esc(x.id)}" ${x.mine ? "checked" : ""}><span>${esc(x.name)} <span class="fine muted">${plural(x.devices || 0, "device")}${x.other ? ` · now ${esc(x.other.name)}'s` : ""}</span></span></label>`).join("")}</details>` : ""}`,
     buttons: [...(p.id ? [{ label: "Delete", cls: "danger", onClick: () => confirmDelete(p) }] : []), { label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
-      const name = $("#pp-name").value.trim(); if (!name) return toast("Give the person a name", "err");
-      const devices = $$("[data-ppdev]").filter(x => x.checked).map(x => { const [kind, ...k] = x.dataset.ppdev.split("|"); return { kind, key: k.join("|") }; });
-      p.devices.forEach(d => { if (!shown.has(`${d.kind}|${d.key}`)) devices.push(d); });   // devices not seen lately stay assigned
-      try { await api("/api/analytics/person-save", { id: p.id, name, color: $("#pp-color").value, devices }); closeModal(); toast(`${name} saved`, "ok"); S.ex.meta = null; loadAnalytics(); } catch (e) { toast(e.message, "err"); }
+      const name = $("#pp-name").value.trim(); if (!name) return toast(`Give the ${kind} a name`, "err");
+      const sel = picker.selected(), out = new Map();
+      // keep what this editor doesn't show (devices not seen lately); drop the keys of devices you removed
+      const shown = new Set(items.flatMap(it => [...it.keys, it.legacy ? `dns|${it.legacy}` : ""]));
+      p.devices.forEach(d => { const k = `${d.kind}|${d.key}`; if (!shown.has(k) && d.kind !== "profile") out.set(k, d); });
+      items.filter(it => sel.has(it.id)).forEach(it => { it.keys.forEach(k => { const [kd, ...rest] = k.split("|"); out.set(k, { kind: kd, key: rest.join("|") }); });
+        if (it.legacy && keys.has(`dns|${it.legacy}`)) out.set(`dns|${it.legacy}`, { kind: "dns", key: it.legacy }); });
+      $$("[data-ppprof]").forEach(x => { if (x.checked) out.set(`profile|${x.dataset.ppprof}`, { kind: "profile", key: x.dataset.ppprof }); });
+      try { await api("/api/analytics/person-save", { id: p.id, name, kind, color: $("#pp-color").value, devices: [...out.values()] }); closeModal(); toast(`${name} saved`, "ok"); S.ex.meta = null; loadAnalytics(); } catch (e) { toast(e.message, "err"); }
     } }],
   });
-  const filt = () => { const q = $("#pp-find").value.toLowerCase().trim(); $$(".pp-dev").forEach(l => { l.hidden = q && !l.dataset.txt.includes(q); }); };
-  $("#pp-find").addEventListener("input", filt);
-  $("#pp-suggest").addEventListener("click", () => {
-    const n = ($("#pp-find").value || $("#pp-name").value).toLowerCase().trim(); if (n.length < 2) return toast("Type a name first", "err");
-    let k = 0; $$(".pp-dev").forEach(l => { if (l.dataset.txt.includes(n)) { l.querySelector("input").checked = true; l.hidden = false; k++; } });
-    toast(k ? `Selected ${k} matching device${k > 1 ? "s" : ""}` : "No device names match");
-  });
+  const note = () => { $("#pp-kindnote").textContent = kind === "group" ? "A group is for shared things — the TV, servers, smart-home gear. It counts in Analytics but never in Who's home." : ""; };
+  note();
+  const picker = devPicker($("#pp-picker"), { items, selected, ownerOf,
+    suggest: () => dpSuggest(items, { name: $("#pp-name")?.value || p.name, id: p.id, group: kind === "group", checkins }) });
+  let T = null;
+  $("#pp-name").addEventListener("input", () => { clearTimeout(T); T = setTimeout(picker.redraw, 250); });
+  $("#pp-kind").addEventListener("click", e => { const b = e.target.closest("[data-ppkind]"); if (!b) return; kind = b.dataset.ppkind; $$("[data-ppkind]").forEach(x => x.classList.toggle("on", x === b)); note(); picker.redraw(); });
+  if (!p.id) $("#pp-name").focus();
 }
 function confirmDelete(p) {
-  openModal({ title: `Delete ${p.name}?`, body: "<p>Their devices become unassigned. No data is deleted.</p>", buttons: [{ label: "Cancel" }, { label: "Delete", cls: "primary", onClick: async () => {
+  openModal({ title: `Delete ${p.name}?`, body: `<p>${isGroup(p) ? "Its" : "Their"} devices become unassigned. No data is deleted.</p>`, buttons: [{ label: "Cancel" }, { label: "Delete", cls: "primary", onClick: async () => {
     try { await api("/api/analytics/person-delete", { id: p.id }); closeModal(); S.ex.meta = null; if (S.ex.filters.person === p.id) delete S.ex.filters.person; loadAnalytics(); } catch (e) { toast(e.message, "err"); }
   } }] });
 }
@@ -376,12 +405,12 @@ loaders.explore = loadExplore; loaders.people = loadPeople; loaders.categories =
 function goExplore(spec) {
   S.ex.stack.push(JSON.stringify(S.ex.filters));
   const f = {}; spec.split(";;").forEach(p => { const i = p.indexOf("|"); const k = p.slice(0, i), v = p.slice(i + 1); f[k] = k === "hour" || k === "dow" ? +v : v; });
-  S.ex.filters = f; S.ex.raw.offset = 0; S.an.tab = "explore"; window.scrollTo(0, 0); loadAnalytics();
+  S.ex.filters = f; S.ex.raw.offset = 0; anGo("explore");
 }
 document.addEventListener("click", e => {
   const g = sel => e.target.closest(sel); let x;
   if ((x = g("[data-exgo]"))) { e.preventDefault(); return goExplore(x.dataset.exgo); }
-  if (S.view !== "analytics") return;
+  if (!isAnView(S.view)) return;
   if ((x = g("[data-exf]")) && S.an.tab === "explore") {
     e.preventDefault(); const i = x.dataset.exf.indexOf("|"), k = x.dataset.exf.slice(0, i); let v = x.dataset.exf.slice(i + 1);
     if (k === "hour" || k === "dow") v = +v;
@@ -400,6 +429,8 @@ document.addEventListener("click", e => {
   if (e.target.id === "ex-csv") return exportCsv();
   if ((x = g("[data-excat]"))) { e.preventDefault(); return categoryModal(x.dataset.excat); }
   if (e.target.id === "pp-add" || e.target.id === "pp-add2") return personModal(null);
+  if (e.target.id === "pp-addg") return personModal(null, { group: true });
+  if ((x = g("[data-pptpl]"))) return personModal(null, { group: true, name: x.dataset.pptpl });
   if ((x = g("[data-ppedit]"))) return personModal(S.ex.meta.people.find(p => p.id === x.dataset.ppedit));
   if ((x = g("[data-excatall]"))) { S.ex.catAll = x.dataset.excatall === "1"; return loadAnalytics(); }
   if ((x = g("[data-ctdel]"))) { api("/api/analytics/rule-delete", { pattern: x.dataset.ctdel }).then(() => { toast("Rule removed", "ok"); loadCats(); }).catch(err => toast(err.message, "err")); return; }
@@ -409,9 +440,10 @@ document.addEventListener("click", e => {
   }
 });
 document.addEventListener("change", e => {
-  if (S.view !== "analytics") return;
+  if (!isAnView(S.view)) return;
   const k = e.target.dataset?.exsel; if (k) { setFilter(k, e.target.value || null); return loadExplore(); }
   if (e.target.id === "ex-pagesize") { S.ex.raw.limit = +e.target.value; S.ex.raw.offset = 0; return reloadRaw(); }
+  if (e.target.dataset?.ppgive && e.target.value) return ppGive(e.target.dataset.ppgive, e.target.value);
   const root = e.target.dataset?.ctassign;
   if (root && e.target.value) api("/api/analytics/rule-save", { pattern: root, category: e.target.value }).then(() => { toast(`${root} → ${e.target.value}`, "ok"); loadCats(); }).catch(err => toast(err.message, "err"));
 });

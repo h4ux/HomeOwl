@@ -39,6 +39,11 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiAPI(w, r)
 		return
 	}
+	// ---- the guest Wi-Fi card at http://wifi.local (no session; only on that name, only when turned on)
+	if p == "wifi" {
+		a.wifiAPI(w, r)
+		return
+	}
 	// ---- the macOS menu bar popover (its own start-up token, this computer only)
 	if p == "menubar" || p == "menubar/action" {
 		a.menubarAPI(w, r, p)
@@ -592,6 +597,7 @@ func (a *App) settingsView(who *Who, r *http.Request) map[string]any {
 			"key_saved": a.Sec.Get(unifiKeySlot) != "", "connected": a.UniFi.Connected(), "last_error": nilIfEmpty(a.UniFi.LastError)},
 		"refresh_minutes": c.RefreshMinutes,
 		"lan":             map[string]any{"enabled": c.LAN.Enabled, "port": c.LAN.Port, "tls": c.LAN.TLS, "extra_host": c.LAN.ExtraHost, "urls": a.urls(r), "error": nilIfEmpty(lanErr)},
+		"names":           a.namesView(),
 		"tailscale":       map[string]any{"enabled": c.Tailscale.Enabled, "hostname": c.Tailscale.Hostname, "auto_login": c.Tailscale.AutoLogin, "status": ts, "built_in": tsnetx.Available},
 		"mcp":             map[string]any{"mode": c.MCP.Mode, "tokens": toks, "tools": a.mcpToolSummary()},
 		"users":           a.Users.Users(),
@@ -645,6 +651,15 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 		restartLAN = nl != c.LAN
 		c.LAN = nl
 	}
+	restartNames := false
+	if nm, ok := body["names"].(map[string]any); ok {
+		nn, err := parseNames(nm, c.Names)
+		if err != nil {
+			return nil, err
+		}
+		restartNames = nn != c.Names
+		c.Names = nn
+	}
 	if t, ok := body["tailscale"].(map[string]any); ok {
 		nt := c.Tailscale
 		if has(t, "enabled") {
@@ -687,7 +702,7 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 		return nil, verr
 	}
 	if err := a.Cfg.Update(func(x *config.Config) {
-		x.RefreshMinutes, x.LAN, x.Tailscale, x.MCP.Mode, x.Updates, x.Cameras = c.RefreshMinutes, c.LAN, c.Tailscale, c.MCP.Mode, c.Updates, c.Cameras
+		x.RefreshMinutes, x.LAN, x.Tailscale, x.MCP.Mode, x.Updates, x.Cameras, x.Names = c.RefreshMinutes, c.LAN, c.Tailscale, c.MCP.Mode, c.Updates, c.Cameras, c.Names
 	}); err != nil {
 		return nil, err
 	}
@@ -700,6 +715,9 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 				a.mu.Unlock()
 			}
 		}()
+	}
+	if restartNames || restartLAN {
+		go func() { time.Sleep(700 * time.Millisecond); a.ApplyNames() }()
 	}
 	if restartTS {
 		a.ApplyTailscale()

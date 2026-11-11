@@ -404,7 +404,20 @@ V.security = m => {
   ], m.rules, { search: true })}</div>` : ""}`;
 };
 
+document.addEventListener("click", e => { const b = e.target.closest("[data-rename]"); if (b) { e.preventDefault(); e.stopPropagation(); renameClient(b.dataset.rename); } }, true);
+
 // ---- clients
+// rename a UniFi client (its alias): previewed, logged and undoable like every change. false when it can't be renamed.
+const canRename = mac => { const m = S.model; if (S.source !== "live" || S.role !== "admin" || !m?.hasLegacy) return false; const c = m.clients.find(x => x.mac === mac) || m.knownByMac?.[mac]; return !!(c && (c.userId || m.knownByMac?.[mac]?.id)); };
+function renameClient(mac) {
+  const m = S.model, c = m.clients.find(x => x.mac === mac) || m.knownByMac[mac]; if (!c) return toast("HomeOwl doesn't see that device in UniFi right now", "err");
+  const userId = c.userId || m.knownByMac[mac]?.id; if (!userId) return toast("UniFi didn't return this device's record, so it can't be renamed here", "err");
+  const label = c.label || c.name || mac;
+  openModal({ title: `Rename ${label}`, body: `<label>Name in UniFi<input id="cl-name" maxlength="60" value="${esc(c.name || "")}" placeholder="${esc(c.hostname || "e.g. Living room TV")}"></label>
+      <p class="fine muted">Changes the name UniFi shows for this device (its alias). You see the change before it's made, and can undo it.</p>`,
+    buttons: [{ label: "Cancel" }, { label: "Preview", cls: "primary", onClick: () => { const v = $("#cl-name").value.trim(); if (!v) return toast("Type a name", "err"); closeModal(); runActions([{ kind: "rest", resource: "user", id: userId, fields: { name: v }, description: `Rename ${label} → ${v}` }], "Rename device"); } }] });
+  setTimeout(() => $("#cl-name")?.select(), 30);
+}
 function showClient(mac) {
   const m = S.model, c = m.clients.find(x => x.mac === mac) || m.knownByMac[mac]; if (!c) return;
   const k = m.knownByMac[mac] || {}, userId = c.userId || k.id;
@@ -425,7 +438,7 @@ function showClient(mac) {
       ${actBtn({ kind: "stacmd", cmd: c.blocked ? "unblock-sta" : "block-sta", mac, label: c.label, description: `${c.blocked ? "Unblock" : "Block"} ${c.label}` }, c.blocked ? "Unblock" : "Block")}
       ${userId ? `<button class="btn sm" id="cl-rename">Rename</button><button class="btn sm" id="cl-fixed">${c.fixedIp ? "Change / clear fixed IP" : "Set fixed IP"}</button>` : `<span class="fine">Rename / fixed IP need the client's record (not returned for this device).</span>`}</div>` : ""}`;
   openModal({ title: c.label, body, wide: true });
-  $("#cl-rename")?.addEventListener("click", () => openModal({ title: `Rename ${c.label}`, body: `<label>Name<input id="cl-name" value="${esc(c.name || "")}"></label>`, buttons: [{ label: "Cancel" }, { label: "Preview", cls: "primary", onClick: () => { const v = $("#cl-name").value.trim(); closeModal(); runActions([{ kind: "rest", resource: "user", id: userId, fields: { name: v }, description: `Rename ${c.label} → ${v}` }], "Rename client"); } }] }));
+  $("#cl-rename")?.addEventListener("click", () => renameClient(mac));
   $("#cl-fixed")?.addEventListener("click", () => {
     const n = m.netById[c.networkId] || m.netForIp(c.ip || "") || m.defaultNet;
     openModal({ title: `Fixed IP for ${c.label}`, body: `<label>Network<select id="cl-net">${m.networks.filter(x => !x.vpn).map(x => `<option value="${esc(x.id)}" ${x === n ? "selected" : ""}>${esc(x.name)} (${esc(x.subnet || "")})</option>`).join("")}</select></label>
@@ -444,7 +457,7 @@ V.clients = m => {
   const tabs = { active: ["Active", m.clients.length], known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length] };
   const tab = S.clientTab;
   const tbl = tab === "active" ? table("clients", [
-    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}` },
+    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Rename" aria-label="Rename ${esc(r.label)}">✎</button>` : ""}` },
     { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "Wi-Fi")} · ${bandLabel(r.band)}` },
     { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}" title="${r.signal < -75 ? "Weak" : r.signal < -67 ? "OK" : "Good"}">${r.signal} dBm</span>` },
     { k: "satisfaction", label: "Experience", num: 1, fmt: r => r.satisfaction === null || r.satisfaction === undefined ? "–" : r.satisfaction + "%" },

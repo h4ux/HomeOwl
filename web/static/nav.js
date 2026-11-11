@@ -6,6 +6,7 @@ const NAV_ICON = {
   network: '<path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a14.5 14.5 0 0 1 20 0"/><path d="M12 19.5h.01"/>',
   home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
   family: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.6-1.4-4.2-3.6-4.8"/>',
+  analytics: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-7"/>',
   records: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   system: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
@@ -30,8 +31,20 @@ const NAV = [
   ] },
   { id: "family", name: "Family", pages: [
     { label: "Who's home", views: [["presence", "Who's home"]] },
-    { label: "Analytics", views: [["analytics", "Analytics"]] },
+    { label: "People & groups", views: [["an-people", "People & groups"]] },
     { label: "Check-ins", views: [["checkins", "Check-ins"]], pill: "nav-checkins", hidden: true },
+  ] },
+  // every Analytics page is one view of analytics.js (S.an.tab follows the view; see anTabOf)
+  { id: "analytics", name: "Analytics", pages: [
+    { label: "Overview", views: [["analytics", "Overview"]] },
+    { label: "Explore", views: [["an-explore", "Explore"]] },
+    { label: "DNS", views: [["an-dns", "DNS"]] },
+    { label: "Devices", views: [["an-devices", "Devices"]] },
+    { label: "Traffic", views: [["an-traffic", "Traffic"]] },
+    { label: "Security", views: [["an-security", "Security"]] },
+    { label: "Categories", views: [["an-categories", "Categories"]] },
+    { label: "Logs", views: [["an-logs", "Logs"]] },
+    { label: "SQL", views: [["an-sql", "SQL"]], id: "nav-ansql", hidden: true },
   ] },
   { id: "records", name: "Records", pages: [
     { label: "History & events", views: [["history", "History & events"]] },

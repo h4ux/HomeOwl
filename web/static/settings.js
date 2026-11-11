@@ -42,6 +42,14 @@ async function loadSettings() {
         <label class="check" style="align-self:end"><input type="checkbox" id="st-tls" ${lan.tls ? "checked" : ""}> <span>HTTPS (self-signed)</span></label></div>
       ${lan.urls?.length ? `<p class="fine">Open from other devices: ${lan.urls.map(x => `<span class="mono">${esc(x)}</span>`).join(" · ")}${lan.tls ? "<br>Your browser warns about the self-signed certificate the first time — that's expected; the connection is still encrypted." : ""}</p>` : ""}
       ${lan.error ? `<div class="msg err">${esc(lan.error)}</div>` : ""}
+      <h3 style="margin-top:14px">Easy names ${hint("HomeOwl answers these names on your home network itself (Bonjour / mDNS), so nobody needs an IP address. Works on iPhone, iPad, Mac, Windows and most Android phones. Leave a name empty to turn it off.")}</h3>
+      ${(() => { const nm = se.names || {}; return `<div class="grid g2">
+        <label>Check-in page<span class="name-in"><span class="fine">http://</span><input id="st-nm-ci" value="${esc(nm.checkin || "")}" placeholder="hi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label>
+        <label>Guest Wi-Fi card<span class="name-in"><span class="fine">http://</span><input id="st-nm-guest" value="${esc(nm.guest || "")}" placeholder="wifi" maxlength="40" autocomplete="off"><span class="fine">.local</span></span></label></div>
+      <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 ? "checked" : ""}> <span>Also answer on port 80, so the names work without “:${esc(lan.port)}”</span></label>
+      ${nm.checkin_url || nm.guest_url ? `<p class="fine">${[nm.checkin_url ? `Check-in: <a class="mono" href="${esc(nm.checkin_url)}" target="_blank" rel="noopener">${esc(nm.checkin_url)}</a>` : "", nm.guest_url ? `Guest card: <a class="mono" href="${esc(nm.guest_url)}" target="_blank" rel="noopener">${esc(nm.guest_url)}</a> <span class="muted">(shows the guest password to anyone on your network)</span>` : ""].filter(Boolean).join("<br>")}</p>` : ""}
+      ${(nm.checkin || nm.guest) && !nm.lan ? `<div class="msg warn">Turn on home-network access above, or other devices can't open these names.</div>` : ""}
+      ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}`; })()}
       <h3 style="margin-top:14px">Built-in Tailscale</h3>
       ${!ts.built_in ? `<p class="muted">This build has no built-in Tailscale.</p>` : `
       <label class="check"><input type="checkbox" id="st-ts" ${ts.enabled ? "checked" : ""}> <span>Run HomeOwl as its own device on my tailnet</span></label>
@@ -251,6 +259,7 @@ document.addEventListener("click", async e => {
   if (id === "st-disconnect") { await post("/api/disconnect", {}, "Disconnected"); load(EMPTY_BUNDLE, "none"); S.view = "settings"; render(); }
   if (id === "st-access-save") {
     const body = { refresh_minutes: +$("#st-refresh").value || 5, lan: { enabled: $("#st-lan").checked, port: +$("#st-port").value, tls: $("#st-tls").checked } };
+    body.names = { checkin: $("#st-nm-ci").value.trim(), guest: $("#st-nm-guest").value.trim(), port80: $("#st-nm-80").checked };
     if ($("#st-ts")) body.tailscale = { enabled: $("#st-ts").checked, hostname: $("#st-tsname").value.trim(), auto_login: $("#st-tsauto").checked, auth_key: $("#st-tskey").value.trim() };
     const oldPort = S.settings.lan.port;
     await post("/api/settings", body, "Access settings saved");

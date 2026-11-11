@@ -47,7 +47,7 @@ func (a *App) presencePeople() []presence.Person {
 	}
 	var out []presence.Person
 	for _, p := range a.An.People() {
-		if macs := byPerson[p.ID]; len(macs) > 0 {
+		if macs := byPerson[p.ID]; len(macs) > 0 && p.Kind != "group" { // a group (the TV, servers) is never "home"
 			out = append(out, presence.Person{ID: p.ID, Name: p.Name, Devices: macs})
 		}
 	}
@@ -117,6 +117,9 @@ func (a *App) presenceView(admin bool, days int) map[string]any {
 	}
 	people := []map[string]any{}
 	for _, p := range a.An.People() {
+		if p.Kind == "group" {
+			continue
+		}
 		m := map[string]any{"id": p.ID, "name": p.Name, "color": p.Color, "devices": orEmpty(tags[p.ID])}
 		if st, ok := now[p.ID]; ok {
 			m["state"] = st
@@ -151,10 +154,10 @@ func (a *App) presenceTag(body map[string]any) error {
 	if pid != "" {
 		found := false
 		for _, p := range a.An.People() {
-			found = found || p.ID == pid
+			found = found || (p.ID == pid && p.Kind != "group")
 		}
 		if !found {
-			return errors.New("no such person; add them under Analytics › People first")
+			return errors.New("no such person; add them under Family › People & groups first")
 		}
 	}
 	if err := a.Cfg.Update(func(c *config.Config) {

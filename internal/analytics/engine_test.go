@@ -164,3 +164,32 @@ func TestAssignDevice(t *testing.T) {
 		t.Fatalf("traffic belongs to %q (%v), want Alex", who, err)
 	}
 }
+
+// Groups (shared things like the TV) own devices like people do; people stay "person" by default.
+func TestGroups(t *testing.T) {
+	e := openTestEngine(t)
+	alex, err := e.SavePerson(Person{Name: "Alex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tv, err := e.SavePerson(Person{Name: "Living room", Kind: "group", Devices: []PersonDevice{{Kind: "mac", Key: "aa:bb:cc:00:00:20"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.SavePerson(Person{Name: "Odd", Kind: "robot"}); err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]string{}
+	for _, p := range e.People() {
+		kinds[p.Name] = p.Kind
+		if p.ID == tv && len(p.Devices) != 1 {
+			t.Fatalf("the group lost its device: %+v", p)
+		}
+	}
+	if kinds["Alex"] != "person" || kinds["Living room"] != "group" || kinds["Odd"] != "person" {
+		t.Fatalf("kinds: %v (alex %s)", kinds, alex)
+	}
+	if err := e.AssignDevice(tv, "mac", "aa:bb:cc:00:00:21"); err != nil {
+		t.Fatal(err)
+	}
+}

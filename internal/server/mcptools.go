@@ -314,7 +314,7 @@ func (a *App) allTools() []mcp.Tool {
 					Page: map[string]any{"root_limit": 25, "device_limit": 25}})
 			}},
 		{Name: "list_people", Title: "People", Level: "read",
-			Description: "The household members defined in HomeOwl and their devices (used by usage_analytics person filters).",
+			Description: "The household members and groups (kind \"group\": shared things like the TV or servers) defined in HomeOwl and their devices (used by usage_analytics person filters).",
 			Schema:      obj(map[string]any{}),
 			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
 				return map[string]any{"people": a.An.People()}, nil

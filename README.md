@@ -21,7 +21,7 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **Safe changes** — every change is allow-listed, previewed first, logged with who made it, and can be undone. Changes stay locked until an admin unlocks them.
 - **Config history** — a snapshot of your UniFi settings whenever they change, and a plain “what changed since yesterday” (also changes made in UniFi itself).
 - **Family analytics** — imports NextDNS query logs, UniFi traffic, sessions, events, threats and the gateway's syslog into a built-in DuckDB database. Drill down by person, device, category, domain, hour of day and weekday, down to individual DNS queries.
-- **People & categories** — group devices per family member; domains are sorted into subjects (Social, Video, Gaming, AI…) and you can add your own rules.
+- **People, groups & categories** — group devices per family member, or in shared groups (the TV, servers, smart home); domains are sorted into subjects (Social, Video, Gaming, AI…) and you can add your own rules.
 - **NextDNS & Tailscale helpers** — per-network NextDNS profiles and device names, plus Tailscale guidance.
 - **AI & MCP** — an [MCP](https://modelcontextprotocol.io) server so Claude (or any MCP client) can answer questions about your network and, if you allow it, make guarded changes.
 - **Guest Wi-Fi** — the guest network's name and password with a scan-to-join QR code in five styles, a printable card, and a new password in one click (previewed, logged, undoable).
@@ -32,6 +32,7 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **Who's home** — tag each person's phone and HomeOwl shows who's home and since when, with an optional history of arrivals and departures (kept on this computer only).
 - **Menu bar (macOS)** — an owl in the menu bar (five icon styles, optionally with a status dot or a problem count). Click it for internet, network, UPS and who's home, the guest Wi-Fi code, updates and start at login. Turn it off or pick the icon in **Settings › System**.
 - **Device check-in** — family members open `http://<HomeOwl>:8555/hi` (or scan its QR code) on their own phone, tablet or laptop and say what it is and whose; HomeOwl finds the device by its address, and an admin's approval sets its UniFi name and gives it to that person.
+- **Easy names** — HomeOwl answers `http://hi.local` (device check-in) and `http://wifi.local` (a guest Wi-Fi card with the join code) on your home network; pick the names in Settings › Access.
 - **Accounts** — admin and view-only users with passwords; optional sign-in through Tailscale.
 
 <p align="center"><img src="docs/images/explore.png" width="860" alt="Explore: drill down by person, category, hour and weekday"></p>

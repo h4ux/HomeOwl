@@ -4,6 +4,23 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.12] — 2026-11-11
+
+### Added
+- **Groups** next to people, for things everyone uses or nobody owns: the living-room TV, servers, smart-home gear. They own devices and filter every chart like a person does, but never count in Who's home. Quick-start buttons create "TV & streaming", "Servers", "Smart home" or "Printers" with matching devices suggested.
+- **Easy names on the home network** (Settings › Access): HomeOwl answers Bonjour/mDNS for names you choose. `http://hi.local` opens the device check-in page and `http://wifi.local` shows a guest Wi-Fi card (network, password and join code, big enough to leave open on a tablet). Each name serves only its own page, over plain HTTP. An option to also answer on port 80 lets the names work without `:8555`. The guest card is off until you give it a name.
+- **Rename devices** in UniFi from the Clients list, from People & groups and from Who's home (✎). The change is previewed, logged and undoable, like every other change.
+
+### Changed
+- **Analytics has its own section** in the side menu (Overview, Explore, DNS, Devices, Traffic, Security, Categories, Logs, SQL) instead of tabs inside a Family page.
+- **Family › People & groups**: avatar cards; each card's UniFi devices are shown as chips and its charts fold away; "Not assigned yet" has a "Give to…" menu on each device.
+- **A friendlier device picker** for people, groups and Who's home:
+  - The devices you picked appear as chips.
+  - One search box covers name, IP address, maker and type ("phone", "TV").
+  - Suggestions come from names that match, from devices that checked in for that person and, for groups, from the right device types.
+  - A UniFi client and its NextDNS device are folded into one entry, so each device is picked once.
+  - Who's home lists phones first.
+
 ## [0.1.11] — 2026-11-11
 
 ### Changed

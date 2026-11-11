@@ -2,7 +2,14 @@
 "use strict";
 
 S.an = { tab: "overview", range: "7d", profile: "", device: "", mac: "", log: "dns", q: "", status: "", st: null, sql: "" };
-const AN_TABS = [["overview", "Overview"], ["explore", "Explore"], ["people", "People"], ["categories", "Categories"], ["dns", "DNS"], ["devices", "Devices"], ["traffic", "Traffic"], ["security", "Security"], ["logs", "Logs"], ["sql", "SQL"]];
+const AN_TABS = [["overview", "Overview"], ["explore", "Explore"], ["people", "People & groups"], ["categories", "Categories"], ["dns", "DNS"], ["devices", "Devices"], ["traffic", "Traffic"], ["security", "Security"], ["logs", "Logs"], ["sql", "SQL"]];
+// each tab is its own page in the side menu (nav.js): "analytics" is the overview, "an-<tab>" the others
+const anViewOf = t => t === "overview" ? "analytics" : `an-${t}`;
+const anTabOf = v => v === "analytics" ? "overview" : v.slice(3);
+const isAnView = v => v === "analytics" || (AN_TABS.some(([k]) => `an-${k}` === v));
+AN_TABS.forEach(([k]) => { if (k !== "overview") V[`an-${k}`] = () => V.analytics(); });
+// switch to another analytics page from a link inside one (keeps the side menu in step)
+function anGo(tab) { S.an.tab = tab; S.view = anViewOf(tab); render(); window.scrollTo(0, 0); }
 const RANGES = [["24h", "24 h"], ["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"], ["1y", "1 year"], ["all", "All"]];
 const fmtNum = n => n === null || n === undefined ? "–" : Number(n).toLocaleString();
 const pct = (a, b) => b ? `${(100 * a / b).toFixed(1)}%` : "–";
@@ -19,24 +26,23 @@ const kpiTile = (label, value, sub = "") => `<div class="card kpi"><div class="l
 const series = (rows, key) => rows.map(r => ({ t: r.t, v: r[key] }));
 
 V.analytics = () => {
-  const st = S.an.st;
+  S.an.tab = anTabOf(S.view);
+  const st = S.an.st, label = (AN_TABS.find(([k]) => k === S.an.tab) || [])[1] || "Analytics";
   const admin = S.role === "admin";
-  const head = `<div class="head"><div><h1>Analytics ${hint("NextDNS queries, UniFi traffic, threats and syslog, stored in HomeOwl's built-in DuckDB database.")}</h1></div>
+  const head = `<div class="head"><div><h1>${S.an.tab === "overview" ? "Analytics" : esc(label)} ${hint(S.an.tab === "people" ? "People are family members; groups hold shared things like the TV, servers or smart-home gear. Their devices are counted together in every chart." : "NextDNS queries, UniFi traffic, threats and syslog, stored in HomeOwl's built-in DuckDB database.")}</h1></div>
     <div class="an-controls"><div class="seg">${RANGES.map(([k, l]) => `<button data-anrange="${k}" class="${S.an.range === k ? "on" : ""}">${l}</button>`).join("")}</div>
     ${st?.profiles && Object.keys(st.profiles).length && !["explore", "people", "categories"].includes(S.an.tab) ? `<select id="an-profile"><option value="">All NextDNS profiles</option>${Object.entries(st.profiles).map(([id, n]) => `<option value="${esc(id)}" ${S.an.profile === id ? "selected" : ""}>${esc(n)} (${esc(id)})</option>`).join("")}</select>` : ""}</div></div>`;
   if (!st) return `${head}<div class="empty">Loading…</div>`;
   if (!st.engine || !st.enabled || !st.open) {
-    return `<div class="head"><div><h1>Analytics</h1></div></div>${emptyState({ title: "See what your devices do online, over time",
-      points: ["Top sites and apps for each person and device", "Trackers and ads NextDNS blocked", "Internet traffic, threats and firewall logs by day"],
+    return `<div class="head"><div><h1>${S.an.tab === "people" ? "People & groups" : "Analytics"}</h1></div></div>${emptyState({ title: S.an.tab === "people" ? "People & groups live in Analytics" : "See what your devices do online, over time",
+      points: S.an.tab === "people" ? ["Pick each person's devices, or group shared ones like the TV", "Filter every chart by person or group", "Who's home uses the same people"] : ["Top sites and apps for each person and device", "Trackers and ads NextDNS blocked", "Internet traffic, threats and firewall logs by day"],
       btn: admin ? (S.source === "live" ? `<button class="btn primary" data-setgo="analytics">Set up analytics</button>` : "") : "",
-      note: S.source !== "live" ? "Analytics needs a running HomeOwl connected to NextDNS or UniFi. It isn't part of the demo." : admin ? "Uses your NextDNS API key and UniFi logs. Everything stays on this computer." : "Ask an admin to turn it on in Settings." })}`;
+      note: S.source === "demo" ? "Analytics needs a running HomeOwl connected to NextDNS or UniFi. It isn't part of the demo." : S.source !== "live" ? "Connect HomeOwl to UniFi or NextDNS first." : admin ? "Uses your NextDNS API key and UniFi logs. Everything stays on this computer." : "Ask an admin to turn it on in Settings." })}`;
   }
-  const tabs = AN_TABS.filter(([k]) => k !== "sql" || admin);
   const syncing = Object.keys(st.running || {}).length, backfill = (st.sources || []).find(s => s.note && /Importing/.test(s.note));
   return `${head}
     ${backfill ? `<div class="banner info">Importing NextDNS history — ${esc(backfill.note.replace("Importing history… ", ""))}. Charts fill in as it goes.</div>` : ""}
-    <div class="filters tabs">${tabs.map(([k, l]) => `<button data-antab="${k}" class="${S.an.tab === k ? "on" : ""}">${l}</button>`).join("")}
-      <span class="muted fine" style="margin-left:auto">${syncing ? "Syncing…" : `${fmtNum(st.counts?.dns_queries)} DNS queries · ${fmtBytes(st.db_bytes)} database`}</span></div>
+    <div class="an-meta fine muted">${syncing ? "Syncing…" : `${fmtNum(st.counts?.dns_queries)} DNS queries · ${fmtBytes(st.db_bytes)} database`}</div>
     <div id="an-body">${anBody()}</div>`;
 };
 
@@ -92,7 +98,8 @@ const SQL_EXAMPLES = [
 // ---- tab loaders
 async function loadAnalytics() {
   try { S.an.st = await api("/api/analytics/status"); } catch (e) { S.an.st = { error: e.message }; }
-  const main = $("#main"); if (S.view !== "analytics" || !main) return;
+  const main = $("#main"); if (!isAnView(S.view) || !main) return;
+  if (S.an.tab === "sql" && S.role !== "admin") S.an.tab = "overview";
   const y = window.scrollY; main.innerHTML = V.analytics(); window.scrollTo(0, y);
   if (!S.an.st?.open) return;
   const t = S.an.tab, L = loaders[t]; if (L) L();
@@ -239,11 +246,11 @@ document.addEventListener("click", e => {
   const g = (sel) => e.target.closest(sel);
   let x;
   if ((x = g("[data-anrange]"))) { S.an.range = x.dataset.anrange; return loadAnalytics(); }
-  if ((x = g("[data-antab]"))) { S.an.tab = x.dataset.antab; return loadAnalytics(); }
-  if ((x = g("[data-andev]"))) { e.preventDefault(); S.an.device = x.dataset.andev; S.an.tab = "devices"; window.scrollTo(0, 0); return loadAnalytics(); }
-  if ((x = g("[data-anmac]"))) { e.preventDefault(); S.an.mac = x.dataset.anmac; S.an.tab = "traffic"; window.scrollTo(0, 0); return loadAnalytics(); }
+  if ((x = g("[data-antab]"))) { e.preventDefault(); return anGo(x.dataset.antab); }
+  if ((x = g("[data-andev]"))) { e.preventDefault(); S.an.device = x.dataset.andev; return anGo("devices"); }
+  if ((x = g("[data-anmac]"))) { e.preventDefault(); S.an.mac = x.dataset.anmac; return anGo("traffic"); }
   if ((x = g("[data-anclear]"))) { e.preventDefault(); S.an[x.dataset.anclear] = ""; return loadAnalytics(); }
-  if ((x = g("[data-anlogdev]"))) { S.an.device = x.dataset.anlogdev; S.an.tab = "logs"; S.an.log = "dns"; return loadAnalytics(); }
+  if ((x = g("[data-anlogdev]"))) { S.an.device = x.dataset.anlogdev; S.an.log = "dns"; return anGo("logs"); }
   if ((x = g("[data-anlog]"))) { S.an.log = x.dataset.anlog; return loadAnalytics(); }
   if (e.target.id === "an-sql-run") runSql();
   if (e.target.id === "an-sql-csv") sqlCsv();
@@ -258,7 +265,7 @@ document.addEventListener("input", e => { if (e.target.id === "an-q") { S.an.q =
 document.addEventListener("keydown", e => { if (e.target.id === "an-sql" && e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); runSql(); } });
 
 const _renderAn = render;
-render = function () { _renderAn(); if (S.view === "analytics") loadAnalytics(); };
+render = function () { _renderAn(); const q = $("#nav-ansql"); if (q) q.hidden = S.role !== "admin"; if (isAnView(S.view)) loadAnalytics(); };
 
 // ------------------------------------------------------------------ Settings → Analytics & logs
 async function loadAnSettings() {

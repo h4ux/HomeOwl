@@ -28,6 +28,7 @@ import (
 	"github.com/h4ux/homeowl/internal/config"
 	"github.com/h4ux/homeowl/internal/history"
 	"github.com/h4ux/homeowl/internal/mcp"
+	"github.com/h4ux/homeowl/internal/mdns"
 	"github.com/h4ux/homeowl/internal/presence"
 	"github.com/h4ux/homeowl/internal/protect"
 	"github.com/h4ux/homeowl/internal/secrets"
@@ -61,6 +62,9 @@ type App struct {
 	lan          *http.Server
 	lanAddr      string
 	lanErr       string
+	names        mdns.Responder // answers for the easy .local names (Settings › Access)
+	port80       *http.Server
+	port80Err    string
 	cert         tls.Certificate
 	handler      http.Handler
 	started      time.Time
@@ -142,6 +146,7 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 	a.ApplyTailscale()
+	a.ApplyNames()
 	<-ctx.Done()
 	sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -149,7 +154,11 @@ func (a *App) Run(ctx context.Context) error {
 	if a.lan != nil {
 		_ = a.lan.Shutdown(sctx)
 	}
+	if a.port80 != nil {
+		_ = a.port80.Shutdown(sctx)
+	}
 	a.mu.Unlock()
+	a.names.Set(nil)
 	a.TS.Stop()
 	return nil
 }
@@ -403,6 +412,9 @@ func (a *App) routes() http.Handler {
 		if p == "hi" {
 			p = "hi.html"
 		}
+		if p == "wifi" {
+			p = "wifi.html"
+		}
 		b, err := fs.ReadFile(static, p)
 		if err != nil {
 			fail(w, 404, "not found")
@@ -430,6 +442,10 @@ func (a *App) guard(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !a.hostAllowed(r) {
 			http.Error(w, "Unexpected host name. Open HomeOwl by this computer's IP address or name.", http.StatusMisdirectedRequest)
+			return
+		}
+		if kind := a.nameHost(r); kind != "" { // http://hi.local, http://wifi.local: only their own small page
+			a.serveName(kind, w, r, h)
 			return
 		}
 		if r.TLS == nil && !isLoopback(r) && !tsnetx.FromTailnet(r) && a.cert.Certificate != nil && a.Cfg.Get().LAN.TLS && !plainHTTPOK[r.URL.Path] {

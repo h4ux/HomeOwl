@@ -154,6 +154,9 @@ func (a *App) peopleHome(bundle map[string]any) []map[string]any {
 	}
 	out := []map[string]any{}
 	for _, p := range a.An.People() {
+		if p.Kind == "group" {
+			continue
+		}
 		macs, on := 0, 0
 		for _, d := range p.Devices {
 			if d.Kind == "mac" {
