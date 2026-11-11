@@ -54,6 +54,9 @@ func (a *App) ApplyNames() {
 		if a.homeDNSDue() {
 			a.syncHomeDNS("settings")
 		}
+		if a.cfDue() {
+			a.syncCloudflare("settings")
+		}
 	}()
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -139,7 +142,7 @@ func (a *App) serveName(kind string, w http.ResponseWriter, r *http.Request, h h
 // fallbackLinks: the pages by IP address — they work on every device (an Echo Show too), no name lookup needed.
 func (a *App) fallbackLinks() map[string]string {
 	c := a.Cfg.Get()
-	ip := mdns.PrimaryIPv4()
+	ip := homeIP()
 	if ip == "" {
 		return nil
 	}
@@ -208,7 +211,12 @@ func (a *App) wifiAPI(w http.ResponseWriter, r *http.Request) {
 			nets = append(nets, map[string]any{"ssid": n["ssid"], "password": n["password"], "security": n["security"], "hidden": n["hidden"]})
 		}
 	}
-	send(w, 200, map[string]any{"networks": nets, "qr_theme": res["qr_theme"]})
+	// the check-in page: on the same address when it was opened by IP (or a Cloudflare link), else by IP address
+	hi := "/hi"
+	if a.nameHost(r) != "" {
+		hi = a.fallbackLinks()["checkin"]
+	}
+	send(w, 200, map[string]any{"networks": nets, "qr_theme": res["qr_theme"], "checkin_url": hi})
 }
 
 // namesView is the Settings › Access part: the names, the links and whether they work.
@@ -231,7 +239,7 @@ func (a *App) namesView() map[string]any {
 	return map[string]any{"checkin": c.Names.Checkin, "guest": c.Names.Guest, "port80": c.Names.Short != "off",
 		"checkin_url": link(c.Names.Checkin), "guest_url": link(c.Names.Guest), "lan": c.LAN.Enabled,
 		"interfaces": ifaces, "error": nilIfEmpty(err), "port80_error": nilIfEmpty(p80err), "port80_on": p80, "stats": st,
-		"fallback": a.fallbackLinks(), "home_dns": a.homeDNSView()}
+		"fallback": a.fallbackLinks(), "home_dns": a.homeDNSView(), "cloudflare": a.cloudflareView()}
 }
 
 var homeDomainRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z][a-z0-9-]{0,62}$`)

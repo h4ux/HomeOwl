@@ -24,7 +24,7 @@ async function loadWifi() {
       <dl class="wifi-kv"><dt>Network</dt><dd>${esc(n.ssid)}</dd>
         <dt>Password</dt><dd class="mono">${n.security === "nopass" ? "none, it's open" : esc(n.password)}</dd></dl>
       <p class="muted">Point your phone's camera at the code and tap the Wi-Fi banner.</p></div>
-    </div>`).join("");
+    </div>`).join("") + (d.checkin_url ? `<p class="wifi-hi"><a href="${esc(d.checkin_url)}">Family: register this device with HomeOwl ›</a></p>` : "");
 }
 loadWifi();
 setInterval(loadWifi, 10 * 60e3); // a new password shows up without reloading

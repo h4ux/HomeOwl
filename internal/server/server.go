@@ -67,6 +67,7 @@ type App struct {
 	port80       *http.Server
 	port80Err    string
 	hdMu         sync.Mutex // one home-DNS sync at a time (homedns.go)
+	cfMu         sync.Mutex // one Cloudflare sync at a time (cloudflare.go)
 	Alerts       *alerts.Store
 	alertErr     string
 	seen         *seenClients
@@ -145,6 +146,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.presenceLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
+	go a.cloudflareLoop(ctx)
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)

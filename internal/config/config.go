@@ -61,6 +61,16 @@ type Names struct {
 	Domain string `json:"domain,omitempty"`
 }
 
+// Cloudflare: short links on the user's own domain (wifi.example.com) that redirect to HomeOwl at home.
+// The API token is a secret (slot "cloudflare-token").
+type Cloudflare struct {
+	ZoneID string `json:"zone_id,omitempty"` // "" = off
+	Zone   string `json:"zone,omitempty"`    // the domain, e.g. example.com
+	Wifi   string `json:"wifi,omitempty"`    // subdomain for the guest Wi-Fi card ("" = none)
+	Hi     string `json:"hi,omitempty"`      // subdomain for the check-in page ("" = none)
+	AnyIP  bool   `json:"any_ip,omitempty"`  // redirect visits from anywhere, not only from this home's public address
+}
+
 type Tailscale struct {
 	Enabled   bool   `json:"enabled"`    // run HomeOwl as its own device on your tailnet
 	Hostname  string `json:"hostname"`   // name on the tailnet → https://<hostname>.<tailnet>.ts.net
@@ -152,24 +162,25 @@ type Menubar struct {
 }
 
 type Config struct {
-	Host           string    `json:"host"`
-	Site           string    `json:"site"`
-	VerifyTLS      bool      `json:"verify_tls"`
-	AutoConnect    bool      `json:"auto_connect"`
-	RefreshMinutes int       `json:"refresh_minutes"`
-	LAN            LAN       `json:"lan"`
-	Names          Names     `json:"names"`
-	Alerts         Alerts    `json:"alerts"`
-	Tailscale      Tailscale `json:"tailscale"`
-	MCP            MCP       `json:"mcp"`
-	Analytics      Analytics `json:"analytics"`
-	Updates        Updates   `json:"updates"`
-	Guest          Guest     `json:"guest"`
-	Menubar        Menubar   `json:"menubar"`
-	Presence       Presence  `json:"presence"`
-	Cameras        Cameras   `json:"cameras"`
-	Access         Access    `json:"access"`
-	UPS            UPS       `json:"ups"`
+	Host           string     `json:"host"`
+	Site           string     `json:"site"`
+	VerifyTLS      bool       `json:"verify_tls"`
+	AutoConnect    bool       `json:"auto_connect"`
+	RefreshMinutes int        `json:"refresh_minutes"`
+	LAN            LAN        `json:"lan"`
+	Names          Names      `json:"names"`
+	Alerts         Alerts     `json:"alerts"`
+	Cloudflare     Cloudflare `json:"cloudflare"`
+	Tailscale      Tailscale  `json:"tailscale"`
+	MCP            MCP        `json:"mcp"`
+	Analytics      Analytics  `json:"analytics"`
+	Updates        Updates    `json:"updates"`
+	Guest          Guest      `json:"guest"`
+	Menubar        Menubar    `json:"menubar"`
+	Presence       Presence   `json:"presence"`
+	Cameras        Cameras    `json:"cameras"`
+	Access         Access     `json:"access"`
+	UPS            UPS        `json:"ups"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`

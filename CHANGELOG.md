@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.17] — 2026-11-11
+
+### Added
+- **Links on your own domain with Cloudflare** (Settings › Access): connect a Cloudflare API token and pick your domain. HomeOwl adds `wifi.<your domain>` and `hi.<your domain>`.
+  - Each one is a proxied name plus a redirect rule that sends the visitor on to HomeOwl at home, so a real domain works in every browser and on every device.
+  - By default it only redirects visits from your home's internet address.
+  - HomeOwl updates the rules when its own address or your internet address changes.
+  - It only touches what it made. "Disconnect" removes those and forgets the token. Each change is logged in Records › Changes.
+- The guest Wi-Fi page links to the device check-in page ("Family: register this device with HomeOwl").
+
 ## [0.1.16] — 2026-11-11
 
 ### Added

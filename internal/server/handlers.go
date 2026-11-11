@@ -370,6 +370,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		} else {
 			res = a.guestScheduleView()
 		}
+	case strings.HasPrefix(p, "cloudflare/"):
+		res, err = a.cloudflareAPI(p, by, body)
 	case p == "names/sync":
 		a.syncHomeDNS(by)
 		res = a.homeDNSView()

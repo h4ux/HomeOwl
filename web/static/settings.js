@@ -126,6 +126,7 @@ function easyLinks(nm, lan) {
     ${page("Guest Wi-Fi card", nm.guest ? fb.guest : "", nm.guest, (nm.guest && hdLink(nm.guest) ? `<span class="fine">And <span class="mono">${esc(hdLink(nm.guest))}</span> on every device</span>` : "") + (nm.guest ? `<span class="fine">On an Echo Show: say “Alexa, open Silk”, go to <span class="mono">${esc((fb.guest || "").replace(/^http:\/\//, ""))}</span> and bookmark it. Anyone on your network can see the guest password there.</span>` : ""))}</div>
     <label class="check"><input type="checkbox" id="st-nm-guestcard" ${nm.guest ? "checked" : ""}> <span>Show the guest Wi-Fi card (name and password) to anyone on your home network</span></label>
     ${homeDNSBlock(hd, fb.ip)}
+    ${cfBlock(nm.cloudflare || {}, nm.guest)}
     ${keep}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
     <details class="ez-more"><summary>Names and options</summary>
       <div class="grid g2" style="margin-top:8px">
@@ -161,6 +162,45 @@ document.addEventListener("click", e => {
     const hd = S.settings?.names?.home_dns || {}, ip = S.settings?.names?.fallback?.ip;
     runActions(arr(hd.names).map(n => ({ kind: "dnsrecord", name: n, ip, description: `Local DNS record ${n} → ${ip} (HomeOwl)` })), "Add the names to UniFi");
   }
+});
+
+// Cloudflare links: wifi.example.com on the admin's own domain, redirecting to HomeOwl at home
+S.cfZones = null;
+function cfBlock(cf, guestOn) {
+  if (S.role !== "admin") return "";
+  const head = `<b>Links on your own domain (Cloudflare) ${hint("If your domain is on Cloudflare, HomeOwl can add wifi.your-domain and hi.your-domain. Opening one sends the visitor on to HomeOwl at home. A real domain works in every browser and on every device, with nothing to set up on the network. By default it only works from your home's internet address, so nobody elsewhere learns where HomeOwl lives.")}</b>`;
+  if (!cf.connected) return `<div class="ez-dns">${head}
+    <ol class="fine cf-steps"><li>In Cloudflare, open My Profile › API Tokens › Create Token › Create Custom Token.</li>
+      <li>Permissions: <b>Zone › Zone › Read</b>, <b>Zone › DNS › Edit</b>, <b>Zone › Single Redirect › Edit</b>. Zone Resources: your domain.</li>
+      <li>Create it and paste it here. HomeOwl keeps it in this computer's keychain.</li></ol>
+    <div class="ez-dns-row"><input id="cf-token" type="password" placeholder="Cloudflare API token" autocomplete="off" style="flex:1;min-width:200px"><button class="btn sm primary" id="cf-connect">Connect</button></div></div>`;
+  if (!S.cfZones) setTimeout(cfLoadZones, 0);
+  const st = cf.state || {}, zones = S.cfZones || (cf.zone_id ? [{ id: cf.zone_id, name: cf.zone }] : []);
+  const links = arr(cf.links).map(l => `<div class="cf-link"><span class="tag">${l.kind === "wifi" ? "Guest Wi-Fi" : "Check-in"}</span> <a class="mono" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url.replace("https://", ""))}</a> <button class="btn sm" data-copy="${esc(l.url)}">Copy</button></div>`).join("");
+  return `<div class="ez-dns">${head}
+    <div class="ez-dns-row"><label>Domain<select id="cf-zone"><option value="">Off</option>${zones.map(z => `<option value="${esc(z.id)}" ${z.id === cf.zone_id ? "selected" : ""}>${esc(z.name)}</option>`).join("")}</select></label>
+      <label>Guest Wi-Fi<span class="name-in"><input id="cf-wifi" value="${esc(cf.wifi ?? "wifi")}" placeholder="wifi" maxlength="40"><span class="fine">.${esc(cf.zone || "your-domain")}</span></span></label>
+      <label>Check-in<span class="name-in"><input id="cf-hi" value="${esc(cf.hi ?? "hi")}" placeholder="hi" maxlength="40"><span class="fine">.${esc(cf.zone || "your-domain")}</span></span></label></div>
+    <label class="check"><input type="checkbox" id="cf-home" ${cf.any_ip ? "" : "checked"}> <span>Only from my home's internet address (recommended)</span></label>
+    ${cf.wifi && !guestOn ? `<div class="msg warn">Turn on the guest Wi-Fi card above, so the Wi-Fi link has something to show.</div>` : ""}
+    ${links ? `<div class="cf-links">${links}</div><p class="fine muted">Checked ${ago(st.time)}${arr(st.from).length ? `, from ${esc(st.from.join(", "))}` : ""}. <a href="#" id="cf-sync">Check now</a></p>` : ""}
+    ${arr(st.errors).map(e => `<div class="msg warn">${esc(e)}</div>`).join("")}
+    <div class="btnrow"><button class="btn sm primary" id="cf-save">Save</button><button class="btn sm" id="cf-disconnect">Disconnect</button></div></div>`;
+}
+async function cfLoadZones() {
+  try { S.cfZones = (await api("/api/cloudflare/zones", {})).zones || []; } catch { S.cfZones = []; return; }
+  const sel = $("#cf-zone"); if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">Off</option>` + S.cfZones.map(z => `<option value="${esc(z.id)}" ${z.id === cur ? "selected" : ""}>${esc(z.name)}</option>`).join("");
+}
+document.addEventListener("click", async e => {
+  const id = e.target.id; if (!id.startsWith("cf-")) return;
+  const go = async (path, body, msg) => { e.target.disabled = true; try { const r = await api(path, body); if (msg) toast(msg, "ok"); return r; } catch (err) { toast(err.message, "err"); } finally { e.target.disabled = false; } };
+  if (id === "cf-connect") { const r = await go("/api/cloudflare/connect", { token: $("#cf-token").value.trim() }, "Cloudflare connected"); if (r) { S.cfZones = r.zones; loadSettings(); } }
+  if (id === "cf-save") { if (await go("/api/cloudflare/settings", { zone_id: $("#cf-zone").value, wifi: $("#cf-wifi").value, hi: $("#cf-hi").value, any_ip: !$("#cf-home").checked }, "Cloudflare links saved")) loadSettings(); }
+  if (id === "cf-sync") { e.preventDefault(); if (await go("/api/cloudflare/sync", {})) loadSettings(); }
+  if (id === "cf-disconnect") openModal({ title: "Disconnect Cloudflare?", body: "<p>HomeOwl removes the links and redirect rules it added to your domain, then forgets the token. Nothing else on Cloudflare is touched.</p>",
+    buttons: [{ label: "Cancel" }, { label: "Disconnect", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cloudflare/disconnect", {}, "Cloudflare disconnected")) { S.cfZones = null; loadSettings(); } } }] });
 });
 
 // the guest card switch saves at once (no "Save" to forget)

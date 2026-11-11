@@ -650,6 +650,7 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .wifi-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;text-align:left;margin:14px auto 0;max-width:320px}
 .wifi-kv dt{color:var(--muted)}.wifi-kv dd{margin:0;font-size:20px;font-weight:700;word-break:break-all}
 .wifi-txt{display:flex;flex-direction:column;gap:6px}
+.wifi-hi{width:100%;text-align:center;margin:0}.wifi-hi a{color:var(--muted)}
 @media (orientation:landscape) and (min-width:700px){
   .wifi-card{max-width:880px;display:flex;align-items:center;gap:32px;text-align:left;padding:28px 36px}
   .wifi-card .wifi-qr{flex:0 0 auto;margin:0}.wifi-card .wifi-qr svg{width:min(42vh,300px)}
@@ -663,6 +664,7 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .ez-url{font-size:17px;font-weight:700;word-break:break-all}
 .ez-dns{margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:6px}
 .ez-dns-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}.ez-dns-row .name-in input{width:160px;flex:none}
+.cf-steps{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:2px}.cf-links{display:flex;flex-direction:column;gap:4px}.cf-link{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ez-dns-row label{margin:0}
 .ez-more{margin-top:8px}.ez-more summary{cursor:pointer;color:var(--muted)}
 .name-in{display:flex;align-items:center;gap:4px}.name-in input{flex:1;min-width:0}
 .names-st{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--panel2);display:flex;flex-direction:column;gap:4px}
