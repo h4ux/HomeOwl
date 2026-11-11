@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.20] — 2026-11-11
+
+### Fixed
+- **Cloudflare "only from home" now covers all of the home's internet addresses**. Before, a visit could miss the rule and end in Cloudflare's error 522. The rule now includes:
+  - what Cloudflare sees from HomeOwl over IPv4 and over IPv6 (with fallbacks that don't depend on DNS);
+  - the address of every WAN on the UniFi gateway (a second internet line or failover);
+  - the IPv6 network (/56) of this computer's own addresses, so every device and VLAN at home matches.
+  The rule is updated when any of them changes.
+
 ## [0.1.19] — 2026-11-11
 
 ### Added

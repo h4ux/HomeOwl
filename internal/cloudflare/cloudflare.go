@@ -208,29 +208,51 @@ func RedirectRule(ref, host, target string, from []string) Rule {
 			"target_url": map[string]any{"value": target}}}}
 }
 
-// HomeAddresses are this home's public addresses as Cloudflare sees them: the IPv4 address, and the /64 of the
-// IPv6 one (devices at home each have their own IPv6 address in it).
+// HomeAddresses are this home's public addresses as Cloudflare sees them from this computer: the IPv4 address
+// and the IPv6 network (/56, the usual size an internet provider gives a home, so every device and VLAN is in it).
 func HomeAddresses(ctx context.Context) []string {
 	var out []string
 	for _, nw := range []string{"tcp4", "tcp6"} {
-		ip := trace(ctx, nw)
-		if ip == nil {
-			continue
+		var ip net.IP
+		// by name first, then by Cloudflare's own address (works even when this computer's DNS is odd)
+		for _, u := range traceURLs[nw] {
+			if ip = trace(ctx, nw, u); ip != nil {
+				break
+			}
 		}
-		if ip.To4() != nil {
-			out = append(out, ip.String())
-		} else {
-			out = append(out, (&net.IPNet{IP: ip.Mask(net.CIDRMask(64, 128)), Mask: net.CIDRMask(64, 128)}).String())
+		if s := PublicPrefix(ip); s != "" {
+			out = append(out, s)
 		}
 	}
 	return out
 }
 
-func trace(ctx context.Context, nw string) net.IP {
+var traceURLs = map[string][]string{
+	"tcp4": {"https://cloudflare.com/cdn-cgi/trace", "https://1.1.1.1/cdn-cgi/trace", "https://1.0.0.1/cdn-cgi/trace"},
+	"tcp6": {"https://cloudflare.com/cdn-cgi/trace", "https://[2606:4700:4700::1111]/cdn-cgi/trace"},
+}
+
+// PublicPrefix: an internet IPv4 address as is, an internet IPv6 address as its /56; "" for anything else
+// (home, carrier-grade NAT, link-local addresses).
+func PublicPrefix(ip net.IP) string {
+	if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() {
+		return ""
+	}
+	if v4 := ip.To4(); v4 != nil {
+		if v4[0] == 100 && v4[1]&0xc0 == 64 { // 100.64.0.0/10: the provider's NAT, not reachable from outside
+			return ""
+		}
+		return v4.String()
+	}
+	m := net.CIDRMask(56, 128)
+	return (&net.IPNet{IP: ip.Mask(m), Mask: m}).String()
+}
+
+func trace(ctx context.Context, nw, u string) net.IP {
 	d := &net.Dialer{Timeout: 8 * time.Second}
 	hc := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, addr string) (net.Conn, error) { return d.DialContext(ctx, nw, addr) }}}
-	req, _ := http.NewRequestWithContext(ctx, "GET", "https://cloudflare.com/cdn-cgi/trace", nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", u, nil)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil

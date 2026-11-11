@@ -29,7 +29,7 @@ import (
 const cfSlot = "cloudflare-token"
 
 // cfHome finds this home's public addresses, cfCheck tests a link (tests replace them).
-var cfHome = cloudflare.HomeAddresses
+var cfHome func(context.Context) []string // nil = (*App).homeAddresses
 var cfCheck = cloudflare.Check
 
 type cfName struct {
@@ -132,7 +132,7 @@ func (a *App) syncCloudflare(by string) cfState {
 	cl := cloudflare.New(tok)
 	if len(want) > 0 && !c.Cloudflare.AnyIP {
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-		st.From = cfHome(ctx)
+		st.From = a.cfFrom(ctx)
 		cancel()
 		if len(st.From) == 0 {
 			old.Errors = []string{"Couldn't find this home's public address, so the links weren't changed. HomeOwl tries again in a few minutes."}
@@ -320,7 +320,7 @@ func (a *App) cfDue() bool {
 	if !c.Cloudflare.AnyIP && len(want) > 0 { // the home's public address may have changed
 		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		defer cancel()
-		from := cfHome(ctx)
+		from := a.cfFrom(ctx)
 		return len(from) > 0 && strings.Join(from, " ") != strings.Join(st.From, " ")
 	}
 	return c.Cloudflare.AnyIP != (len(st.From) == 0)
@@ -439,4 +439,66 @@ func (a *App) cloudflareAPI(p, by string, body map[string]any) (any, error) {
 		return a.cloudflareView(), nil
 	}
 	return nil, errors.New("unknown Cloudflare request")
+}
+
+func (a *App) cfFrom(ctx context.Context) []string {
+	if cfHome != nil {
+		return cfHome(ctx)
+	}
+	return a.homeAddresses(ctx)
+}
+
+// homeAddresses: every public address this home may reach Cloudflare from — what Cloudflare sees from this
+// computer over IPv4 and over IPv6, every WAN of the UniFi gateway (a second internet line or failover), and the
+// IPv6 networks of this computer's own addresses. IPv6 networks are /56s, so every device at home is in them.
+func (a *App) homeAddresses(ctx context.Context) []string {
+	set := map[string]bool{}
+	for _, x := range cloudflare.HomeAddresses(ctx) {
+		set[x] = true
+	}
+	add := func(v any) {
+		if s, _ := v.(string); s != "" {
+			if p := cloudflare.PublicPrefix(net.ParseIP(strings.TrimSpace(strings.Split(s, "/")[0]))); p != "" {
+				set[p] = true
+			}
+		}
+	}
+	if a.UniFi != nil && a.UniFi.Connected() {
+		if st, d := a.UniFi.Get(a.UniFi.SitePath("stat/device", false)); st == 200 {
+			for _, dev := range unifi.List(d) {
+				for i := 1; i <= 4; i++ {
+					w, _ := dev[fmt.Sprintf("wan%d", i)].(map[string]any)
+					if w == nil || w["up"] == false {
+						continue
+					}
+					add(w["ip"])
+					if l, ok := w["ipv6"].([]any); ok {
+						for _, x := range l {
+							add(x)
+						}
+					}
+				}
+			}
+		}
+		if st, d := a.UniFi.Get(a.UniFi.SitePath("stat/health", false)); st == 200 {
+			for _, h := range unifi.List(d) {
+				if h["subsystem"] == "wan" {
+					add(h["wan_ip"])
+				}
+			}
+		}
+	}
+	if ifs, err := net.InterfaceAddrs(); err == nil {
+		for _, ad := range ifs {
+			if n, ok := ad.(*net.IPNet); ok && n.IP.To4() == nil {
+				add(n.IP.String())
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for x := range set {
+		out = append(out, x)
+	}
+	sort.Strings(out)
+	return out
 }

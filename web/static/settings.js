@@ -185,7 +185,7 @@ function cfBlock(cf, guestOn) {
     <label>Leads to HomeOwl at<span class="name-in"><input id="cf-addr" value="${esc(cf.address || "")}" placeholder="${esc(cf.auto_address || "192.168.1.10")} (found automatically)" maxlength="15" autocomplete="off" style="max-width:260px"></span></label>
     <p class="fine muted" style="margin-top:-4px">HomeOwl's address on your home network${cf.base ? `: the links open <span class="mono">${esc(cf.base)}/wifi</span> and <span class="mono">/hi</span>` : ""}. Set it if the one found automatically is wrong, and keep it fixed in UniFi.</p>
     ${!cf.base ? `<div class="msg warn">HomeOwl couldn't find its home-network address${cf.auto_address ? ` (it found <span class="mono">${esc(cf.auto_address)}</span>, which isn't one)` : ""}. Enter it above, like 192.168.1.10.</div>` : ""}
-    <label class="check"><input type="checkbox" id="cf-home" ${cf.any_ip ? "" : "checked"}> <span>Only from my home's internet address (recommended)</span></label>
+    <label class="check"><input type="checkbox" id="cf-home" ${cf.any_ip ? "" : "checked"}> <span>Only from my home's internet addresses, IPv4 and IPv6 (recommended)</span></label>
     ${cf.wifi && !guestOn ? `<div class="msg warn">Turn on the guest Wi-Fi card above, so the Wi-Fi link has something to show.</div>` : ""}
     ${links ? `<div class="cf-links">${links}</div><p class="fine muted">Checked ${ago(st.time)}${arr(st.from).length ? `, from ${esc(st.from.join(", "))}` : ""}. <a href="#" id="cf-sync">Check now</a></p>` : ""}
     ${arr(st.errors).map(e => `<div class="msg warn">${esc(e)}</div>`).join("")}
