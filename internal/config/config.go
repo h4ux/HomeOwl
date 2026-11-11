@@ -109,6 +109,12 @@ type Guest struct {
 	QRTheme string   `json:"qr_theme,omitempty"` // style of the join code: classic, rounded (default), blue, night, fridge
 }
 
+// Menubar is the macOS menu bar icon.
+type Menubar struct {
+	Hide bool   `json:"hide,omitempty"` // shown unless turned off
+	Icon string `json:"icon,omitempty"` // outline (default), dot, filled, logo, count
+}
+
 type Config struct {
 	Host           string    `json:"host"`
 	Site           string    `json:"site"`
@@ -121,6 +127,7 @@ type Config struct {
 	Analytics      Analytics `json:"analytics"`
 	Updates        Updates   `json:"updates"`
 	Guest          Guest     `json:"guest"`
+	Menubar        Menubar   `json:"menubar"`
 	Cameras        Cameras   `json:"cameras"`
 	Access         Access    `json:"access"`
 	UPS            UPS       `json:"ups"`

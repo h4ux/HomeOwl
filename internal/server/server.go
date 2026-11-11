@@ -75,6 +75,7 @@ type App struct {
 	shutdownPerm permCache
 	// Startup is set by the command line: start HomeOwl with the computer (nil = not available).
 	Startup *Startup
+	Menubar *Menubar
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {

@@ -31,6 +31,7 @@ import (
 	"github.com/h4ux/homeowl/internal/auth"
 	"github.com/h4ux/homeowl/internal/config"
 	"github.com/h4ux/homeowl/internal/mcp"
+	"github.com/h4ux/homeowl/internal/menubar"
 	"github.com/h4ux/homeowl/internal/server"
 	"github.com/h4ux/homeowl/internal/update"
 	"github.com/h4ux/homeowl/internal/ups"
@@ -89,6 +90,13 @@ type program struct {
 	cancel     context.CancelFunc
 	done       chan struct{}
 	restart    bool // set when the program file was replaced: start the new one after shutting down
+	menubar    *server.Menubar
+	mbReady    chan mbStart // run() tells the main thread how to show the menu bar item
+}
+
+type mbStart struct {
+	url, style string
+	show       bool
 }
 
 func (p *program) Start(s service.Service) error {
@@ -130,6 +138,11 @@ func (p *program) run() {
 	p.cancel = cancel
 	app.Restart = func() { p.restart = true; cancel() }
 	app.Startup = startupControl(dir, p.service)
+	if p.menubar != nil {
+		app.Menubar = p.menubar
+		c := app.Cfg.Get()
+		p.mbReady <- mbStart{url: fmt.Sprintf("http://127.0.0.1:%d/menubar.html#t=%s", c.LAN.Port, p.menubar.Token), style: c.Menubar.Icon, show: !c.Menubar.Hide}
+	}
 	if p.browser {
 		go func() {
 			time.Sleep(800 * time.Millisecond)
@@ -156,8 +169,37 @@ func runCmd(args []string) {
 	svc := fs.Bool("service", false, "running as a background service (log to file)")
 	_ = fs.Parse(args)
 	p := &program{data: *data, port: *port, readOnly: *ro, service: *svc, done: make(chan struct{})}
-	if service.Interactive() && !*svc {
-		p.browser = !*noBrowser
+	if menubar.Available() {
+		// macOS draws the menu bar item on the main thread, so HomeOwl itself runs beside it
+		p.menubar = newMenubar()
+		p.mbReady = make(chan mbStart, 1)
+		go func() {
+			serve(p, *data, *svc, *noBrowser)
+			os.Exit(0)
+		}()
+		select {
+		case st := <-p.mbReady:
+			menubar.Init(st.url, st.show)
+			menubar.SetIcon(st.style, 0, 0)
+			menubar.Run()
+		case <-p.done:
+		}
+		return
+	}
+	serve(p, *data, *svc, *noBrowser)
+}
+
+func newMenubar() *server.Menubar {
+	b := make([]byte, 24)
+	_, _ = rand.Read(b)
+	return &server.Menubar{Token: base64.RawURLEncoding.EncodeToString(b), Styles: menubar.Styles,
+		SetVisible: menubar.SetVisible, SetIcon: menubar.SetIcon, Close: menubar.ClosePopover, SetHeight: menubar.SetHeight}
+}
+
+// serve runs HomeOwl in the foreground (a terminal) or under the service manager, until it stops.
+func serve(p *program, data string, svc, noBrowser bool) {
+	if service.Interactive() && !svc {
+		p.browser = !noBrowser
 		go p.run()
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -168,7 +210,7 @@ func runCmd(args []string) {
 		}
 		return
 	}
-	s, err := service.New(p, svcConfig(*data, ""))
+	s, err := service.New(p, svcConfig(data, ""))
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -39,6 +39,11 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiAPI(w, r)
 		return
 	}
+	// ---- the macOS menu bar popover (its own start-up token, this computer only)
+	if p == "menubar" || p == "menubar/action" {
+		a.menubarAPI(w, r, p)
+		return
+	}
 	// ---- login (no session needed)
 	if strings.HasPrefix(p, "auth/") {
 		a.authAPI(w, r, strings.TrimPrefix(p, "auth/"))
@@ -299,6 +304,12 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			res, err = a.setStartup(b(body, "enabled"))
 		} else {
 			res = a.startupView()
+		}
+	case p == "menubar-settings":
+		if r.Method == http.MethodPost {
+			res, err = a.setMenubar(body)
+		} else {
+			res = a.menubarSettings()
 		}
 	case p == "guest-wifi/theme":
 		res, err = a.setQRTheme(body)
@@ -564,7 +575,7 @@ func (a *App) settingsView(who *Who, r *http.Request) map[string]any {
 		"version": config.Version,
 		"updates": map[string]any{"check": c.Updates.Check},
 		"cameras": map[string]any{"viewers": c.Cameras.Viewers},
-		"startup": a.startupView(),
+		"startup": a.startupView(), "menubar": a.menubarSettings(),
 	}
 }
 

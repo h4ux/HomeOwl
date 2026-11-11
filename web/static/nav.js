@@ -68,3 +68,9 @@ function syncNav() {
   }
 }
 document.addEventListener("DOMContentLoaded", () => { const _render = render; render = function () { _render(); syncNav(); }; });
+
+// http://…/#guest opens that page (the menu bar's buttons use it)
+{
+  const h = location.hash.slice(1);
+  if (h && NAV.some(a => a.pages.some(p => p.views.some(([v]) => v === h)))) { S.view = h; history.replaceState(null, "", location.pathname + location.search); }
+}

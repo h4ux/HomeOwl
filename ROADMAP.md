@@ -26,6 +26,7 @@ Go version with built-in DuckDB, accounts and login, home-network HTTPS and buil
 - **Guest Wi-Fi** — ✅ join QR code in five styles, printable card and password rotation; next: hotspot vouchers.
 
 ## Phase 4 — everywhere
+- **Mac menu bar** — ✅ an owl with status, who's home, the guest code and updates. Next: notifications (power cut, internet down, new device), and a Windows tray icon.
 - **Phone app** — installable web app (PWA) with push notifications.
 - **Ask HomeOwl** — a chat that uses the MCP tools, with Claude (API key), any OpenAI-compatible service, or a local Ollama model.
 

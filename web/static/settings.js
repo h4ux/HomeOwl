@@ -89,6 +89,7 @@ async function loadSettings() {
       <div class="btnrow"><a class="btn sm" href="#" data-goto="doors">Doors</a><a class="btn sm" href="#" data-goto="ups">UPS</a><a class="btn sm" href="#" data-goto="guest">Guest Wi-Fi</a><a class="btn sm" href="#" data-goto="checkins">Device check-in</a></div></div></div>
 
   <div class="spane" data-spane="system"><div class="card" id="st-startup"></div>
+  <div class="card section" id="st-menubar" hidden></div>
   <div class="card section" id="st-updates"></div>
 
   <div class="card section"><h2>Files &amp; system</h2><dl class="kv">
@@ -96,7 +97,7 @@ async function loadSettings() {
     <dt>Data folder</dt><dd class="mono">${esc(se.files.data)}</dd><dt>Change log</dt><dd class="mono">${esc(se.files.change_log)}</dd>
     <dt>Analytics database</dt><dd class="mono">${esc(se.files.analytics)}</dd><dt>Logs</dt><dd class="mono">${esc(se.files.log)}</dd><dt>Program</dt><dd class="mono">${esc(se.files.binary)}</dd></dl></div></div>
   </div></div>`;
-  renderStartup(); setTabs();
+  renderStartup(); renderMenubar(); setTabs();
   if (typeof loadAnSettings === "function") loadAnSettings();
   if (typeof renderUpdateSettings === "function") { renderUpdateSettings(); if (!S.update) loadUpdate().then(renderUpdateSettings); }
   if (typeof renderCameraSettings === "function") renderCameraSettings();
@@ -143,6 +144,36 @@ document.addEventListener("change", async e => {
     toast(r.stopping ? "HomeOwl stops now and won't start by itself anymore" : on ? "HomeOwl will start with this computer" : "HomeOwl won't start by itself anymore", "ok");
   } catch (err) { toast(err.message, "err"); e.target.checked = !on; }
 });
+
+// the menu bar icon (macOS): the same owls HomeOwl draws in the menu bar
+const MB_OWL = { outline: '<svg width="18" height="18" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="66 166 220 220"><path d="M176 380 C120 380 104 336 104 290 C104 236 136 200 176 200 C216 200 248 236 248 290 C248 336 232 380 176 380Z" fill="none" stroke="currentColor" stroke-width="17"/><path d="M120 218 L112 178 L148 206Z M232 218 L240 178 L204 206Z" fill="currentColor" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/> <circle cx="150" cy="270" r="23" fill="none" stroke="currentColor" stroke-width="13"/><circle cx="202" cy="270" r="23" fill="none" stroke="currentColor" stroke-width="13"/> <circle cx="152" cy="273" r="9" fill="currentColor"/><circle cx="200" cy="273" r="9" fill="currentColor"/><path d="M166 302 L186 302 L176 320Z" fill="currentColor"/></svg>', filled: '<svg width="18" height="18" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="66 166 220 220"><defs><mask id="owlm"><rect x="0" y="0" width="512" height="512" fill="#fff"/> <circle cx="150" cy="270" r="27" fill="#000"/><circle cx="202" cy="270" r="27" fill="#000"/><path d="M164 300 L188 300 L176 322Z" fill="#000"/></mask></defs> <g mask="url(#owlm)"><path d="M176 380 C120 380 104 336 104 290 C104 236 136 200 176 200 C216 200 248 236 248 290 C248 336 232 380 176 380Z" fill="currentColor"/><path d="M120 218 L112 178 L148 206Z M232 218 L240 178 L204 206Z" fill="currentColor" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/></g> <circle cx="152" cy="273" r="11" fill="currentColor"/><circle cx="200" cy="273" r="11" fill="currentColor"/></svg>' };
+const MB_STYLES = {
+  outline: ["Owl outline", "Follows the light or dark menu bar. Default."],
+  dot: ["Owl + status dot", "Adds an amber dot when something needs a look, red when the internet or power is down."],
+  filled: ["Owl face, filled", "A solid owl, still following the menu bar's colour."],
+  logo: ["Colour logo", "HomeOwl's colour icon."],
+  count: ["Owl + count", "Shows how many things need a look, e.g. 2."],
+};
+function mbPreview(st) {
+  if (st === "logo") return `<img src="icon.png" alt="" width="18" height="18">`;
+  const owl = st === "filled" ? MB_OWL.filled : MB_OWL.outline;
+  return `${owl}${st === "dot" ? `<i class="mbp-dot"></i>` : st === "count" ? `<b>2</b>` : ""}`;
+}
+function renderMenubar() {
+  const el = $("#st-menubar"), m = S.settings?.menubar; if (!el) return;
+  el.hidden = !m || !m.available; if (el.hidden) return;
+  el.innerHTML = `<h2>Menu bar</h2>
+    <label class="check"><input type="checkbox" id="st-mb-on" ${m.show ? "checked" : ""}> <span>Show HomeOwl in the Mac's menu bar</span></label>
+    <p class="fine">Click the owl for internet, network, UPS and who's home, the guest Wi-Fi code, updates and start at login.</p>
+    <div class="mbp-list" role="radiogroup" aria-label="Menu bar icon">${arr(m.styles).map(st => `<button class="mbp ${st === m.icon ? "act" : ""}" data-mbstyle="${esc(st)}" role="radio" aria-checked="${st === m.icon}">
+      <span class="mbp-bar"><span class="mbp-ico">${mbPreview(st)}</span></span><span class="mbp-name">${esc(MB_STYLES[st]?.[0] || st)}</span><span class="fine muted">${esc(MB_STYLES[st]?.[1] || "")}</span></button>`).join("")}</div>`;
+}
+async function setMenubar(body) {
+  try { S.settings.menubar = await api("/api/menubar-settings", body); renderMenubar(); }
+  catch (err) { toast(err.message, "err"); renderMenubar(); }
+}
+document.addEventListener("change", e => { if (e.target.id === "st-mb-on") setMenubar({ show: e.target.checked }); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-mbstyle]"); if (b) setMenubar({ icon: b.dataset.mbstyle }); });
 
 function fmtDur(s) { s = +s || 0; return s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} days`; }
 
