@@ -39,7 +39,7 @@ function camFromBundle() {
 }
 
 V.cameras = () => `<div class="head"><div><h1>Cameras</h1><div class="muted">UniFi Protect at a glance: what the cameras see, whether they're healthy, and who came to the door. Read-only.</div></div>
-  <div class="btnrow"><button class="btn sm" id="cam-refresh">Refresh pictures</button></div></div>
+  <div class="btnrow"><label class="check cam-livesw" title="Refresh the pictures every 2 seconds instead of every 15"><input type="checkbox" id="cam-live" ${S.camLive ? "checked" : ""}> Live</label><button class="btn sm" id="cam-refresh">Refresh pictures</button></div></div>
   <div id="cam-body"><div class="empty">Loading…</div></div>`;
 
 async function loadCameras() {
@@ -48,7 +48,7 @@ async function loadCameras() {
     try { S.cam = await api(`/api/cameras?days=${S.camF.days}`); }
     catch (err) { el.innerHTML = `<div class="card"><p class="muted">${esc(err.message)}</p></div>`; return; }
   } else S.cam = camFromBundle();
-  if ($("#cam-body")) $("#cam-body").innerHTML = camBody(S.cam);
+  if ($("#cam-body")) { $("#cam-body").innerHTML = camBody(S.cam); if (S.source === "live") refreshSnaps(true); }
 }
 
 function camPicture(c, demo) {
@@ -61,7 +61,7 @@ function camPicture(c, demo) {
       <rect x="${20 + h % 60}" y="30" width="44" height="30" fill="hsl(${h} 15% 85%)"/><polygon points="${16 + h % 60},31 ${42 + h % 60},14 ${68 + h % 60},31" fill="hsl(${(h + 180) % 360} 30% 40%)"/>
       <circle cx="132" cy="18" r="8" fill="hsl(50 90% 85%)"/></svg><span class="cam-live">demo</span></div>`;
   }
-  return `<div class="cam-pic"><img data-camsnap="${esc(c.id)}" src="api/cameras/snapshot?id=${encodeURIComponent(c.id)}&t=${Date.now()}" alt="Latest picture from ${esc(c.name)}" loading="lazy"><span class="cam-live" data-camage="${esc(c.id)}">now</span></div>`;
+  return `<div class="cam-pic"><img data-camsnap="${esc(c.id)}" alt="Latest picture from ${esc(c.name)}" hidden><span class="cam-wait" data-camerr="${esc(c.id)}">Loading picture…</span><span class="cam-live" data-camage="${esc(c.id)}"></span></div>`;
 }
 
 function camBody(r) {
@@ -132,33 +132,78 @@ function camTimeline(ev, byId) {
 // larger picture in a modal (high quality, live only)
 function openCamera(id) {
   const c = arr(S.cam?.cameras).find(x => x.id === id); if (!c) return;
-  const body = S.cam.demo || c.state !== "CONNECTED" ? camPicture(c, S.cam.demo)
-    : `<div class="cam-pic big"><img src="api/cameras/snapshot?id=${encodeURIComponent(c.id)}&hq=1&t=${Date.now()}" alt="Picture from ${esc(c.name)}"></div>`;
+  const live = !S.cam.demo && c.state === "CONNECTED";
+  const body = !live ? camPicture(c, S.cam.demo)
+    : `<div class="cam-pic big"><img id="cam-big" data-camid="${esc(c.id)}" alt="Picture from ${esc(c.name)}" hidden><span class="cam-wait" id="cam-big-msg">Loading picture…</span><span class="cam-live" id="cam-big-fps">live</span></div>`;
   const evs = arr(S.cam.events).filter(e => e.camera === id).slice(0, 8);
   openModal({ title: c.name, wide: true, body: `${body}
     <p class="fine">${esc(c.model || "")}${c.doorbell ? " · doorbell" : ""} · The video and recordings stay in UniFi Protect.</p>
     ${evs.length ? `<h3>Latest events</h3>${evs.map(e => `<div class="cam-ev"><span class="mono cam-t">${fmtTime(e.start)}</span><span class="tag ${camEventTag(e)}">${esc(camEventLabel(e))}</span></div>`).join("")}` : ""}` });
+  if (live) camBigLoop(c.id);
 }
 
-// refresh the pictures every 15 s while the page is open and visible (one at a time, swap when loaded: no flicker)
+// the big picture refreshes as fast as Protect answers (one request at a time) while the window is open
+async function camBigLoop(id) {
+  const img = $("#cam-big"); if (!img) return;
+  let frames = 0; const t0 = Date.now(), times = [];
+  while ($("#cam-big") === img && !$("#modal").hidden) {
+    if (document.hidden) { await new Promise(r => setTimeout(r, 1000)); continue; }
+    const started = Date.now();
+    const r = await camFetch(id, true);
+    if ($("#cam-big") !== img) { if (r.url) URL.revokeObjectURL(r.url); break; }
+    if (r.url) {
+      const old = img.src; img.src = r.url; img.hidden = false; if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+      $("#cam-big-msg").hidden = true; frames++; times.push(Date.now()); while (times.length > 6) times.shift();
+      const fps = times.length > 1 ? (times.length - 1) / ((times[times.length - 1] - times[0]) / 1000) : 0;
+      $("#cam-big-fps").textContent = fps ? `live · ${fps < 1 ? fps.toFixed(1) : Math.round(fps)} fps` : "live";
+    } else { $("#cam-big-msg").hidden = false; $("#cam-big-msg").textContent = r.error; await new Promise(r => setTimeout(r, 3000)); }
+    const wait = 700 - (Date.now() - started); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  }
+}
+
+// pictures load through fetch, so a refusal from Protect shows its reason instead of a broken image.
+// They refresh every 15 s, or every 2 s with Live on, while the page is open and visible; one request per camera at a time.
 let camTimer = null;
-function refreshSnaps() {
-  $$("img[data-camsnap]").forEach(img => {
-    const n = new Image(), id = img.dataset.camsnap;
-    n.onload = () => { img.src = n.src; const t = $(`[data-camage="${CSS.escape(id)}"]`); if (t) t.textContent = "now"; };
-    n.src = `api/cameras/snapshot?id=${encodeURIComponent(id)}&t=${Date.now()}`;
+const camBusy = new Set(), camLast = {};
+try { S.camLive = localStorage.getItem("homeowl-cam-live") === "1"; } catch { S.camLive = false; }
+async function camFetch(id, hq) {
+  try {
+    const r = await fetch(`api/cameras/snapshot?id=${encodeURIComponent(id)}${hq ? "&hq=1" : ""}&t=${Date.now()}`, { credentials: "same-origin" });
+    if (!r.ok) { let m = `HTTP ${r.status}`; try { m = (await r.json()).error || m; } catch {} return { error: m }; }
+    return { url: URL.createObjectURL(await r.blob()) };
+  } catch (err) { return { error: "HomeOwl didn't answer: " + err.message }; }
+}
+function refreshSnaps(force) {
+  const every = S.camLive ? 2000 : 15000;
+  $$("img[data-camsnap]").forEach(async img => {
+    const id = img.dataset.camsnap;
+    if (camBusy.has(id) || (!force && Date.now() - (camLast[id] || 0) < every - 300)) return;
+    camBusy.add(id); camLast[id] = Date.now();
+    const r = await camFetch(id, false); camBusy.delete(id);
+    const msg = $(`[data-camerr="${CSS.escape(id)}"]`), age = $(`[data-camage="${CSS.escape(id)}"]`);
+    if (!img.isConnected) { if (r.url) URL.revokeObjectURL(r.url); return; }
+    if (r.url) {
+      const old = img.src; img.src = r.url; img.hidden = false; if (old.startsWith("blob:")) URL.revokeObjectURL(old);
+      if (msg) msg.hidden = true; if (age) age.textContent = S.camLive ? "live" : "now";
+    } else if (msg) { msg.hidden = false; msg.textContent = r.error; msg.classList.add("bad"); }
   });
 }
 function camTick() {
   if (S.view !== "cameras") { clearInterval(camTimer); camTimer = null; return; }
-  if (!document.hidden && S.source === "live") refreshSnaps();
+  if (!document.hidden && S.source === "live") refreshSnaps(false);
+  $$("[data-camage]").forEach(el => { const id = el.dataset.camage; if (camLast[id] && !S.camLive) { const s = Math.round((Date.now() - camLast[id]) / 1000); el.textContent = s < 5 ? "now" : `${s}s ago`; } });
 }
+document.addEventListener("change", e => {
+  if (e.target.id !== "cam-live") return;
+  S.camLive = e.target.checked; try { localStorage.setItem("homeowl-cam-live", S.camLive ? "1" : "0"); } catch {}
+  refreshSnaps(true);
+});
 
 document.addEventListener("click", e => {
   const d = e.target.closest("[data-camdays]"); if (d) { S.camF.days = +d.dataset.camdays; loadCameras(); return; }
   const k = e.target.closest("[data-camkind]");
   if (k) { S.camF.kind = k.dataset.camkind; $$("[data-camkind]").forEach(b => b.classList.toggle("on", b === k)); camRedrawTimeline(); return; }
-  if (e.target.id === "cam-refresh") { if (S.source === "live") refreshSnaps(); else loadCameras(); return; }
+  if (e.target.id === "cam-refresh") { if (S.source === "live") refreshSnaps(true); else loadCameras(); return; }
   const o = e.target.closest("[data-camopen]"); if (o) openCamera(o.dataset.camopen);
 });
 document.addEventListener("keydown", e => { const o = e.target.closest?.("[data-camopen]"); if (o && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openCamera(o.dataset.camopen); } });
@@ -183,5 +228,5 @@ document.addEventListener("change", async e => {
 
 { const _render = render; render = function () {
   _render();
-  if (S.view === "cameras") { loadCameras(); if (!camTimer) camTimer = setInterval(camTick, 15000); }
+  if (S.view === "cameras") { loadCameras(); if (!camTimer) camTimer = setInterval(camTick, 1000); }
 }; }

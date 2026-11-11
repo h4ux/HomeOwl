@@ -417,8 +417,17 @@ func Snapshot(ctx context.Context, c *unifi.Client, id string, hq bool) ([]byte,
 	if err != nil {
 		return nil, "", err
 	}
-	if st != 200 {
+	switch {
+	case st == 401 || st == 403:
+		return nil, "", errors.New("Protect refused the picture: HomeOwl's API key may not read Protect (create the key as an owner or super admin, with Protect access)")
+	case st == 404:
+		return nil, "", errors.New("Protect doesn't know this camera (HTTP 404) — refresh the page")
+	case st == 429:
+		return nil, "", errors.New("Protect asks to slow down (HTTP 429) — turn Live off for a moment")
+	case st != 200:
 		return nil, "", errors.New("the camera didn't send a picture (HTTP " + strconv.Itoa(st) + ")")
+	case len(b) == 0:
+		return nil, "", errors.New("the camera sent an empty picture (is it recording or privacy-masked?)")
 	}
 	if !strings.HasPrefix(typ, "image/") {
 		typ = "image/jpeg"

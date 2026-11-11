@@ -33,7 +33,7 @@ function guestBody(gw) {
       <div style="margin-top:10px">${(gw.all || []).map(w => `<label class="check"><input type="checkbox" data-guestpick="${esc(w.id)}" ${w.picked || w.guest ? "checked" : ""} ${w.auto ? "disabled title=\"A guest network in UniFi\"" : ""}> ${esc(w.ssid)}${w.auto ? ` <span class="tag">guest in UniFi</span>` : ""}</label>`).join("") || `<p class="muted">No Wi-Fi networks.</p>`}</div></details>` : "";
   if (!nets.length) return `<div class="card"><h2>No guest Wi-Fi yet</h2><p>Create a guest Wi-Fi in UniFi (Settings → WiFi → Create New, with “Guest network” turned on) — it keeps visitors away from your own devices.${admin ? " Or pick an existing Wi-Fi below." : ""}</p></div>${pick}`;
   return `<div class="guest-grid">${nets.map(g => {
-    const qr = g.security ? QR.svg(guestCode(g), { size: 220, label: `Join ${g.ssid}` }) : `<div class="empty">This Wi-Fi uses individual logins (enterprise), so there's no shared password to put in a code.</div>`;
+    const qr = g.security ? QR.themed(guestCode(g), { theme: guestTheme(), size: 220, label: `Join ${g.ssid}`, caption: `${g.ssid} · scan to join` }) : `<div class="empty">This Wi-Fi uses individual logins (enterprise), so there's no shared password to put in a code.</div>`;
     return `<div class="card guest-card">
       <div class="guest-qr">${qr}</div>
       <div class="guest-info">
@@ -44,7 +44,17 @@ function guestBody(gw) {
           ${g.password ? `<button class="btn sm" data-copy="${esc(g.password)}">Copy password</button>` : ""}
           ${admin && g.can_rotate ? `<button class="btn sm" data-guestrotate="${esc(g.id)}">New password…</button>` : ""}</div>
       </div></div>`;
-  }).join("")}</div>${pick}`;
+  }).join("")}</div>${nets.some(g => g.security) ? guestThemes(admin) : ""}${pick}`;
+}
+
+// QR style: saved in the settings by an admin (live), or just for this browser (demo)
+const guestTheme = () => S.guest?.qr_theme || S.qrTheme || "rounded";
+function guestThemes(admin) {
+  if (S.source === "live" && !admin) return "";
+  const cur = guestTheme(), code = QR.wifi({ ssid: "Guests", password: "example-only", security: "WPA" });
+  return `<div class="card section"><h2>Code style</h2><p class="fine">Every style scans on iPhone and Android cameras. The printed card uses the same style.</p>
+    <div class="qr-themes">${QR.THEMES.map(t => `<button class="qr-theme${t.id === cur ? " on" : ""}" data-qrtheme="${t.id}" aria-pressed="${t.id === cur}">
+      <span class="qr-mini">${QR.themed(code, { theme: t.id, size: 72, label: t.name, caption: "Scan to join" })}</span><span>${esc(t.name)}</span></button>`).join("")}</div></div>`;
 }
 
 function rotateGuest(id) {
@@ -67,7 +77,7 @@ function printGuestCard(id) {
   let pc = $("#print-card"); if (!pc) { pc = document.createElement("div"); pc.id = "print-card"; document.body.append(pc); }
   pc.innerHTML = `<div class="pc">
     <div class="pc-title">Wi-Fi for our guests</div>
-    ${QR.svg(guestCode(g), { size: 260, label: `Join ${g.ssid}` })}
+    ${QR.themed(guestCode(g), { theme: guestTheme(), size: 260, label: `Join ${g.ssid}`, caption: g.ssid })}
     <div class="pc-hint">Scan with your phone's camera to join</div>
     <dl><dt>Network</dt><dd>${esc(g.ssid)}</dd>${g.password ? `<dt>Password</dt><dd class="mono">${esc(g.password)}</dd>` : ""}</dl>
     <div class="pc-foot"><img src="icon.png" alt="" width="18" height="18"> Made with HomeOwl · github.com/h4ux/HomeOwl</div></div>`;
@@ -83,6 +93,12 @@ document.addEventListener("click", e => {
   const p = e.target.closest("[data-guestprint]"); if (p) { printGuestCard(p.dataset.guestprint); return; }
   const r = e.target.closest("[data-guestrotate]"); if (r) { rotateGuest(r.dataset.guestrotate); return; }
   if (e.target.id === "gp-gen") suggestGuestPass();
+  const th = e.target.closest("[data-qrtheme]");
+  if (th) {
+    const id = th.dataset.qrtheme;
+    if (S.source === "live") api("/api/guest-wifi/theme", { theme: id }).then(r => { S.guest.qr_theme = r.qr_theme; $("#guest-body").innerHTML = guestBody(S.guest); }).catch(err => toast(err.message, "err"));
+    else { S.qrTheme = id; $("#guest-body").innerHTML = guestBody(S.guest); }
+  }
 });
 document.addEventListener("change", async e => {
   if (!e.target.matches("[data-guestpick]")) return;

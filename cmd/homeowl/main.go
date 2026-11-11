@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,6 +33,7 @@ import (
 	"github.com/h4ux/homeowl/internal/mcp"
 	"github.com/h4ux/homeowl/internal/server"
 	"github.com/h4ux/homeowl/internal/update"
+	"github.com/h4ux/homeowl/internal/ups"
 )
 
 func usage() {
@@ -127,6 +129,7 @@ func (p *program) run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
 	app.Restart = func() { p.restart = true; cancel() }
+	app.Startup = startupControl(dir, p.service)
 	if p.browser {
 		go func() {
 			time.Sleep(800 * time.Millisecond)
@@ -216,6 +219,46 @@ func svcConfig(data, user string) *service.Config {
 	}
 	return &service.Config{Name: "homeowl", DisplayName: "HomeOwl", Description: "HomeOwl — home network watcher (UniFi, NextDNS, Tailscale)",
 		Arguments: a, UserName: user, Option: opt}
+}
+
+// startupControl lets Settings install or remove the background service for this data folder.
+func startupControl(dir string, asService bool) *server.Startup {
+	s, err := service.New(&program{done: make(chan struct{})}, svcConfig(dir, ""))
+	if err != nil {
+		return nil
+	}
+	exe, _ := os.Executable()
+	q := func(v string) string {
+		if strings.ContainsAny(v, " '\"") {
+			return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
+		}
+		return v
+	}
+	st := &server.Startup{AsService: asService, CanChange: ups.IsRoot(),
+		Installed: func() (bool, error) {
+			_, err := s.Status()
+			if errors.Is(err, service.ErrNotInstalled) {
+				return false, nil
+			}
+			return err == nil, err
+		},
+		Enable: s.Install, Disable: s.Uninstall}
+	switch runtime.GOOS {
+	case "darwin":
+		st.Kind, st.CanChange = "at login", true // a LaunchAgent in your own Library: no admin rights needed
+		st.Command = q(exe) + " service install --data " + q(dir)
+	case "windows":
+		st.Kind = "when Windows starts"
+		st.Command = `& "` + exe + `" service install --data "` + dir + `"; & "` + exe + `" service start   # in PowerShell as Administrator`
+	default:
+		st.Kind = "when the computer starts"
+		who := os.Getenv("USER")
+		if who == "" {
+			who = "$USER"
+		}
+		st.Command = "sudo " + q(exe) + " service install --user " + q(who) + " --data " + q(dir)
+	}
+	return st
 }
 
 func serviceCmd(args []string) {

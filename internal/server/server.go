@@ -71,6 +71,9 @@ type App struct {
 	Protect  *protect.Watcher
 	Access   *access.Client
 	UPS      *ups.Monitor
+	snaps    snapCache
+	// Startup is set by the command line: start HomeOwl with the computer (nil = not available).
+	Startup *Startup
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {

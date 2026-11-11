@@ -117,7 +117,7 @@ function normalise(b) {
     d.sources[src] = x;
     if (src.startsWith("integration") && x.state) d.intState = String(x.state).toUpperCase();
   }
-  devices.forEach(d => { d.isUps = /ups/i.test(`${d.model} ${d.modelCode} ${d.name} ${d.type}`); if (d.isUps && d.role === "other") d.role = "ups"; });
+  devices.forEach(d => { d.isUps = /ups/i.test(`${d.model} ${d.modelCode} ${d.name} ${d.type}`); if (d.isUps && d.role === "other") d.role = "ups"; if (d.role === "other") d.role = homeRole(d); });
 
   // ---- clients
   let clients = [];
@@ -289,6 +289,14 @@ function normalise(b) {
 // ------------------------------------------------------------------ internet connections
 // One entry per WAN port. The gateway reports wan1, wan2… plus geo_info / uptime_stats / last_wan_status keyed
 // "WAN", "WAN2"…; the health "wan" subsystem only describes the active one, so it fills gaps for that one.
+// Protect and Access hardware that Network lists as plain devices: cameras, video recorders, door hubs
+function homeRole(d) {
+  const t = String(d.type || "").toLowerCase(), m = `${d.modelCode || ""} ${d.model || ""}`, v = String(d.version || "");
+  if (/unvr|envr|\bnvr\b|cloud ?key|^uck|\buck/i.test(m) || t === "unvr" || t === "uck") return "nvr";
+  if (t === "uvc" || /^uvc\./i.test(v) || /^uvc|\bg[3-6]\b|\bai (pro|360|bullet|dome|turret|theta)\b|\b(bullet|dome|turret|doorbell|ptz)\b/i.test(m)) return "camera";
+  if (t === "uah" || /^ua[- ]|\bua (g2|g3|pro|hub|lite|ultra|intercom)\b|access (hub|reader)|intercom/i.test(m)) return "access";
+  return "other";
+}
 function buildWanLinks(g, wans, hw, www) {
   const geo = g.geo_info || {}, upt = { ...(hw.uptime_stats || {}), ...(g.uptime_stats || {}) }, last = g.last_wan_status || {};
   const links = [];
@@ -646,25 +654,56 @@ function gauge(score) {
 }
 
 // ------------------------------------------------------------------ sortable tables
+// Lists: every data table is drawn as list rows (the layout picked for HomeOwl): the first column (or `title`) is the row's
+// name, the other values become small labelled chips, numbers and buttons sit on the right, and a "Sort by" menu replaces
+// the column headers. Columns: { k, label, fmt, sort, num }.
 const TABLES = {};
-function table(id, cols, rows, { search = false, empty = "Nothing here", rowAttr } = {}) {
-  TABLES[id] = { cols, rows, sort: null, dir: 1, q: "", rowAttr };
+const emptyCell = h => !h || h === "–" || /^<span class="(muted|fine)">–<\/span>$/.test(h);
+function table(id, cols, rows, { search = false, empty = "Nothing here", rowAttr, title } = {}) {
+  const ti = Math.max(0, title ? cols.findIndex(c => c.k === title) : 0);
+  const prev = TABLES[id];
+  TABLES[id] = { cols, rows, sort: prev?.cols?.length === cols.length ? prev.sort : null, dir: prev?.dir || 1, q: "", rowAttr, ti };
   if (!rows.length) return `<div class="empty">${esc(empty)}</div>`;
-  return `${search ? `<input class="search" placeholder="Filter…" data-tsearch="${id}" style="margin-bottom:8px">` : ""}
-    <div class="tbl-wrap"><table id="t-${id}"><thead><tr>${cols.map((c, i) => `<th class="${c.num ? "num" : ""}" data-tsort="${id}:${i}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${tbody(id)}</tbody></table></div>`;
+  const sortable = cols.map((c, i) => [c, i]).filter(([c]) => c.label);
+  const t = TABLES[id];
+  return `<div class="li-tools">${search ? `<input class="search" placeholder="Filter…" data-tsearch="${id}" aria-label="Filter">` : ""}
+      ${rows.length > 3 && sortable.length > 1 ? `<label class="li-sort">Sort by <select data-tsortsel="${id}"><option value="">as listed</option>${sortable.map(([c, i]) => `<option value="${i}" ${t.sort === i ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>
+        <button class="btn xs" data-tsortdir="${id}" aria-label="Reverse the order" title="Reverse the order">${t.dir > 0 ? "↑" : "↓"}</button></label>` : ""}</div>
+    <div class="li" id="t-${id}" role="list">${tbody(id)}</div>`;
 }
 function tbody(id) {
   const t = TABLES[id]; let rows = t.rows;
   if (t.q) { const q = t.q.toLowerCase(); rows = rows.filter(r => JSON.stringify(r, (k, v) => k === "sources" || k === "blob" ? undefined : v).toLowerCase().includes(q)); }
   if (t.sort !== null) { const c = t.cols[t.sort], key = c.sort || (r => r[c.k]); rows = [...rows].sort((a, b) => { const x = key(a), y = key(b); return (x === y ? 0 : x === null || x === undefined ? 1 : y === null || y === undefined ? -1 : x > y ? 1 : -1) * t.dir; }); }
-  return rows.map(r => `<tr ${t.rowAttr ? t.rowAttr(r) : ""}>${t.cols.map(c => `<td class="${c.num ? "num" : ""}">${c.fmt ? c.fmt(r) : esc(r[c.k] ?? "–")}</td>`).join("")}</tr>`).join("");
+  if (!rows.length) return `<div class="empty">Nothing matches.</div>`;
+  return rows.map(r => {
+    let attr = t.rowAttr ? t.rowAttr(r) : "", cls = "li-row";
+    attr = attr.replace(/\bclass="([^"]*)"/, (_, c) => { cls += " " + c; return ""; });
+    const chips = [], right = [], acts = [];
+    t.cols.forEach((c, i) => {
+      if (i === t.ti) return;
+      const h = c.fmt ? c.fmt(r) : esc(r[c.k] ?? "–"); if (emptyCell(String(h).trim())) return;
+      if (/<button|class="btn/.test(h)) acts.push(h);
+      else if (c.num) right.push(`<span class="li-num">${h}</span>${c.label ? `<span class="li-l">${esc(c.label)}</span>` : ""}`);
+      else chips.push(c.label ? `<span class="li-f"><span class="li-l">${esc(c.label)}</span> ${h}</span>` : `<span class="li-f">${h}</span>`);
+    });
+    const tc = t.cols[t.ti], th = tc.fmt ? tc.fmt(r) : esc(r[tc.k] ?? "–");
+    return `<div class="${cls}" role="listitem" ${attr}><div class="li-main"><div class="li-title">${th}</div>${chips.length ? `<div class="li-chips">${chips.join("")}</div>` : ""}</div>
+      ${right.length || acts.length ? `<div class="li-side">${right.map(x => `<span class="li-stat">${x}</span>`).join("")}${acts.length ? `<span class="li-acts">${acts.join("")}</span>` : ""}</div>` : ""}</div>`;
+  }).join("");
 }
-document.addEventListener("click", e => {
-  const th = e.target.closest("[data-tsort]"); if (!th) return;
-  const [id, i] = th.dataset.tsort.split(":"); const t = TABLES[id];
-  t.dir = t.sort === +i ? -t.dir : 1; t.sort = +i; $(`#t-${id} tbody`).innerHTML = tbody(id);
+document.addEventListener("change", e => {
+  const id = e.target.dataset?.tsortsel; if (!id || !TABLES[id]) return;
+  TABLES[id].sort = e.target.value === "" ? null : +e.target.value; $(`#t-${id}`).innerHTML = tbody(id);
 });
-document.addEventListener("input", e => { const id = e.target.dataset.tsearch; if (!id) return; TABLES[id].q = e.target.value; $(`#t-${id} tbody`).innerHTML = tbody(id); });
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-tsortdir]"); if (!b) return;
+  const t = TABLES[b.dataset.tsortdir]; if (!t) return;
+  t.dir = -t.dir; if (t.sort === null) t.sort = t.cols.findIndex(c => c.label); b.textContent = t.dir > 0 ? "↑" : "↓";
+  const sel = $(`[data-tsortsel="${b.dataset.tsortdir}"]`); if (sel) sel.value = String(t.sort);
+  $(`#t-${b.dataset.tsortdir}`).innerHTML = tbody(b.dataset.tsortdir);
+});
+document.addEventListener("input", e => { const id = e.target.dataset.tsearch; if (!id) return; TABLES[id].q = e.target.value; $(`#t-${id}`).innerHTML = tbody(id); });
 
 const yes = (b, good = true) => b === null || b === undefined ? `<span class="muted">–</span>` : `<span class="tag ${b === good ? "good" : "bad"}">${b ? "on" : "off"}</span>`;
 const sevTag = s => `<span class="sev ${s}">${s}</span>`;
@@ -678,15 +717,15 @@ function physicalDiagram(m) {
   devs.forEach(d => { if (d === root) return; let p = (d.uplinkMac && byMac[d.uplinkMac]) || (d.uplinkId && byId[d.uplinkId]) || root; if (p === d) p = root; parent.set(d, p); });
   devs.forEach(d => { const seen = new Set([d]); let p = parent.get(d); while (p && p !== root) { if (seen.has(p)) { parent.set(d, root); break; } seen.add(p); p = parent.get(p); } });
   const kids = new Map(devs.map(d => [d, []])); devs.forEach(d => { if (parent.get(d)) kids.get(parent.get(d)).push(d); });
-  const order = { gw: 0, sw: 1, other: 2, ups: 2, ap: 3 }; kids.forEach(v => v.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name)));
+  const order = { gw: 0, sw: 1, other: 2, ups: 2, nvr: 2, ap: 3, access: 4, camera: 4 }; kids.forEach(v => v.sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name)));
   const NW = 168, NH = 62, XG = 18, YG = 64, pos = new Map(); let slot = 0;
   const place = (d, depth) => { const k = kids.get(d); if (!k.length) { pos.set(d, { x: slot++ * (NW + XG), y: depth }); return; } k.forEach(c => place(c, depth + 1)); const xs = k.map(c => pos.get(c).x); pos.set(d, { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: depth }); };
   place(root, 1);
   const maxDepth = Math.max(...[...pos.values()].map(p => p.y));
   const W = Math.max(slot * (NW + XG), NW + 40) + 40, H = (maxDepth + 1) * (NH + YG) + 40;
   const P = d => { const p = pos.get(d); return { x: p.x + 20, y: p.y * (NH + YG) + 20 }; };
-  const icon = { gw: "⬢", sw: "▤", ap: "◉", ups: "⚡", other: "◇" };
-  const col = { gw: "var(--c1)", sw: "var(--c2)", ap: "var(--c4)", ups: "var(--c5)", other: "var(--c7)" };
+  const icon = { gw: "⬢", sw: "▤", ap: "◉", ups: "⚡", camera: "◎", nvr: "▣", access: "⊟", other: "◇" };
+  const col = { gw: "var(--c1)", sw: "var(--c2)", ap: "var(--c4)", ups: "var(--c5)", camera: "var(--c6)", nvr: "var(--c6)", access: "var(--c3)", other: "var(--c7)" };
   let edges = "", nodes = "";
   const rp = P(root), inet = { x: rp.x, y: 20 };
   edges += `<path class="edge" d="M${inet.x + NW / 2},${inet.y + 40} L${rp.x + NW / 2},${rp.y}"/>`;

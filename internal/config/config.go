@@ -105,7 +105,8 @@ type UPSAction struct {
 }
 
 type Guest struct {
-	SSIDs []string `json:"ssids"` // Wi-Fi ids shown on the Guest Wi-Fi page besides UniFi's guest networks
+	SSIDs   []string `json:"ssids"`              // Wi-Fi ids shown on the Guest Wi-Fi page besides UniFi's guest networks
+	QRTheme string   `json:"qr_theme,omitempty"` // style of the join code: classic, rounded (default), blue, night, fridge
 }
 
 type Config struct {

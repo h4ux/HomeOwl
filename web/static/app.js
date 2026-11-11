@@ -155,7 +155,7 @@ V.topology = m => `<div class="head"><div><h1>Topology</h1><div class="muted">Ph
   <div class="card section"><h2>Logical — Internet → Gateway → VLANs → SSIDs</h2>${logicalDiagram(m)}</div>`;
 
 // ---- devices + debug panel
-const roleName = r => ({ gw: "Gateway", sw: "Switch", ap: "Access point", ups: "UPS", other: "Other" }[r] || r);
+const roleName = r => ({ gw: "Gateway", sw: "Switch", ap: "Access point", ups: "UPS", camera: "Camera", nvr: "Video recorder", access: "Door access", other: "Other" }[r] || r);
 const statusTag = d => d.online ? `<span class="tag good">online</span>` : `<span class="tag bad">${esc(d.stateLabel)}</span>`;
 V.devices = m => {
   const bad = m.devices.filter(d => !d.online);
@@ -281,13 +281,13 @@ V.wifi = m => {
   const canEdit = S.source === "live" && m.hasLegacy;
   return `<div class="head"><div><h1>Wi-Fi &amp; Radios</h1></div></div>
   <div class="card"><h2>SSIDs</h2>${table("wlans", [
-    { k: "name", label: "SSID" }, { k: "enabled", label: "On", fmt: r => yes(r.enabled) + " " + (r.legacy ? actBtn({ kind: "rest", resource: "wlanconf", id: r.id, fields: { enabled: !r.enabled }, description: `${r.enabled ? "Turn off" : "Turn on"} “${r.name}”` }, r.enabled ? "Turn off" : "Turn on") : "") },
-    { k: "network", label: "Network" },
+    { k: "name", label: "SSID", fmt: r => `<b class="nowrap">${esc(r.name)}</b>` }, { k: "enabled", label: "On", fmt: r => `<span class="cellrow">${yes(r.enabled)}` + (r.legacy ? actBtn({ kind: "rest", resource: "wlanconf", id: r.id, fields: { enabled: !r.enabled }, description: `${r.enabled ? "Turn off" : "Turn on"} “${r.name}”` }, r.enabled ? "Turn off" : "Turn on", null, "xs") : "") + `</span>` },
+    { k: "network", label: "Network", fmt: r => `<span class="nowrap">${esc(r.network || "–")}</span>` },
     { k: "sec", label: "Security", fmt: r => `<span class="tag ${/Open|WEP|WPA1|WPA\/WPA2/.test(r.sec) ? "bad" : /WPA3/.test(r.sec) ? "good" : ""}">${esc(r.sec)}</span>` },
-    { k: "pskLen", label: "Key length", num: 1, fmt: r => r.pskLen === null || r.pskLen === undefined ? "–" : `<span class="${r.pskLen < 12 ? "bad-t" : "ok-t"}">${r.pskLen}</span>` },
-    { k: "pmf", label: "PMF", fmt: r => esc(r.pmf || "–") }, { k: "bands", label: "Bands", fmt: r => r.bands.map(b => `<span class="tag">${bandOf(b)}</span>`).join("") },
+    { k: "pskLen", label: "Key", num: 1, fmt: r => r.pskLen === null || r.pskLen === undefined ? "–" : `<span class="${r.pskLen < 12 ? "bad-t" : "ok-t"}">${r.pskLen}</span>` },
+    { k: "pmf", label: "PMF", fmt: r => esc(r.pmf || "–") }, { k: "bands", label: "Bands", fmt: r => `<span class="cellrow">${r.bands.map(b => bandOf(b)).sort((a, b) => a - b).map(b => `<span class="tag">${b}</span>`).join("")}</span>` },
     { k: "hidden", label: "Hidden", fmt: r => yes(r.hidden, false) }, { k: "fastRoaming", label: "802.11r", fmt: r => yes(r.fastRoaming) },
-    { k: "l2iso", label: "Client isolation", fmt: r => yes(r.l2iso) }, { k: "clients", label: "Clients", num: 1 },
+    { k: "l2iso", label: "Isolation", fmt: r => yes(r.l2iso) }, { k: "clients", label: "Clients", num: 1 },
   ], m.wlans, { empty: "No SSIDs returned" })}</div>
   <div class="card section"><h2>Radios</h2>${table("radios", [
     { k: "ap", label: "AP" }, { k: "band", label: "Band", fmt: r => bandLabel(r.band) }, { k: "channel", label: "Channel", num: 1 }, { k: "width", label: "Width (MHz)", num: 1 },
@@ -448,11 +448,14 @@ async function loadChanges() {
   if (S.source !== "live") return;
   let list = []; try { list = await api("/api/changes"); } catch { }
   const el = $("#changes-body"); if (!el) return;
-  el.innerHTML = list.length ? `<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Time</th><th>Change</th><th>Before → after</th><th>Result</th><th></th></tr></thead><tbody>${list.slice().reverse().map(c => `<tr>
-    <td>${c.id}</td><td style="white-space:nowrap">${esc(c.time)}</td><td><b>${esc(c.description || c.target)}</b><div class="fine mono">${esc(c.method)} ${esc(c.path)}</div></td>
-    <td>${Object.keys(c.after || {}).map(k => `<div class="mono fine">${esc(k)}: ${esc(fmtVal(c.before?.[k]))} → <b>${esc(fmtVal(c.after[k]))}</b></div>`).join("")}</td>
-    <td>${c.ok ? `<span class="tag good">ok</span>` : `<span class="tag bad">failed</span><div class="fine bad-t">${esc(c.error || "")}</div>`}${c.undone ? ` <span class="tag">undone</span>` : ""}</td>
-    <td>${c.undoable && !c.undone ? `<button class="btn sm" data-undo="${c.id}">Undo</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No changes made yet.</div>`;
+  el.innerHTML = list.length ? table("changes", [
+    { k: "description", label: "", fmt: c => `${esc(c.description || c.target)} <span class="fine">#${c.id}${c.by ? ` · by ${esc(c.by)}` : ""}</span>` },
+    { k: "time", label: "When", fmt: c => esc(c.time), sort: c => -c.id },
+    { k: "ok", label: "", fmt: c => (c.ok ? `<span class="tag good">ok</span>` : `<span class="tag bad" title="${esc(c.error || "")}">failed</span>`) + (c.undone ? ` <span class="tag">undone</span>` : "") },
+    { k: "after", label: "Changed", fmt: c => Object.keys(c.after || {}).map(k => `<span class="mono fine">${esc(k)}: ${esc(fmtVal(c.before?.[k]))} → <b>${esc(fmtVal(c.after[k]))}</b></span>`).join(" · ") || "–" },
+    { k: "path", label: "Request", fmt: c => `<span class="mono fine">${esc(c.method)} ${esc(c.path)}</span>` },
+    { k: "undo", label: "", fmt: c => c.undoable && !c.undone ? `<button class="btn sm" data-undo="${c.id}">Undo</button>` : "" },
+  ], list.slice().reverse(), { search: true }) : `<div class="empty">No changes made yet.</div>`;
 }
 document.addEventListener("click", e => {
   const u = e.target.closest("[data-undo]"); if (!u) return;

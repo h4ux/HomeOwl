@@ -26,40 +26,18 @@
 <!-- ============ APP ============ -->
 <div id="app" class="app" hidden>
   <aside class="side">
-    <div class="brand"><img class="logo-img" src="icon.png" alt=""> HomeOwl</div>
-    <div class="site-chip" id="site-chip"></div>
-    <a href="#" class="update-chip" id="update-chip" hidden></a>
-    <button class="btn sm lock" id="btn-lock" hidden>🔒 Changes locked</button>
-    <nav id="nav">
-      <a data-view="overview" class="active">Overview</a>
-      <a data-view="findings">Suggestions <span class="pill" id="nav-findings"></span></a>
-      <a data-view="topology">Topology</a>
-      <a data-view="devices">Devices <span class="pill" id="nav-devices"></span></a>
-      <a data-view="firmware">Firmware <span class="pill" id="nav-firmware"></span></a>
-      <a data-view="ports">Switch ports</a>
-      <a data-view="networks">Networks &amp; VLANs</a>
-      <a data-view="wifi">Wi-Fi &amp; Radios</a>
-      <a data-view="guest">Guest Wi-Fi</a>
-      <a data-view="neighbors">Neighbour Wi-Fi</a>
-      <a data-view="security">Security &amp; Exposure</a>
-      <a data-view="dns">NextDNS &amp; Tailscale</a>
-      <a data-view="clients">Clients</a>
-      <a data-view="cameras">Cameras</a>
-      <a data-view="doors">Doors</a>
-      <a data-view="ups">UPS</a>
-      <a data-view="checkins" hidden>Check-ins <span class="pill" id="nav-checkins"></span></a>
-      <a data-view="history">History &amp; Events</a>
-      <a data-view="analytics">Analytics</a>
-      <a data-view="changes">Changes</a>
-      <a data-view="confighistory">Config history</a>
-      <a data-view="cheatsheet">Cheatsheet</a>
-      <a data-view="raw">Raw data</a>
-      <a data-view="settings" id="nav-settings" hidden>Settings</a>
-    </nav>
-    <div class="side-foot">
-      <button class="btn ghost sm" id="btn-refresh">Refresh</button>
-      <button class="btn ghost sm" id="btn-export">Save report</button>
-      <button class="btn ghost sm" id="btn-logout">Sign out</button>
+    <div class="rail-col"><img class="logo-img rail-logo" src="icon.png" alt="HomeOwl"><div class="rail" id="rail"></div></div>
+    <div class="side-col">
+      <div class="brand">HomeOwl</div>
+      <div class="site-chip" id="site-chip"></div>
+      <a href="#" class="update-chip" id="update-chip" hidden></a>
+      <button class="btn sm lock" id="btn-lock" hidden>🔒 Changes locked</button>
+      <nav id="nav" aria-label="Pages"></nav>
+      <div class="side-foot">
+        <button class="btn ghost sm" id="btn-refresh">Refresh</button>
+        <button class="btn ghost sm" id="btn-export">Save report</button>
+        <button class="btn ghost sm" id="btn-logout">Sign out</button>
+      </div>
     </div>
   </aside>
   <main id="main"></main>
@@ -71,6 +49,7 @@
 
 <script src="icons.js"></script>
 <script src="core.js"></script>
+<script src="nav.js"></script>
 <script src="app.js"></script>
 <script src="dnsvpn.js"></script>
 <script src="settings.js"></script>

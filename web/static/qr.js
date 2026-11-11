@@ -136,5 +136,34 @@ const QR = (() => {
     const t = !password || security === "nopass" ? "nopass" : security;
     return `WIFI:T:${t};S:${wifiEsc(ssid)};${t === "nopass" ? "" : `P:${wifiEsc(password)};`}${hidden ? "H:true;" : ""};`;
   }
-  return { encode, svg, wifi };
+  // themed codes for the guest card. Every theme keeps a dark code on a light tile and the full quiet zone, so phone cameras read it.
+  const THEMES = [
+    { id: "classic", name: "Classic", fg: "#111", bg: "#fff", mod: "square", eye: "square" },
+    { id: "rounded", name: "Rounded", fg: "#1b1f24", bg: "#fff", mod: "dot", eye: "round" },
+    { id: "blue", name: "HomeOwl blue", fg: "#1f6feb", eyeFg: "#0b2a5b", bg: "#fff", mod: "dot", eye: "round" },
+    { id: "night", name: "Night", fg: "#0e1116", bg: "#cdd6e4", mod: "rsq", eye: "round" },
+    { id: "fridge", name: "Fridge card", fg: "#24543f", bg: "#fbf8ef", mod: "rsq", eye: "round", label: true },
+  ];
+  function themed(text, { theme = "rounded", size = 220, label = "QR code", caption = "" } = {}) {
+    const t = THEMES.find(x => x.id === theme) || THEMES[1];
+    const m = encode(text), n = m.length, q = 4, w = n + q * 2;
+    const inEye = (x, y) => (x < 7 && y < 7) || (x >= n - 7 && y < 7) || (x < 7 && y >= n - 7);
+    let mods = "";
+    m.forEach((r, y) => r.forEach((c, x) => {
+      if (!c || inEye(x, y)) return;
+      const X = x + q, Y = y + q;
+      if (t.mod === "dot") mods += `<circle cx="${X + .5}" cy="${Y + .5}" r=".42"/>`;
+      else if (t.mod === "rsq") mods += `<rect x="${X + .06}" y="${Y + .06}" width=".88" height=".88" rx=".3"/>`;
+      else mods += `M${X} ${Y}h1v1h-1z`;
+    }));
+    const ef = t.eyeFg || t.fg;
+    const eye = (x, y) => t.eye === "round"
+      ? `<rect x="${x + .5}" y="${y + .5}" width="6" height="6" rx="2" fill="none" stroke="${ef}" stroke-width="1"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3" rx="1" fill="${ef}"/>`
+      : `<path d="M${x} ${y}h7v7h-7zM${x + 1} ${y + 1}v5h5v-5z" fill="${ef}" fill-rule="evenodd"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3" fill="${ef}"/>`;
+    const body = t.mod === "square" ? `<path d="${mods}" fill="${t.fg}"/>` : `<g fill="${t.fg}">${mods}</g>`;
+    const svgEl = `<svg class="qr" viewBox="0 0 ${w} ${w}" width="${size}" height="${size}" role="img" aria-label="${esc(label)}"${t.mod === "square" ? ` shape-rendering="crispEdges"` : ""}><rect width="${w}" height="${w}" rx="${t.mod === "square" ? 0 : 1.5}" fill="${t.bg}"/>${body}${eye(q, q)}${eye(q + n - 7, q)}${eye(q, q + n - 7)}</svg>`;
+    if (t.label) return `<div class="qr-wrap qr-label" style="background:${t.bg};color:${t.fg}">${svgEl}<div class="qr-cap">${esc(caption || "Scan to join")}</div></div>`;
+    return svgEl;
+  }
+  return { encode, svg, wifi, themed, THEMES };
 })();

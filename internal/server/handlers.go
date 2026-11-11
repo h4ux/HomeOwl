@@ -288,6 +288,14 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	case p == "guest-wifi/pick":
 		err = a.pickGuestSSIDs(body)
 		res = map[string]any{"ssids": a.Cfg.Get().Guest.SSIDs}
+	case p == "startup":
+		if r.Method == http.MethodPost {
+			res, err = a.setStartup(b(body, "enabled"))
+		} else {
+			res = a.startupView()
+		}
+	case p == "guest-wifi/theme":
+		res, err = a.setQRTheme(body)
 	case p == "guest-wifi/suggest":
 		res = map[string]any{"password": unifi.NewGuestPassword()}
 	case p == "update/check":
@@ -550,6 +558,7 @@ func (a *App) settingsView(who *Who, r *http.Request) map[string]any {
 		"version": config.Version,
 		"updates": map[string]any{"check": c.Updates.Check},
 		"cameras": map[string]any{"viewers": c.Cameras.Viewers},
+		"startup": a.startupView(),
 	}
 }
 

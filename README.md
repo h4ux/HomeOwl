@@ -24,8 +24,8 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 - **People & categories** — group devices per family member; domains are sorted into subjects (Social, Video, Gaming, AI…) and you can add your own rules.
 - **NextDNS & Tailscale helpers** — per-network NextDNS profiles and device names, plus Tailscale guidance.
 - **AI & MCP** — an [MCP](https://modelcontextprotocol.io) server so Claude (or any MCP client) can answer questions about your network and, if you allow it, make guarded changes.
-- **Guest Wi-Fi** — the guest network's name and password with a scan-to-join QR code, a printable card, and a new password in one click (previewed, logged, undoable).
-- **Cameras** — for UniFi Protect: the latest picture from each camera, whether it is online, and a timeline of people, vehicles, packages, animals, sounds and doorbell rings that you can filter. HomeOwl records these events while it runs and keeps them 30 days. It only reads from Protect. Only admins see cameras unless an admin shares them with viewers.
+- **Guest Wi-Fi** — the guest network's name and password with a scan-to-join QR code in five styles, a printable card, and a new password in one click (previewed, logged, undoable).
+- **Cameras** — for UniFi Protect: the latest picture from each camera (or a Live view refreshing every second or two), whether it is online, and a timeline of people, vehicles, packages, animals, sounds and doorbell rings that you can filter. HomeOwl records these events while it runs and keeps them 30 days. It only reads from Protect. Only admins see cameras unless an admin shares them with viewers.
 - **Doors** — for UniFi Access: which doors are locked or open, and who came in over the last 7 days, including refused attempts. Admins can also unlock a door remotely. Remote unlock is off until an admin turns it on, asks for confirmation each time, needs changes to be unlocked, and is logged with who did it. Access uses its own API token, which is kept in the keychain.
 - **UPS** — connects to a NUT (Network UPS Tools) server, for example a Raspberry Pi, a Synology or another NAS, and shows each UPS's status, battery, runtime, load and mains voltage, with 7 days of readings and a year of power cuts. Like NUT's `upsmon`, it can register as a secondary and run scripts when the power fails, comes back or the battery runs low. HomeOwl shuts this computer down in time with its suggested script for macOS, Linux or Windows. It only runs scripts from its own scripts folder; the web page can pick a script but can't add commands.
 - **Device check-in** — family members open `http://<HomeOwl>:8555/hi` (or scan its QR code) on their own phone, tablet or laptop and say what it is and whose; HomeOwl finds the device by its address, and an admin's approval sets its UniFi name and gives it to that person.
@@ -47,18 +47,18 @@ curl -fsSL https://github.com/h4ux/HomeOwl/releases/latest/download/install.sh |
 irm https://github.com/h4ux/HomeOwl/releases/latest/download/install.ps1 | iex
 ```
 
-The installer downloads the right build for your system, checks its checksum, installs `homeowl` and sets it up as a background service (LaunchAgent on macOS, systemd on Linux, a Windows service on Windows). Then open **http://127.0.0.1:8555** on that computer and create your admin account.
+The installer downloads the right build for your system, checks its checksum, installs `homeowl` and sets it up as a background service (LaunchAgent on macOS, systemd on Linux, a Windows service on Windows). Then open **http://127.0.0.1:8555** on that computer and create your admin account. If you run the program by hand instead, **Settings › System › Start with this computer** turns the background service on or off (on Linux and Windows it shows the admin command to run).
 
 Prefer to do it by hand? Download a release archive, unpack it and run `./homeowl` — or build from source (below).
 
 ### Updating
 
-HomeOwl checks GitHub for new releases twice a day (turn it off in **Settings › Updates**) and shows **Update available** in the sidebar. Click it to see what's new and either update in one click (when HomeOwl may replace its own program file, e.g. the Windows service) or copy the command — `sudo homeowl update`, or the install command above. A running HomeOwl notices its new program file and restarts by itself; downloads are checked against the release's SHA256 checksums.
+HomeOwl checks GitHub for new releases twice a day (turn it off in **Settings › System**) and shows **Update available** in the sidebar, next to the version you run. Click it to see what's new and either update in one click (when HomeOwl may replace its own program file, e.g. the Windows service) or copy the command — `sudo homeowl update`, or the install command above. A running HomeOwl notices its new program file and restarts by itself; downloads are checked against the release's SHA256 checksums.
 
 ### First steps
 
 1. **Create the admin account** on the computer running HomeOwl (from another device you'll need the one-time code shown by `homeowl setup-code`).
-2. **Settings › UniFi connection** — enter your console's IP and an API key (UniFi Network › Settings › Control Plane › Integrations).
+2. **Settings › Connection** — enter your console's IP and an API key (UniFi Network › Settings › Control Plane › Integrations).
 3. **Settings › Access** — choose how people reach HomeOwl:
    - **Home network**: `https://<computer-ip>:8555`, username + password (HomeOwl makes its own certificate; your browser warns once).
    - **Built-in Tailscale**: HomeOwl joins your tailnet as its own device with a real HTTPS address (`https://homeowl.<tailnet>.ts.net`). Tailnet logins linked to a user sign in automatically.

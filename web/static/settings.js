@@ -17,7 +17,8 @@ async function loadSettings() {
   const u = se.unifi, lan = se.lan, ts = se.tailscale, st = ts.status || {}, mcp = se.mcp;
   const tsState = !ts.enabled ? `<span class="tag">off</span>` : st.state === "Running" ? `<span class="tag good">online</span>` : st.state === "NeedsLogin" ? `<span class="tag warn">waiting for approval</span>` : `<span class="tag">${esc(st.state || "starting…")}</span>`;
   el.innerHTML = `
-  <div class="grid g2">
+  <div class="set-layout"><nav class="set-nav" id="set-nav" aria-label="Settings sections"></nav><div class="set-panes">
+  <div class="spane" data-spane="connection">
     <div class="card" id="st-unifi"><h2>UniFi connection</h2>
       <p>${u.connected ? `<span class="tag good">connected</span> <span class="mono">${esc(u.host)}</span>` : `<span class="tag bad">not connected</span>`}</p>
       ${u.last_error && !u.connected ? `<div class="msg err">${esc(u.last_error)}</div>` : ""}
@@ -32,7 +33,8 @@ async function loadSettings() {
       <p class="fine">Create a key in UniFi Network › Settings › Control Plane › Integrations. It's stored in ${esc(se.files.secrets)} and never sent to the browser.</p>
       <label style="margin-top:10px">Refresh UniFi data every (minutes)<input id="st-refresh" type="number" min="1" max="120" value="${esc(se.refresh_minutes)}" style="max-width:120px"></label>
     </div>
-
+  </div>
+  <div class="spane" data-spane="access">
     <div class="card"><h2>Access</h2>
       <h3>On your home network</h3>
       <label class="check"><input type="checkbox" id="st-lan" ${lan.enabled ? "checked" : ""}> <span>Allow other devices on the home network (sign-in required)</span></label>
@@ -55,39 +57,92 @@ async function loadSettings() {
     </div>
   </div>
 
-  <div class="card section"><div class="head" style="margin:0 0 8px"><h2 style="margin:0">Users</h2><button class="btn sm primary" id="st-user-add">+ Add user</button></div>
-    <div class="tbl-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Tailscale login</th><th>Last sign-in</th><th></th></tr></thead><tbody>
-    ${se.users.map(x => `<tr><td><b>${esc(x.name || x.username)}</b> <span class="mono muted">${esc(x.username)}</span>${x.username === se.me.username ? ` <span class="tag">you</span>` : ""}</td>
-      <td>${x.role === "admin" ? `<span class="tag good">admin</span>` : `<span class="tag">view only</span>`}</td><td class="mono fine">${esc(x.tailscale || "–")}</td>
-      <td class="fine">${x.last_login ? fmtTime(x.last_login * 1000) : "never"}</td>
-      <td class="num"><button class="btn sm" data-useredit="${esc(x.username)}">Edit</button></td></tr>`).join("")}
-    </tbody></table></div>
+  <div class="spane" data-spane="users"><div class="card"><div class="head" style="margin:0 0 8px"><h2 style="margin:0">Users</h2><button class="btn sm primary" id="st-user-add">+ Add user</button></div>
+    ${table("users", [
+      { k: "name", label: "", fmt: x => `${esc(x.name || x.username)} <span class="mono fine">${esc(x.username)}</span>${x.username === se.me.username ? ` <span class="tag">you</span>` : ""}` },
+      { k: "role", label: "", fmt: x => x.role === "admin" ? `<span class="tag good">admin</span>` : `<span class="tag">view only</span>` },
+      { k: "tailscale", label: "Tailscale login", fmt: x => x.tailscale ? `<span class="mono">${esc(x.tailscale)}</span>` : "–" },
+      { k: "last_login", label: "Last sign-in", fmt: x => x.last_login ? fmtTime(x.last_login * 1000) : "never", sort: x => -(x.last_login || 0) },
+      { k: "edit", label: "", fmt: x => `<button class="btn sm" data-useredit="${esc(x.username)}">Edit</button>` },
+    ], se.users)}
     <p class="fine">Admins can connect UniFi, unlock changes and manage settings. View-only users see everything except settings. <a href="#" id="st-mypass">Change my password</a></p>
-  </div>
+  </div></div>
 
-  <div class="card section"><h2>AI &amp; MCP</h2>
+  <div class="spane" data-spane="ai"><div class="card"><h2>AI &amp; MCP</h2>
     <p class="muted">Let an AI assistant (Claude Desktop, Claude Code or any MCP client) look at — and if you allow it, manage — your network through HomeOwl. Whatever the mode, passwords and keys are never shared, and every change is logged with the token's name.</p>
     <div class="mcp-modes">${MCP_MODES.map(([k, l, d]) => `<label class="mcp-mode ${mcp.mode === k ? "on" : ""} ${k === "god" ? "god" : ""}"><input type="radio" name="st-mcpmode" value="${k}" ${mcp.mode === k ? "checked" : ""}><b>${l}</b><span class="fine">${d}</span></label>`).join("")}</div>
     <h3 style="margin-top:14px">Access tokens</h3>
-    ${mcp.tokens.length ? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Created</th><th>Last used</th><th></th></tr></thead><tbody>${mcp.tokens.map(t => `<tr><td>${esc(t.name)}</td><td class="fine">${fmtTime(t.created * 1000)}</td><td class="fine">${t.last_used ? ago(t.last_used * 1000) : "never"}</td><td class="num"><button class="btn sm" data-mcprevoke="${esc(t.id)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="fine">No tokens yet.</p>`}
+    ${mcp.tokens.length ? table("mcptokens", [
+      { k: "name", label: "" },
+      { k: "created", label: "Created", fmt: t => fmtTime(t.created * 1000) },
+      { k: "last_used", label: "Last used", fmt: t => t.last_used ? ago(t.last_used * 1000) : "never" },
+      { k: "id", label: "", fmt: t => `<button class="btn sm" data-mcprevoke="${esc(t.id)}">Revoke</button>` },
+    ], mcp.tokens) : `<p class="fine">No tokens yet.</p>`}
     <div class="ovr" style="grid-template-columns:1fr auto"><input id="st-mcpname" placeholder="Token name, e.g. Claude Desktop on my laptop"><button class="btn sm primary" id="st-mcpnew">Create token</button></div>
     <details><summary class="fine">Tools available in each mode</summary><p class="fine">${(mcp.tools || []).map(t => `<span class="tag ${t.level === "god" ? "bad" : t.level === "guarded" ? "warn" : ""}">${esc(t.name)}</span>`).join(" ")}</p></details>
-  </div>
+  </div></div>
 
-  <div id="an-settings" class="section"></div>
+  <div class="spane" data-spane="analytics"><div id="an-settings"></div></div>
 
+  <div class="spane" data-spane="home"><div class="card" id="st-cameras"></div>
+    <div class="card section"><h2>Doors, UPS and guest Wi-Fi</h2><p class="fine">These are set up on their own pages.</p>
+      <div class="btnrow"><a class="btn sm" href="#" data-goto="doors">Doors</a><a class="btn sm" href="#" data-goto="ups">UPS</a><a class="btn sm" href="#" data-goto="guest">Guest Wi-Fi</a><a class="btn sm" href="#" data-goto="checkins">Device check-in</a></div></div></div>
+
+  <div class="spane" data-spane="system"><div class="card" id="st-startup"></div>
   <div class="card section" id="st-updates"></div>
-
-  <div class="card section" id="st-cameras"></div>
 
   <div class="card section"><h2>Files &amp; system</h2><dl class="kv">
     <dt>Version</dt><dd>${esc(se.system.version)} · ${esc(se.system.os)}/${esc(se.system.arch)} · up ${fmtDur(se.system.uptime_s)}</dd>
     <dt>Data folder</dt><dd class="mono">${esc(se.files.data)}</dd><dt>Change log</dt><dd class="mono">${esc(se.files.change_log)}</dd>
-    <dt>Analytics database</dt><dd class="mono">${esc(se.files.analytics)}</dd><dt>Logs</dt><dd class="mono">${esc(se.files.log)}</dd><dt>Program</dt><dd class="mono">${esc(se.files.binary)}</dd></dl></div>`;
+    <dt>Analytics database</dt><dd class="mono">${esc(se.files.analytics)}</dd><dt>Logs</dt><dd class="mono">${esc(se.files.log)}</dd><dt>Program</dt><dd class="mono">${esc(se.files.binary)}</dd></dl></div></div>
+  </div></div>`;
+  renderStartup(); setTabs();
   if (typeof loadAnSettings === "function") loadAnSettings();
   if (typeof renderUpdateSettings === "function") { renderUpdateSettings(); if (!S.update) loadUpdate().then(renderUpdateSettings); }
   if (typeof renderCameraSettings === "function") renderCameraSettings();
 }
+
+// Settings side menu: one section at a time, remembered in this browser; a dot shows what needs attention
+const SET_TABS = [["connection", "Connection"], ["access", "Access"], ["users", "Users"], ["analytics", "Analytics"], ["home", "Home"], ["ai", "AI & MCP"], ["system", "System"]];
+try { S.setTab = localStorage.getItem("homeowl-settings-tab") || "connection"; } catch { S.setTab = "connection"; }
+function setTabs() {
+  const nav = $("#set-nav"), se = S.settings; if (!nav || !se) return;
+  if (!SET_TABS.some(([k]) => k === S.setTab)) S.setTab = "connection";
+  const ts = se.tailscale || {}, dot = {
+    connection: se.unifi?.connected ? "ok" : "bad",
+    access: ts.enabled && ts.status?.state && ts.status.state !== "Running" ? "warn" : "",
+    users: "", analytics: "", home: "", ai: se.mcp?.mode === "god" ? "warn" : "",
+    system: S.update?.available ? "warn" : "",
+  };
+  const count = { users: (se.users || []).length };
+  nav.innerHTML = SET_TABS.map(([k, l]) => `<a href="#" data-stab="${k}" class="${S.setTab === k ? "act" : ""}" aria-current="${S.setTab === k ? "page" : "false"}">${esc(l)}${count[k] ? ` <span class="fine">${count[k]}</span>` : dot[k] ? ` <span class="sdot ${dot[k]}" aria-label="${dot[k] === "ok" ? "fine" : "needs attention"}"></span>` : ""}</a>`).join("");
+  $$(".spane").forEach(p => { p.hidden = p.dataset.spane !== S.setTab; });
+}
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-stab]"); if (!t) return;
+  e.preventDefault(); S.setTab = t.dataset.stab; try { localStorage.setItem("homeowl-settings-tab", S.setTab); } catch {}
+  setTabs(); window.scrollTo(0, 0);
+});
+
+// Start HomeOwl with this computer
+function renderStartup() {
+  const el = $("#st-startup"), st = S.settings?.startup; if (!el) return;
+  if (!st || !st.available) { el.innerHTML = `<h2>Start with this computer</h2><p class="muted">Not available in this build.</p>`; return; }
+  el.innerHTML = `<h2>Start with this computer</h2>
+    <label class="check"><input type="checkbox" id="st-startup-on" ${st.enabled ? "checked" : ""} ${st.can_change ? "" : "disabled"}> <span>Start HomeOwl ${esc(st.kind)}, in the background</span></label>
+    ${st.error ? `<p class="bad-t fine">${esc(st.error)}</p>` : ""}
+    <p class="fine">${st.as_service ? "This HomeOwl is running as that background service now." : st.enabled ? "It's set up; it starts by itself next time." : "Off: HomeOwl runs only while you keep it open."}
+      ${st.enabled && st.as_service ? " Turning it off stops this HomeOwl too." : ""}</p>
+    ${st.can_change ? "" : `<p class="fine">This needs administrator rights. Run this in a terminal on the computer running HomeOwl:</p>${copyBox("st-startup-cmd", st.command)}`}`;
+}
+document.addEventListener("change", async e => {
+  if (e.target.id !== "st-startup-on") return;
+  const on = e.target.checked;
+  try {
+    const r = await api("/api/startup", { enabled: on }); S.settings.startup = r; renderStartup();
+    toast(r.stopping ? "HomeOwl stops now and won't start by itself anymore" : on ? "HomeOwl will start with this computer" : "HomeOwl won't start by itself anymore", "ok");
+  } catch (err) { toast(err.message, "err"); e.target.checked = !on; }
+});
 
 function fmtDur(s) { s = +s || 0; return s < 3600 ? `${Math.round(s / 60)} min` : s < 86400 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 86400)} days`; }
 

@@ -52,7 +52,7 @@ func (a *App) guestWiFi(admin bool) (map[string]any, error) {
 		guests = append(guests, map[string]any{"id": id, "ssid": name, "security": qrSec, "password": pw, "hidden": hidden,
 			"enabled": !ok || enabled, "can_rotate": sec == "wpapsk"})
 	}
-	res := map[string]any{"networks": guests}
+	res := map[string]any{"networks": guests, "qr_theme": orDefault(a.Cfg.Get().Guest.QRTheme, "rounded")}
 	if admin {
 		res["all"] = all
 	}
@@ -68,4 +68,18 @@ func (a *App) pickGuestSSIDs(body map[string]any) error {
 		}
 	}
 	return a.Cfg.Update(func(c *config.Config) { c.Guest.SSIDs = ids })
+}
+
+var qrThemes = map[string]bool{"classic": true, "rounded": true, "blue": true, "night": true, "fridge": true}
+
+// setQRTheme saves the style of the guest join code (admins).
+func (a *App) setQRTheme(body map[string]any) (any, error) {
+	t := s(body, "theme")
+	if !qrThemes[t] {
+		return nil, errors.New("unknown code style")
+	}
+	if err := a.Cfg.Update(func(c *config.Config) { c.Guest.QRTheme = t }); err != nil {
+		return nil, err
+	}
+	return map[string]any{"qr_theme": t}, nil
 }

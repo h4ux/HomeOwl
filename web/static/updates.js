@@ -10,8 +10,13 @@ async function loadUpdate() {
 function renderUpdateChip() {
   const el = $("#update-chip"); if (!el) return;
   const u = S.update;
-  el.hidden = !(u && u.available);
-  if (u && u.available) el.innerHTML = `⬆ Update available · <b>${esc(u.latest)}</b>`;
+  // always show the running version; with an update waiting, show where it goes
+  el.hidden = !(u && u.current);
+  if (!u || !u.current) return;
+  el.classList.toggle("avail", !!u.available);
+  el.innerHTML = u.available ? `⬆ Update available<span class="upd-v">${esc(u.current)} → <b>${esc(u.latest)}</b></span>`
+    : `<span class="upd-v">HomeOwl <b>${esc(u.current)}</b>${u.dev_build ? " · dev build" : u.latest ? " · up to date" : ""}</span>`;
+  el.title = u.available ? "See what's new and how to update" : "Check for updates";
 }
 const relNotes = t => esc(String(t || "").replace(/\r/g, "").slice(0, 4000)).replace(/^#+ ?(.*)$/gm, "<b>$1</b>").replace(/\*\*(.+?)\*\*/g, "$1");
 function updateBody(u) {
