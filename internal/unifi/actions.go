@@ -284,9 +284,43 @@ func (c *Client) plan(a Action) (*plan, error) {
 			"static-route_network": ipn.String(), "static-route_nexthop": hop.String(), "static-route_distance": 1}
 		return &plan{req: req{"POST", c.SitePath("rest/routing", false), body}, Before: map[string]any{"route": nil},
 			After: map[string]any{"route": ipn.String() + " via " + hop.String()}, DeleteCreated: true, Target: name}, nil
+	case "dnsrecord": // a local DNS record on the console (UniFi Network 8.2+): name → a home address
+		name, ip := strings.TrimSuffix(strings.ToLower(a.s("name")), "."), net.ParseIP(a.s("ip")).To4()
+		if !hostRE.MatchString(name) || ip == nil || !ip.IsPrivate() {
+			return nil, aerr("a DNS record needs a name like wifi.home.arpa and a home-network IPv4 address")
+		}
+		path := c.SitePath("static-dns", true)
+		st, d := c.Get(path)
+		if st != 200 {
+			return nil, aerr("this console has no local DNS records (they need UniFi Network 8.2 or newer): %s", ErrText(d))
+		}
+		for _, r := range List(d) {
+			if !strings.EqualFold(fmt.Sprint(r["key"]), name) {
+				continue
+			}
+			id, _ := r["_id"].(string)
+			if !idRE.MatchString(id) {
+				return nil, aerr("unexpected DNS record on the console")
+			}
+			if r["value"] == ip.String() && r["record_type"] == "A" && r["enabled"] != false {
+				return nil, aerr("%s already points to %s", name, ip)
+			}
+			upd := map[string]any{}
+			for k, v := range r {
+				upd[k] = v
+			}
+			upd["value"], upd["record_type"], upd["enabled"] = ip.String(), "A", true
+			return &plan{req: req{"PUT", path + "/" + id, upd}, Before: map[string]any{"record": fmt.Sprintf("%s → %v", name, r["value"])},
+				After: map[string]any{"record": name + " → " + ip.String()}, Undo: &req{"PUT", path + "/" + id, r}, Target: name}, nil
+		}
+		body := map[string]any{"key": name, "value": ip.String(), "record_type": "A", "enabled": true, "ttl": 0, "port": 0, "priority": 0, "weight": 0}
+		return &plan{req: req{"POST", path, body}, Before: map[string]any{"record": nil}, After: map[string]any{"record": name + " → " + ip.String()},
+			DeleteCreated: true, Target: name}, nil
 	}
 	return nil, aerr("unknown action kind")
 }
+
+var hostRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,62}$`)
 
 // IsGuestWLAN: UniFi's guest flag, a guest network behind it, or picked by an admin.
 func (c *Client) IsGuestWLAN(w map[string]any) bool {
@@ -445,7 +479,11 @@ func (ch *Changes) Run(c *Client, a Action, dryRun bool, who string, requireUnlo
 	}
 	undo := p.Undo
 	if p.DeleteCreated && ok {
-		if f := first(d); f != nil && f["_id"] != nil {
+		f := first(d)
+		if m, isMap := d.(map[string]any); f == nil && isMap { // the v2 API answers with the object itself
+			f = m
+		}
+		if f != nil && f["_id"] != nil {
 			undo = &req{"DELETE", fmt.Sprintf("%s/%v", p.Path, f["_id"]), nil}
 		}
 	}

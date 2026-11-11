@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.16] — 2026-11-11
+
+### Added
+- **One name for every device** (Settings › Access): names like `wifi.home.arpa` and `hi.home.arpa` that work on any device at home, an Echo Show too, with no .local lookup needed.
+  - HomeOwl adds them as rewrites to every profile of every NextDNS account it has a key for.
+  - It points them at this computer again when its address changes, and removes the ones it added when you turn this off.
+  - Your other rewrites aren't touched. Each change is logged in Records › Changes.
+  - For devices that don't use NextDNS, "Also add to UniFi…" creates local DNS records on the console (UniFi Network 8.2 or newer). You see a preview first, and you can undo it.
+
 ## [0.1.15] — 2026-11-11
 
 ### Fixed

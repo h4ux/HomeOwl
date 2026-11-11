@@ -370,6 +370,9 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		} else {
 			res = a.guestScheduleView()
 		}
+	case p == "names/sync":
+		a.syncHomeDNS(by)
+		res = a.homeDNSView()
 	case p == "guest-wifi/rotate-now":
 		var k int
 		if k, err = a.rotateGuestPasswords(by); err == nil {

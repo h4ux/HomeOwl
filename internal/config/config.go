@@ -56,6 +56,9 @@ type Names struct {
 	Port80  bool   `json:"port80,omitempty"`  // older versions: port 80 only with names (now see Short)
 	// "" = also listen on port 80, so http://<this computer's IP>/hi and /wifi (and the names) work without a port; "off" = don't
 	Short string `json:"short,omitempty"`
+	// "" = off; e.g. "home.arpa" → hi.home.arpa and wifi.home.arpa, added as rewrites to every NextDNS profile
+	// HomeOwl has a key for (and, on request, as UniFi local DNS records), so any device on the network finds them
+	Domain string `json:"domain,omitempty"`
 }
 
 type Tailscale struct {

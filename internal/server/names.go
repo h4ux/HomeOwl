@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -49,6 +50,11 @@ func (a *App) ApplyNames() {
 		webPort = 80
 	}
 	a.names.Set(list, webPort)
+	go func() {
+		if a.homeDNSDue() {
+			a.syncHomeDNS("settings")
+		}
+	}()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if !want {
@@ -109,10 +115,11 @@ func (a *App) nameHost(r *http.Request) string {
 	if !c.LAN.Enabled {
 		return ""
 	}
-	if c.Names.Checkin != "" && h == mdns.FQDN(c.Names.Checkin) {
+	d := strings.Trim(c.Names.Domain, ".")
+	if c.Names.Checkin != "" && (h == mdns.FQDN(c.Names.Checkin) || d != "" && h == c.Names.Checkin+"."+d+".") {
 		return "checkin"
 	}
-	if c.Names.Guest != "" && h == mdns.FQDN(c.Names.Guest) {
+	if c.Names.Guest != "" && (h == mdns.FQDN(c.Names.Guest) || d != "" && h == c.Names.Guest+"."+d+".") {
 		return "guest"
 	}
 	return ""
@@ -224,8 +231,10 @@ func (a *App) namesView() map[string]any {
 	return map[string]any{"checkin": c.Names.Checkin, "guest": c.Names.Guest, "port80": c.Names.Short != "off",
 		"checkin_url": link(c.Names.Checkin), "guest_url": link(c.Names.Guest), "lan": c.LAN.Enabled,
 		"interfaces": ifaces, "error": nilIfEmpty(err), "port80_error": nilIfEmpty(p80err), "port80_on": p80, "stats": st,
-		"fallback": a.fallbackLinks()}
+		"fallback": a.fallbackLinks(), "home_dns": a.homeDNSView()}
 }
+
+var homeDomainRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z][a-z0-9-]{0,62}$`)
 
 func parseNames(m map[string]any, old config.Names) (config.Names, error) {
 	n := old
@@ -246,6 +255,16 @@ func parseNames(m map[string]any, old config.Names) (config.Names, error) {
 		if n.Guest, err = clean("guest"); err != nil {
 			return old, err
 		}
+	}
+	if has(m, "domain") {
+		d := strings.Trim(strings.ToLower(strings.TrimSpace(s(m, "domain"))), ".")
+		if d == "local" || strings.HasSuffix(d, ".local") {
+			return old, errors.New("pick a domain other than .local (that's what the .local names already use), e.g. home.arpa")
+		}
+		if d != "" && !homeDomainRE.MatchString(d) {
+			return old, errors.New("a domain looks like home.arpa or home.example.com")
+		}
+		n.Domain = d
 	}
 	if has(m, "port80") {
 		n.Short = map[bool]string{true: "", false: "off"}[b(m, "port80")]

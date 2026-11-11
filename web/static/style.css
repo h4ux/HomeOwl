@@ -661,6 +661,8 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .ez-card svg{flex:0 0 auto;width:104px;height:104px;background:#fff;border-radius:6px;padding:4px}
 .ez-txt{display:flex;flex-direction:column;gap:5px;min-width:0}
 .ez-url{font-size:17px;font-weight:700;word-break:break-all}
+.ez-dns{margin:8px 0;padding:10px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:6px}
+.ez-dns-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}.ez-dns-row .name-in input{width:160px;flex:none}
 .ez-more{margin-top:8px}.ez-more summary{cursor:pointer;color:var(--muted)}
 .name-in{display:flex;align-items:center;gap:4px}.name-in input{flex:1;min-width:0}
 .names-st{margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--panel2);display:flex;flex-direction:column;gap:4px}

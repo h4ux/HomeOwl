@@ -121,9 +121,11 @@ function easyLinks(nm, lan) {
   const host = ip && m?.clients.find(c => c.ip === ip), k = host && m.knownByMac?.[host.mac];
   const keep = host && !host.fixedIp && !k?.fixedIp && S.role === "admin" && S.source === "live" && (host.userId || k?.id)
     ? `<div class="msg warn">This computer's address (${esc(ip)}) can change, and then these links stop working. <button class="btn sm" id="st-keepip" data-mac="${esc(host.mac)}">Keep ${esc(ip)} for this computer…</button></div>` : "";
-  return `<div class="ez-grid">${page("Check-in page", fb.checkin, nm.checkin)}
-    ${page("Guest Wi-Fi card", nm.guest ? fb.guest : "", nm.guest, nm.guest ? `<span class="fine">On an Echo Show: say “Alexa, open Silk”, go to <span class="mono">${esc((fb.guest || "").replace(/^http:\/\//, ""))}</span> and bookmark it. Anyone on your network can see the guest password there.</span>` : "")}</div>
+  const hd = nm.home_dns || {}, hdLink = l => arr(hd.links).find(u => u.includes(`//${l}.`));
+  return `<div class="ez-grid">${page("Check-in page", fb.checkin, nm.checkin, hdLink(nm.checkin) ? `<span class="fine">And <span class="mono">${esc(hdLink(nm.checkin))}</span> on every device</span>` : "")}
+    ${page("Guest Wi-Fi card", nm.guest ? fb.guest : "", nm.guest, (nm.guest && hdLink(nm.guest) ? `<span class="fine">And <span class="mono">${esc(hdLink(nm.guest))}</span> on every device</span>` : "") + (nm.guest ? `<span class="fine">On an Echo Show: say “Alexa, open Silk”, go to <span class="mono">${esc((fb.guest || "").replace(/^http:\/\//, ""))}</span> and bookmark it. Anyone on your network can see the guest password there.</span>` : ""))}</div>
     <label class="check"><input type="checkbox" id="st-nm-guestcard" ${nm.guest ? "checked" : ""}> <span>Show the guest Wi-Fi card (name and password) to anyone on your home network</span></label>
+    ${homeDNSBlock(hd, fb.ip)}
     ${keep}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
     <details class="ez-more"><summary>Names and options</summary>
       <div class="grid g2" style="margin-top:8px">
@@ -132,6 +134,35 @@ function easyLinks(nm, lan) {
       <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 ? "checked" : ""}> <span>Use port 80, so the links don't need “:${esc(lan.port)}”</span></label>
       ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.checkin || nm.guest ? namesStatus(nm) : ""}</details>`;
 }
+// home DNS names (wifi.home.arpa): NextDNS rewrites in every profile HomeOwl has a key for, and on request a UniFi record
+function homeDNSBlock(hd, ip) {
+  const st = hd.state || {}, on = !!hd.domain, nd = hd.nextdns_accounts || 0;
+  const status = !on ? "" : !nd ? `<div class="msg warn">Add your NextDNS accounts in Settings › Analytics, so HomeOwl can add the names there. Or add them to UniFi below.</div>`
+    : hd.pending && !st.time ? `<p class="fine muted">Adding the names to NextDNS…</p>`
+    : `<p class="fine">${st.profiles ? `<span class="ok-t">In ${plural(st.profiles, "NextDNS profile")}</span> across ${plural(st.accounts, "account")}, pointing at <span class="mono">${esc(st.ip)}</span>, checked ${ago(st.time)}.` : `<span class="warn-t">Not in any NextDNS profile yet.</span>`}
+      <a href="#" id="st-hd-sync">Check now</a></p>${arr(st.errors).map(e => `<div class="msg warn">${esc(e)}</div>`).join("")}`;
+  const unifi = on && ip && S.role === "admin" && S.source === "live" && arr(hd.names).length
+    ? `<button class="btn sm" id="st-hd-unifi">Also add to UniFi…</button> <span class="fine muted">for devices that don't use NextDNS</span>` : "";
+  return `<div class="ez-dns"><b>One name for every device ${hint("A .local name only works where the device looks it up itself. These names are normal DNS: HomeOwl adds them to every profile of every NextDNS account it has a key for, and keeps them pointing at this computer when its address changes. They answer with a home address, so they only work at home. Any device that uses NextDNS, or UniFi's DNS once you add them there, finds them — an Echo Show too.")}</b>
+    <div class="ez-dns-row"><label class="check"><input type="checkbox" id="st-hd-on" ${on ? "checked" : ""}> <span>Use names like <span class="mono">wifi.${esc(hd.domain || "home.arpa")}</span></span></label>
+      ${on ? `<span class="name-in"><span class="fine">Domain</span><input id="st-hd-domain" value="${esc(hd.domain)}" maxlength="60" autocomplete="off" aria-label="Domain"><button class="btn sm" id="st-hd-save">Save</button></span>` : ""}</div>
+    ${status}${unifi ? `<div class="btnrow">${unifi}</div>` : ""}</div>`;
+}
+const hdSave = async domain => {
+  try { await api("/api/settings", { names: { domain } }); toast(domain ? `Names on ${domain}` : "Home DNS names are off; HomeOwl removes the ones it added", "ok"); }
+  catch (err) { toast(err.message, "err"); }
+  setTimeout(() => { if (S.view === "settings") loadSettings(); }, 2500);
+};
+document.addEventListener("change", e => { if (e.target.id === "st-hd-on") hdSave(e.target.checked ? "home.arpa" : ""); });
+document.addEventListener("click", e => {
+  if (e.target.id === "st-hd-save") hdSave($("#st-hd-domain").value.trim());
+  if (e.target.id === "st-hd-sync") { e.preventDefault(); e.target.textContent = "Checking…"; api("/api/names/sync", {}).then(() => loadSettings()).catch(err => toast(err.message, "err")); }
+  if (e.target.id === "st-hd-unifi") {
+    const hd = S.settings?.names?.home_dns || {}, ip = S.settings?.names?.fallback?.ip;
+    runActions(arr(hd.names).map(n => ({ kind: "dnsrecord", name: n, ip, description: `Local DNS record ${n} → ${ip} (HomeOwl)` })), "Add the names to UniFi");
+  }
+});
+
 // the guest card switch saves at once (no "Save" to forget)
 document.addEventListener("change", async e => {
   if (e.target.id !== "st-nm-guestcard") return;

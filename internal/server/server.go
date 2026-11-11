@@ -66,6 +66,7 @@ type App struct {
 	names        mdns.Responder // answers for the easy .local names (Settings › Access)
 	port80       *http.Server
 	port80Err    string
+	hdMu         sync.Mutex // one home-DNS sync at a time (homedns.go)
 	Alerts       *alerts.Store
 	alertErr     string
 	seen         *seenClients
@@ -143,6 +144,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.connectProtectSaved(ctx)
 	go a.presenceLoop(ctx)
 	go a.guestRotateLoop(ctx)
+	go a.homeDNSLoop(ctx)
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)
@@ -318,6 +320,9 @@ func (a *App) hostAllowed(r *http.Request) bool {
 		return ip.IsLoopback() || ip.IsPrivate() || isLocalIP(ip) || strings.HasPrefix(h, "100.")
 	}
 	if ex := strings.ToLower(a.Cfg.Get().LAN.ExtraHost); ex != "" && h == ex {
+		return true
+	}
+	if d := a.Cfg.Get().Names.Domain; d != "" && strings.HasSuffix(h, "."+d) {
 		return true
 	}
 	names, _ := localNames()
