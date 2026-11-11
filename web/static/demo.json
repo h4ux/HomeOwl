@@ -4337,5 +4337,89 @@
     "method": "NFC"
    }
   ]
+ },
+ "ups": {
+  "status": {
+   "state": "live",
+   "server": "192.168.1.20:3493",
+   "secondary": true,
+   "ups": [
+    {
+     "name": "rack",
+     "desc": "Network rack",
+     "power": true,
+     "status": "OL",
+     "text": "on mains",
+     "charge": 100,
+     "runtime": 2100,
+     "load": 22,
+     "input_voltage": 230,
+     "output_voltage": 230,
+     "vars": {
+      "ups.status": "OL",
+      "ups.mfr": "Eaton",
+      "ups.model": "5P 1550",
+      "battery.charge": "100",
+      "battery.runtime": "2100",
+      "ups.load": "22",
+      "input.voltage": "230",
+      "output.voltage": "230",
+      "input.frequency": "50",
+      "ups.realpower.nominal": "1100",
+      "battery.type": "PbAc",
+      "driver.name": "usbhid-ups",
+      "ups.beeper.status": "enabled"
+     },
+     "on_battery_since": 0,
+     "comm_bad": false
+    }
+   ]
+  },
+  "events": [
+   {
+    "ago": 10080,
+    "ups": "rack",
+    "kind": "script",
+    "text": "Ran homeowl-notify.sh for \"Back on mains\"",
+    "script": "homeowl-notify.sh",
+    "for": "online",
+    "exit": 0
+   },
+   {
+    "ago": 10080,
+    "ups": "rack",
+    "kind": "online",
+    "text": "Power is back: on mains again",
+    "status": "OL CHRG",
+    "charge": 71
+   },
+   {
+    "ago": 10740,
+    "ups": "rack",
+    "kind": "script",
+    "text": "Ran homeowl-notify.sh for \"On battery\"",
+    "script": "homeowl-notify.sh",
+    "for": "onbatt",
+    "exit": 0
+   },
+   {
+    "ago": 10800,
+    "ups": "rack",
+    "kind": "onbatt",
+    "text": "Power cut: the UPS is on battery",
+    "status": "OB DISCHRG",
+    "charge": 100
+   },
+   {
+    "ago": 432000,
+    "ups": "rack",
+    "kind": "test",
+    "text": "Test of homeowl-shutdown.sh (as \"Time to shut down\")",
+    "script": "homeowl-shutdown.sh",
+    "for": "shutdown",
+    "exit": 0,
+    "by": "Alex"
+   }
+  ]
  }
 }

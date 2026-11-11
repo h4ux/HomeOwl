@@ -351,3 +351,17 @@ table.nd-prof td{font-size:12.5px;padding:6px 8px}
 .tbl-wrap .tag{white-space:nowrap}
 .warn-t{color:var(--med)}
 .steps{margin:6px 0 14px;padding-left:20px;line-height:1.6}
+
+/* UPS */
+.ups-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.ups-head h2 .tag,.ups-head h3 .tag{vertical-align:middle;margin-left:4px}
+.ups-bar{height:6px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:6px}
+.ups-bar i{display:block;height:100%;background:var(--ok)}.ups-bar.low i{background:var(--med)}
+.ups-kv{width:100%;border-collapse:collapse;font-size:12px}.ups-kv td{padding:3px 8px;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-word}
+.ups-kv td:first-child{color:var(--muted);white-space:nowrap}
+.ups-in{display:flex;align-items:center;gap:6px}.ups-in input{width:90px}
+.ups-acts select{max-width:100%}.ups-acts td{vertical-align:top}.ups-delay{width:80px}
+.ups-sug{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}.ups-sug h3{margin:0 0 4px}
+.ups-out summary{cursor:pointer;color:var(--muted);font-size:12px}.ups-out pre{max-height:200px;margin-top:4px}
+#ups-body>.card+.card,#ups-body>.card+.grid,#ups-body>.grid+.card,#ups-body>.banner+.card{margin-top:14px}
+.ups-head select{width:auto;min-width:120px}

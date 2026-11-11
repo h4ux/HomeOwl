@@ -33,6 +33,7 @@ import (
 	"github.com/h4ux/homeowl/internal/tsnetx"
 	"github.com/h4ux/homeowl/internal/unifi"
 	"github.com/h4ux/homeowl/internal/update"
+	"github.com/h4ux/homeowl/internal/ups"
 	"github.com/h4ux/homeowl/web"
 )
 
@@ -69,6 +70,7 @@ type App struct {
 	firmware *firmwareWatch
 	Protect  *protect.Watcher
 	Access   *access.Client
+	UPS      *ups.Monitor
 }
 
 func New(dataDir string, readOnly bool) (*App, error) {
@@ -91,6 +93,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.History = history.New(filepath.Join(dataDir, "config-history"))
 	a.firmware = newFirmwareWatch(dataDir)
 	a.Access = &access.Client{}
+	a.UPS = newUPSMonitor(a)
 	a.Protect = &protect.Watcher{UniFi: a.UniFi, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
 	a.Cache.OnCollect = func(b map[string]any) {
 		a.firmware.Observe(b)
@@ -121,6 +124,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.updateLoop(ctx)
 	go a.watchExecutable(ctx)
 	go a.Protect.Run(ctx)
+	go a.UPS.Run(ctx)
 	if err := a.StartLAN(); err != nil {
 		return err
 	}

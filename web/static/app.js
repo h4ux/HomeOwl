@@ -551,7 +551,7 @@ async function pollSpeedtest() {
 function render() {
   const m = S.model;
   ACT_SEQ = 0; for (const k in ACTIONS) delete ACTIONS[k];
-  $("#main").innerHTML = (S.source === "none" && S.view !== "settings" ? `<div class="banner info">HomeOwl isn't connected to your UniFi console yet. ${S.role === "admin" ? `<a href="#" data-goto="settings">Open Settings › UniFi connection</a>` : "Ask an admin to connect it in Settings."}</div>` : "") + V[S.view](m);
+  $("#main").innerHTML = (S.source === "none" && S.view !== "settings" && S.view !== "ups" ? `<div class="banner info">HomeOwl isn't connected to your UniFi console yet. ${S.role === "admin" ? `<a href="#" data-goto="settings">Open Settings › UniFi connection</a>` : "Ask an admin to connect it in Settings."}</div>` : "") + V[S.view](m);
   $$("#nav a").forEach(a => a.classList.toggle("active", a.dataset.view === S.view));
   $("#nav-findings").textContent = S.findings.filter(f => f.sev !== "info").length || "";
   const bad = m.devices.filter(d => !d.online).length; $("#nav-devices").textContent = bad || ""; $("#nav-devices").classList.toggle("alert", !!bad);

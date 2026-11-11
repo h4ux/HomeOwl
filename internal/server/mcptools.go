@@ -327,6 +327,16 @@ func (a *App) allTools() []mcp.Tool {
 				days, _ := args["days"].(float64)
 				return a.camerasView(int(days)), nil
 			}},
+		{Name: "ups", Title: "UPS & power",
+			Level: "read",
+			Description: "UPSes on the NUT server HomeOwl watches: status (on mains / on battery / battery low), charge, runtime left, load, " +
+				"voltages, all NUT variables, power cuts and events of the last year, and minute readings (times in ms since 1970). " +
+				"Scripts and settings are not shown and can't be changed here.",
+			Schema: obj(map[string]any{"days": map[string]any{"type": "integer", "description": "readings for 1, 7 or 30 days (default 1)"}}),
+			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
+				days, _ := args["days"].(float64)
+				return a.upsView(false, int(days)), nil
+			}},
 		{Name: "analytics_sql", Title: "Analytics SQL (read-only)", Level: "read",
 			Description: "Run one read-only DuckDB query on HomeOwl's analytics database. Tables: dns_queries, dns_hourly_device, dns_daily_domain, client_hourly, " +
 				"site_hourly, sessions, clients, events, threats, syslog, syslog_hourly, people, person_devices; views dnsq (queries with device/category/person), trafq.",

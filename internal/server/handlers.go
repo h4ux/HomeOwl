@@ -170,6 +170,12 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			a.cameraSnapshot(w, r)
 		}
 		return
+	case "ups":
+		if r.Method == http.MethodGet {
+			days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+			send(w, 200, a.upsView(who.Admin(), days))
+			return
+		}
 	case "isp-logos":
 		send(w, 200, map[string]any{"logos": a.logos.Versions()})
 		return
@@ -257,6 +263,21 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = map[string]any{"unlock_allowed": a.Cfg.Get().Access.Unlock}
 	case p == "doors/unlock":
 		res, err = a.doorUnlock(r.Context(), body, by)
+	case p == "ups/connect":
+		res, err = a.upsConnect(r.Context(), body)
+	case p == "ups/disconnect":
+		a.upsDisconnect()
+		res = a.upsView(true, 1)
+	case p == "ups/settings":
+		if err = a.upsSave(body); err == nil {
+			res = a.upsView(true, 1)
+		}
+	case p == "ups/script/save":
+		if err = a.UPS.Scripts.SaveSuggestion(runtime.GOOS, s(body, "name"), b(body, "overwrite")); err == nil {
+			res = a.upsView(true, 1)
+		}
+	case p == "ups/script/test":
+		res, err = a.upsTestScript(r.Context(), body, by)
 	case p == "checkins":
 		res = a.checkinView()
 	case p == "checkins/approve":

@@ -81,6 +81,29 @@ type Cameras struct {
 	Viewers bool `json:"viewers"` // viewers may see camera pictures and detections too (otherwise admins only)
 }
 
+// UPS is a NUT (Network UPS Tools) server HomeOwl watches like upsmon. The password lives in the secrets store.
+type UPS struct {
+	Enabled      bool        `json:"enabled"`
+	Host         string      `json:"host"`
+	Port         int         `json:"port"`
+	User         string      `json:"user"`
+	Name         string      `json:"name"`          // the UPS that powers this computer ("" = the first one)
+	Poll         int         `json:"poll"`          // seconds between readings
+	Secondary    bool        `json:"secondary"`     // register as a upsmon secondary (LOGIN)
+	LowBattery   bool        `json:"low_battery"`   // shut down when the UPS says battery low while on battery
+	AfterMinutes int         `json:"after_minutes"` // …or after this long on battery
+	BelowCharge  int         `json:"below_charge"`  // …or at this charge (%)
+	BelowRuntime int         `json:"below_runtime"` // …or with this many minutes left
+	Actions      []UPSAction `json:"actions"`
+}
+
+// UPSAction runs a script from the UPS scripts folder when an event happens.
+type UPSAction struct {
+	Event  string `json:"event"`
+	Script string `json:"script"`
+	Delay  int    `json:"delay"` // seconds; only if the event is still true then
+}
+
 type Guest struct {
 	SSIDs []string `json:"ssids"` // Wi-Fi ids shown on the Guest Wi-Fi page besides UniFi's guest networks
 }
@@ -99,6 +122,7 @@ type Config struct {
 	Guest          Guest     `json:"guest"`
 	Cameras        Cameras   `json:"cameras"`
 	Access         Access    `json:"access"`
+	UPS            UPS       `json:"ups"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`
@@ -179,6 +203,7 @@ func (s *Store) Get() Config {
 	c.Analytics.SyslogSources = append([]string{}, s.cfg.Analytics.SyslogSources...)
 	c.MCP.Tokens = append([]MCPToken{}, s.cfg.MCP.Tokens...)
 	c.Guest.SSIDs = append([]string{}, s.cfg.Guest.SSIDs...)
+	c.UPS.Actions = append([]UPSAction{}, s.cfg.UPS.Actions...)
 	return c
 }
 
