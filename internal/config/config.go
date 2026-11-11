@@ -79,6 +79,10 @@ type Access struct {
 
 type Cameras struct {
 	Viewers bool `json:"viewers"` // viewers may see camera pictures and detections too (otherwise admins only)
+	// Protect on its own console (a UNVR, Cloud Key or another UniFi OS console) when the Network console
+	// doesn't run it, e.g. a Cloud Gateway without storage. Empty: Protect is on the Network console.
+	ProtectHost string `json:"protect_host,omitempty"`
+	ProtectTLS  bool   `json:"protect_verify_tls,omitempty"`
 }
 
 // UPS is a NUT (Network UPS Tools) server HomeOwl watches like upsmon. The password lives in the secrets store.

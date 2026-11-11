@@ -305,6 +305,14 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		} else {
 			res = a.startupView()
 		}
+	case p == "cameras/console":
+		if r.Method != http.MethodPost {
+			err = errors.New("use POST")
+		} else if b(body, "disconnect") {
+			res, err = a.protectDisconnect()
+		} else {
+			res, err = a.protectConnect(body)
+		}
 	case p == "menubar-settings":
 		if r.Method == http.MethodPost {
 			res, err = a.setMenubar(body)

@@ -17,11 +17,17 @@ func (a *App) camerasView(days int) map[string]any {
 		days = 1
 	}
 	out := map[string]any{"status": a.Protect.Status(), "days": days, "cameras": []protect.Camera{}, "events": []protect.Event{}}
-	if !a.UniFi.Connected() {
+	out["protect_console"] = a.Cfg.Get().Cameras.ProtectHost
+	pc := a.protectClient()
+	if !pc.Connected() {
 		out["error"] = "not connected to UniFi"
+		if out["protect_console"] != "" {
+			out["error"] = "can't reach the Protect console: " + orDefault(a.ProtectUniFi.LastError, "not connected yet")
+			out["no_protect"] = true
+		}
 		return out
 	}
-	cams, err := protect.Cameras(a.UniFi)
+	cams, err := protect.Cameras(pc)
 	if err != nil {
 		out["error"] = err.Error()
 		out["no_protect"] = errors.Is(err, protect.ErrNoProtect)
@@ -37,13 +43,14 @@ func (a *App) camerasView(days int) map[string]any {
 }
 
 func (a *App) cameraSnapshot(w http.ResponseWriter, r *http.Request) {
-	if !a.UniFi.Connected() {
-		fail(w, 400, "not connected to UniFi")
+	pc := a.protectClient()
+	if !pc.Connected() {
+		fail(w, 400, "not connected to the console with Protect")
 		return
 	}
 	q := r.URL.Query()
 	img, typ, err := a.snaps.get(r.Context(), q.Get("id"), q.Get("hq") == "1", func(ctx context.Context, id string, hq bool) ([]byte, string, error) {
-		return protect.Snapshot(ctx, a.UniFi, id, hq)
+		return protect.Snapshot(ctx, pc, id, hq)
 	})
 	if err != nil {
 		fail(w, 502, err.Error())
@@ -67,6 +74,13 @@ type snapEntry struct {
 	typ  string
 	err  error
 	done chan struct{}
+}
+
+// reset forgets every picture (after switching to another Protect console).
+func (c *snapCache) reset() {
+	c.mu.Lock()
+	c.m = nil
+	c.mu.Unlock()
 }
 
 func (c *snapCache) get(ctx context.Context, id string, hq bool, fetch func(context.Context, string, bool) ([]byte, string, error)) ([]byte, string, error) {

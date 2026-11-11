@@ -101,6 +101,32 @@ func (c *Client) Disconnect() {
 	c.mu.Unlock()
 }
 
+// ConnectApp connects to a console for one app other than Network (e.g. Protect on an NVR): probe must answer
+// 200 with a JSON object, otherwise the key is dropped and the error says why.
+func (c *Client) ConnectApp(host, key string, verify bool, probe string) (map[string]any, error) {
+	c.configure(host, key, verify, "")
+	st, d := c.Get(probe)
+	m, ok := d.(map[string]any)
+	if st == 200 && ok && m["text"] == nil {
+		c.LastError = ""
+		return m, nil
+	}
+	c.mu.Lock()
+	c.key = ""
+	c.mu.Unlock()
+	switch {
+	case st == 200:
+		c.LastError = "that address answered, but not as UniFi Protect (is Protect installed on that console?)"
+	case st == 401 || st == 403:
+		c.LastError = "that console refused the API key; create one on that console (Settings › Control Plane › Integrations)"
+	case st == 404 || st == 502 || st == 503:
+		c.LastError = "UniFi Protect isn't running on that console (or is older than 5.3)"
+	default:
+		c.LastError = ConnectHint(st, d)
+	}
+	return nil, errors.New(c.LastError)
+}
+
 // Connect checks the key against /integration/v1/info and keeps the connection on success.
 func (c *Client) Connect(host, key string, verify bool, site string) (any, error) {
 	c.configure(host, key, verify, site)

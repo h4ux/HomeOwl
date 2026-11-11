@@ -186,14 +186,37 @@ func (s *Store) Save() error {
 
 // Watcher keeps a subscription to Protect's event stream while HomeOwl is connected to a console with Protect.
 type Watcher struct {
-	UniFi *unifi.Client
-	Store *Store
+	Client func() *unifi.Client // the console with Protect: the Network console, or a separate one (an NVR)
+	Store  *Store
+	wake   chan struct{}
+	once   sync.Once
 
 	mu      sync.Mutex
 	state   string // "", "off" (no Protect), "connecting", "live", "error"
 	err     string
 	since   int64
 	version string
+}
+
+func (w *Watcher) wakeCh() chan struct{} {
+	w.once.Do(func() { w.wake = make(chan struct{}, 1) })
+	return w.wake
+}
+
+// Kick makes the watcher look again now (after the Protect connection changed).
+func (w *Watcher) Kick() {
+	select {
+	case w.wakeCh() <- struct{}{}:
+	default:
+	}
+}
+
+func (w *Watcher) sleep(ctx context.Context, d time.Duration) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(d):
+	case <-w.wakeCh():
+	}
 }
 
 // Status is what the Cameras page shows about the event recorder.
@@ -241,22 +264,28 @@ func (w *Watcher) Run(ctx context.Context) {
 	}()
 	backoff := 5 * time.Second
 	for ctx.Err() == nil {
-		if !w.UniFi.Connected() {
+		c := w.Client()
+		if !c.Connected() {
 			w.set("", "")
-			sleep(ctx, 30*time.Second)
+			w.sleep(ctx, 30*time.Second)
 			continue
 		}
-		st, info := w.UniFi.Get(base + "/meta/info")
+		st, info := c.Get(base + "/meta/info")
+		m, isObj := info.(map[string]any)
+		if st == 200 && (!isObj || m["text"] != nil) {
+			// a web page instead of JSON: this console has no Protect (e.g. a Cloud Gateway without storage)
+			st, info = 404, map[string]any{"error": ErrNoProtect.Error()}
+		}
 		if st != 200 {
 			if st == 404 || st == 502 || st == 503 || st == 401 || st == 403 {
 				w.set("off", unifi.ErrText(info))
 			} else {
 				w.set("error", unifi.ErrText(info))
 			}
-			sleep(ctx, 10*time.Minute)
+			w.sleep(ctx, 10*time.Minute)
 			continue
 		}
-		if m, ok := info.(map[string]any); ok {
+		if isObj {
 			v, _ := m["applicationVersion"].(string)
 			w.mu.Lock()
 			w.version = v
@@ -264,13 +293,13 @@ func (w *Watcher) Run(ctx context.Context) {
 		}
 		w.set("connecting", "")
 		start := time.Now()
-		err := w.stream(ctx)
+		err := w.stream(ctx, c)
 		if ctx.Err() != nil {
 			return
 		}
 		if unifi.IsWSNotFound(err) {
 			w.set("off", "this Protect version has no event stream (update UniFi Protect to 5.3 or newer)")
-			sleep(ctx, 30*time.Minute)
+			w.sleep(ctx, 30*time.Minute)
 			continue
 		}
 		if time.Since(start) > 5*time.Minute {
@@ -281,13 +310,13 @@ func (w *Watcher) Run(ctx context.Context) {
 			msg = err.Error()
 		}
 		w.set("error", msg)
-		sleep(ctx, backoff+time.Duration(rand.Int64N(int64(backoff/2+1))))
+		w.sleep(ctx, backoff+time.Duration(rand.Int64N(int64(backoff/2+1))))
 		backoff = min(backoff*2, 5*time.Minute)
 	}
 }
 
-func (w *Watcher) stream(ctx context.Context) error {
-	ws, err := w.UniFi.DialWS(ctx, base+"/subscribe/events")
+func (w *Watcher) stream(ctx context.Context, c *unifi.Client) error {
+	ws, err := c.DialWS(ctx, base+"/subscribe/events")
 	if err != nil {
 		return err
 	}
@@ -318,13 +347,6 @@ func (w *Watcher) stream(ctx context.Context) error {
 	}
 }
 
-func sleep(ctx context.Context, d time.Duration) {
-	select {
-	case <-ctx.Done():
-	case <-time.After(d):
-	}
-}
-
 // ------------------------------------------------------------------ cameras
 
 // Camera is the part of Protect's camera object HomeOwl shows.
@@ -350,7 +372,10 @@ func Cameras(c *unifi.Client) ([]Camera, error) {
 	if st != 200 {
 		return nil, errors.New("Protect: " + unifi.ErrText(d))
 	}
-	arr, _ := d.([]any)
+	arr, ok := d.([]any)
+	if !ok { // a web page instead of a list: no Protect behind this address
+		return nil, ErrNoProtect
+	}
 	out := []Camera{}
 	for _, x := range arr {
 		m, ok := x.(map[string]any)
@@ -362,6 +387,9 @@ func Cameras(c *unifi.Client) ([]Camera, error) {
 	sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
 	return out, nil
 }
+
+// InfoPath answers with Protect's version; used to test a connection.
+const InfoPath = base + "/meta/info"
 
 // ErrNoProtect: the console doesn't run UniFi Protect (or its API isn't reachable with this key).
 var ErrNoProtect = errors.New("UniFi Protect isn't running on this console")

@@ -6,6 +6,7 @@ import (
 	"crypto/sha1" //nolint:gosec // WebSocket handshake
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -130,7 +131,7 @@ func TestWatcherAndCameras(t *testing.T) {
 	if err != nil || typ != "image/jpeg" || len(img) != 4 {
 		t.Fatalf("snapshot %v %q %v", img, typ, err)
 	}
-	w := &Watcher{UniFi: c, Store: NewStore(filepath.Join(t.TempDir(), "ev.json"))}
+	w := &Watcher{Client: func() *unifi.Client { return c }, Store: NewStore(filepath.Join(t.TempDir(), "ev.json"))}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { w.Run(ctx); close(done) }()
@@ -149,5 +150,42 @@ func TestWatcherAndCameras(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("watcher didn't stop")
+	}
+}
+
+// A Cloud Gateway has no Protect: its address answers every Protect path with the console's web page (HTTP 200).
+func TestConsoleWithoutProtect(t *testing.T) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/proxy/network/integration/v1/info" {
+			_, _ = w.Write([]byte(`{"applicationVersion":"9.0"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<!doctype html><html><body>UniFi OS</body></html>"))
+	}))
+	defer srv.Close()
+	c := unifi.New()
+	if _, err := c.Connect(srv.URL, "k", false, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Cameras(c); !errors.Is(err, ErrNoProtect) {
+		t.Fatalf("cameras: %v, want ErrNoProtect", err)
+	}
+	w := &Watcher{Client: func() *unifi.Client { return c }, Store: NewStore(filepath.Join(t.TempDir(), "ev.json"))}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { w.Run(ctx); close(done) }()
+	deadline := time.Now().Add(5 * time.Second)
+	for w.Status().State != "off" && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if st := w.Status(); st.State != "off" || !strings.Contains(st.Error, "isn't running") {
+		t.Fatalf("watcher: %+v", st)
+	}
+	other := unifi.New()
+	if _, err := other.ConnectApp(srv.URL, "k", false, InfoPath); err == nil || !strings.Contains(err.Error(), "not as UniFi Protect") || other.Connected() {
+		t.Fatalf("ConnectApp to a console without Protect: %v", err)
 	}
 }

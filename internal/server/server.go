@@ -69,6 +69,7 @@ type App struct {
 	History      *history.Store
 	firmware     *firmwareWatch
 	Protect      *protect.Watcher
+	ProtectUniFi *unifi.Client // Protect on its own console; unused (not connected) when Protect is on the Network console
 	Access       *access.Client
 	UPS          *ups.Monitor
 	snaps        snapCache
@@ -99,7 +100,8 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.firmware = newFirmwareWatch(dataDir)
 	a.Access = &access.Client{}
 	a.UPS = newUPSMonitor(a)
-	a.Protect = &protect.Watcher{UniFi: a.UniFi, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
+	a.ProtectUniFi = unifi.New()
+	a.Protect = &protect.Watcher{Client: a.protectClient, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
 	a.Cache.OnCollect = func(b map[string]any) {
 		a.firmware.Observe(b)
 		if e, err := a.History.Record(b); err != nil {
@@ -124,6 +126,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	a.autoConnect()
 	a.configureAccess()
+	go a.connectProtectSaved(ctx)
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)

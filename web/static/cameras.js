@@ -65,7 +65,13 @@ function camPicture(c, demo) {
 }
 
 function camBody(r) {
-  if (r.no_protect) return `<div class="card"><h2>No UniFi Protect here</h2><p>${r.demo ? "The demo has no cameras." : `This console doesn't run UniFi Protect, or Protect's API isn't reachable with HomeOwl's API key. Protect 5.3 or newer is needed.${r.error && !/isn't running/.test(r.error) ? ` <span class="fine">(${esc(r.error)})</span>` : ""}`}</p></div>`;
+  if (r.no_protect) {
+    if (r.demo) return `<div class="card"><h2>No UniFi Protect here</h2><p>The demo has no cameras.</p></div>`;
+    if (r.protect_console) return `<div class="card"><h2>Can't reach UniFi Protect</h2><p class="bad-t">${esc(r.error || "")}</p>${camConsoleForm(r)}</div>`;
+    return `<div class="card"><h2>UniFi Protect isn't on this console</h2>
+      <p>Your UniFi console answers for Network but not for Protect. Cloud Gateways (UCG Ultra, UCG Max without a drive, Express) can't store video, so your cameras are probably managed by another UniFi console, such as a UNVR, a Cloud Key Gen2 Plus or a Dream Machine Pro.${r.error && !/isn't running/.test(r.error) ? ` <span class="fine">(${esc(r.error)})</span>` : ""}</p>
+      ${camConsoleForm(r)}</div>`;
+  }
   if (r.error) return `<div class="card"><p class="muted">${esc(r.error)}</p></div>`;
   const cams = arr(r.cameras), ev = arr(r.events), byId = Object.fromEntries(cams.map(c => [c.id, c]));
   const online = cams.filter(c => c.state === "CONNECTED").length;
@@ -112,7 +118,27 @@ function camBody(r) {
       { k: "last", label: "Last event", fmt: c => last[c.id] ? `${esc(camEventLabel(last[c.id]))} <span class="fine">${ago(last[c.id].start)}</span>` : "–", sort: c => -(last[c.id]?.start || 0) },
     ], cams, { empty: "No cameras" })}
     ${cams.some(c => c.state !== "CONNECTED") ? `<p class="fine">An offline camera records nothing. Check its cable or PoE port (Switch ports page) and that its switch is online.</p>` : ""}
-  </div>`;
+  </div>
+  ${S.role === "admin" && !r.demo ? `<div class="card section"><h2>Protect console</h2>${S.camConsoleEdit ? camConsoleForm(r)
+    : `<p class="fine">${r.protect_console ? `Cameras come from UniFi Protect on <span class="mono">${esc(r.protect_console)}</span>, with its own API key.` : "Cameras come from UniFi Protect on the same console as Network."}</p>
+      <div class="btnrow"><button class="btn sm" id="cam-console-edit">${r.protect_console ? "Change…" : "Protect is on another console…"}</button></div>`}</div>` : ""}`;
+}
+
+// where Protect runs, when it isn't the Network console (admins)
+function camConsoleForm(r) {
+  if (S.role !== "admin") return `<p class="fine">An admin can connect the console that runs Protect.</p>`;
+  return `<div class="cam-console"><p>Connect the console that runs Protect. On that console, open <b>Settings › Control Plane › Integrations</b>, create an API key, and paste it here. HomeOwl only reads from Protect. The key is kept in this computer's keychain.</p>
+    <div class="grid g2"><label>Console IP or name<input id="cam-host" value="${esc(r.protect_console || "")}" placeholder="192.168.1.5" spellcheck="false" autocomplete="off"></label>
+      <label>API key<input id="cam-key" type="password" autocomplete="off" placeholder="${r.protect_console ? "saved — leave empty to keep it" : "from that console"}"></label></div>
+    <label class="check"><input type="checkbox" id="cam-verify"> Check the console's certificate (only if it has a real one)</label>
+    <div class="btnrow"><button class="btn primary" id="cam-console-save">Connect</button>
+      ${r.protect_console ? `<button class="btn" id="cam-console-off">Use the Network console again</button>` : ""}
+      ${S.camConsoleEdit ? `<button class="btn ghost" id="cam-console-cancel">Cancel</button>` : ""}</div></div>`;
+}
+
+async function camConsole(body) {
+  try { S.cam = await api("/api/cameras/console", body); S.camConsoleEdit = false; toast(body.disconnect ? "Using Protect on the Network console" : "Connected to UniFi Protect", "ok"); loadCameras(); }
+  catch (err) { toast(err.message, "err"); }
 }
 
 function camTimeline(ev, byId) {
@@ -200,6 +226,10 @@ document.addEventListener("change", e => {
 });
 
 document.addEventListener("click", e => {
+  if (e.target.id === "cam-console-edit") { S.camConsoleEdit = true; $("#cam-body").innerHTML = camBody(S.cam); return; }
+  if (e.target.id === "cam-console-cancel") { S.camConsoleEdit = false; $("#cam-body").innerHTML = camBody(S.cam); refreshSnaps(true); return; }
+  if (e.target.id === "cam-console-save") { const h = $("#cam-host")?.value.trim(); if (!h) { toast("Enter the console's IP or name", "err"); return; } e.target.disabled = true; camConsole({ host: h, key: $("#cam-key")?.value.trim() || "", verify_tls: !!$("#cam-verify")?.checked }).finally(() => { e.target.disabled = false; }); return; }
+  if (e.target.id === "cam-console-off") { camConsole({ disconnect: true }); return; }
   const d = e.target.closest("[data-camdays]"); if (d) { S.camF.days = +d.dataset.camdays; loadCameras(); return; }
   const k = e.target.closest("[data-camkind]");
   if (k) { S.camF.kind = k.dataset.camkind; $$("[data-camkind]").forEach(b => b.classList.toggle("on", b === k)); camRedrawTimeline(); return; }
