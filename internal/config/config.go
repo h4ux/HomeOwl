@@ -69,6 +69,8 @@ type Cloudflare struct {
 	Wifi   string `json:"wifi,omitempty"`    // subdomain for the guest Wi-Fi card ("" = none)
 	Hi     string `json:"hi,omitempty"`      // subdomain for the check-in page ("" = none)
 	AnyIP  bool   `json:"any_ip,omitempty"`  // redirect visits from anywhere, not only from this home's public address
+	// HomeOwl's address on the home network that the links lead to ("" = found automatically)
+	Address string `json:"address,omitempty"`
 }
 
 type Tailscale struct {

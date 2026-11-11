@@ -177,6 +177,20 @@ func TestCloudflareLinks(t *testing.T) {
 	if v := a.cloudflareView(); len(v["links"].([]map[string]string)) != 2 {
 		t.Fatalf("links: %v", v["links"])
 	}
+	// a public address is never a target; the address set by hand wins
+	ip = "203.0.113.50"
+	if _, err := a.cloudflareAPI("cloudflare/settings", "alex", map[string]any{"zone_id": "z1", "wifi": "wifi", "hi": "hi", "address": "203.0.113.50"}); err == nil {
+		t.Fatal("a public address must be refused")
+	}
+	if a.cfBase(a.Cfg.Get()) != "" {
+		t.Fatal("a public detected address must not be used")
+	}
+	if _, err := a.cloudflareAPI("cloudflare/settings", "alex", map[string]any{"zone_id": "z1", "wifi": "wifi", "hi": "hi", "address": "192.168.1.20"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.summary(); !strings.Contains(got, `"value":"http://192.168.1.20:8555/wifi"`) || strings.Contains(got, "203.0.113.50") {
+		t.Fatalf("the address set by hand must be the target:\n%s", got)
+	}
 	// turning it off removes only what HomeOwl made
 	if _, err := a.cloudflareAPI("cloudflare/disconnect", "alex", nil); err != nil {
 		t.Fatal(err)

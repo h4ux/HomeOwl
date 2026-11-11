@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.18] — 2026-11-11
+
+### Fixed
+- **Cloudflare links always lead to the home network**: the redirect target is HomeOwl's home-network address, over http, with the page path (`http://192.168.1.10:8555/wifi`).
+  - A public address is never used as a target.
+  - Settings shows where each link leads, and you can set HomeOwl's address yourself if the one found automatically is wrong.
+  - Your home's public address only appears in the rule's "only from" condition.
+
 ## [0.1.17] — 2026-11-11
 
 ### Added

@@ -176,11 +176,14 @@ function cfBlock(cf, guestOn) {
     <div class="ez-dns-row"><input id="cf-token" type="password" placeholder="Cloudflare API token" autocomplete="off" style="flex:1;min-width:200px"><button class="btn sm primary" id="cf-connect">Connect</button></div></div>`;
   if (!S.cfZones) setTimeout(cfLoadZones, 0);
   const st = cf.state || {}, zones = S.cfZones || (cf.zone_id ? [{ id: cf.zone_id, name: cf.zone }] : []);
-  const links = arr(cf.links).map(l => `<div class="cf-link"><span class="tag">${l.kind === "wifi" ? "Guest Wi-Fi" : "Check-in"}</span> <a class="mono" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url.replace("https://", ""))}</a> <button class="btn sm" data-copy="${esc(l.url)}">Copy</button></div>`).join("");
+  const links = arr(cf.links).map(l => `<div class="cf-link"><span class="tag">${l.kind === "wifi" ? "Guest Wi-Fi" : "Check-in"}</span> <a class="mono" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url.replace("https://", ""))}</a> <span class="fine muted">→ <span class="mono">${esc(l.target)}</span></span> <button class="btn sm" data-copy="${esc(l.url)}">Copy</button></div>`).join("");
   return `<div class="ez-dns">${head}
     <div class="ez-dns-row"><label>Domain<select id="cf-zone"><option value="">Off</option>${zones.map(z => `<option value="${esc(z.id)}" ${z.id === cf.zone_id ? "selected" : ""}>${esc(z.name)}</option>`).join("")}</select></label>
       <label>Guest Wi-Fi<span class="name-in"><input id="cf-wifi" value="${esc(cf.wifi ?? "wifi")}" placeholder="wifi" maxlength="40"><span class="fine">.${esc(cf.zone || "your-domain")}</span></span></label>
       <label>Check-in<span class="name-in"><input id="cf-hi" value="${esc(cf.hi ?? "hi")}" placeholder="hi" maxlength="40"><span class="fine">.${esc(cf.zone || "your-domain")}</span></span></label></div>
+    <label>Leads to HomeOwl at<span class="name-in"><input id="cf-addr" value="${esc(cf.address || "")}" placeholder="${esc(cf.auto_address || "192.168.1.10")} (found automatically)" maxlength="15" autocomplete="off" style="max-width:260px"></span></label>
+    <p class="fine muted" style="margin-top:-4px">HomeOwl's address on your home network${cf.base ? `: the links open <span class="mono">${esc(cf.base)}/wifi</span> and <span class="mono">/hi</span>` : ""}. Set it if the one found automatically is wrong, and keep it fixed in UniFi.</p>
+    ${!cf.base ? `<div class="msg warn">HomeOwl couldn't find its home-network address${cf.auto_address ? ` (it found <span class="mono">${esc(cf.auto_address)}</span>, which isn't one)` : ""}. Enter it above, like 192.168.1.10.</div>` : ""}
     <label class="check"><input type="checkbox" id="cf-home" ${cf.any_ip ? "" : "checked"}> <span>Only from my home's internet address (recommended)</span></label>
     ${cf.wifi && !guestOn ? `<div class="msg warn">Turn on the guest Wi-Fi card above, so the Wi-Fi link has something to show.</div>` : ""}
     ${links ? `<div class="cf-links">${links}</div><p class="fine muted">Checked ${ago(st.time)}${arr(st.from).length ? `, from ${esc(st.from.join(", "))}` : ""}. <a href="#" id="cf-sync">Check now</a></p>` : ""}
@@ -197,7 +200,7 @@ document.addEventListener("click", async e => {
   const id = e.target.id; if (!id.startsWith("cf-")) return;
   const go = async (path, body, msg) => { e.target.disabled = true; try { const r = await api(path, body); if (msg) toast(msg, "ok"); return r; } catch (err) { toast(err.message, "err"); } finally { e.target.disabled = false; } };
   if (id === "cf-connect") { const r = await go("/api/cloudflare/connect", { token: $("#cf-token").value.trim() }, "Cloudflare connected"); if (r) { S.cfZones = r.zones; loadSettings(); } }
-  if (id === "cf-save") { if (await go("/api/cloudflare/settings", { zone_id: $("#cf-zone").value, wifi: $("#cf-wifi").value, hi: $("#cf-hi").value, any_ip: !$("#cf-home").checked }, "Cloudflare links saved")) loadSettings(); }
+  if (id === "cf-save") { if (await go("/api/cloudflare/settings", { zone_id: $("#cf-zone").value, wifi: $("#cf-wifi").value, hi: $("#cf-hi").value, any_ip: !$("#cf-home").checked, address: $("#cf-addr").value.trim() }, "Cloudflare links saved")) loadSettings(); }
   if (id === "cf-sync") { e.preventDefault(); if (await go("/api/cloudflare/sync", {})) loadSettings(); }
   if (id === "cf-disconnect") openModal({ title: "Disconnect Cloudflare?", body: "<p>HomeOwl removes the links and redirect rules it added to your domain, then forgets the token. Nothing else on Cloudflare is touched.</p>",
     buttons: [{ label: "Cancel" }, { label: "Disconnect", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cloudflare/disconnect", {}, "Cloudflare disconnected")) { S.cfZones = null; loadSettings(); } } }] });

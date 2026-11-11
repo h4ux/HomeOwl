@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,14 +71,36 @@ func (a *App) cfWant(c config.Config) map[string]cfName {
 	if cf.ZoneID == "" || cf.Zone == "" || !c.LAN.Enabled {
 		return out
 	}
-	fb := a.fallbackLinks()
-	if cf.Wifi != "" && c.Names.Guest != "" && fb["guest"] != "" {
-		out["wifi"] = cfName{Kind: "wifi", Host: cf.Wifi + "." + cf.Zone, Target: fb["guest"]}
+	base := a.cfBase(c)
+	if base == "" {
+		return out
 	}
-	if cf.Hi != "" && fb["checkin"] != "" {
-		out["hi"] = cfName{Kind: "hi", Host: cf.Hi + "." + cf.Zone, Target: fb["checkin"]}
+	if cf.Wifi != "" && c.Names.Guest != "" {
+		out["wifi"] = cfName{Kind: "wifi", Host: cf.Wifi + "." + cf.Zone, Target: base + "/wifi"}
+	}
+	if cf.Hi != "" {
+		out["hi"] = cfName{Kind: "hi", Host: cf.Hi + "." + cf.Zone, Target: base + "/hi"}
 	}
 	return out
+}
+
+// cfBase is where the links lead: http://<HomeOwl's home-network address>[:port]. Only a private address is
+// used: the links must never send visitors to an address on the internet.
+func (a *App) cfBase(c config.Config) string {
+	ip := c.Cloudflare.Address
+	if ip == "" {
+		ip = homeIP()
+	}
+	if p := net.ParseIP(ip); p == nil || p.To4() == nil || !p.IsPrivate() {
+		return ""
+	}
+	a.mu.Lock()
+	p80 := a.port80 != nil
+	a.mu.Unlock()
+	if p80 {
+		return "http://" + ip
+	}
+	return "http://" + net.JoinHostPort(ip, strconv.Itoa(c.LAN.Port))
 }
 
 func cfRef(kind string) string { return "homeowl_" + kind }
@@ -299,7 +323,8 @@ func (a *App) cloudflareView() map[string]any {
 		}
 	}
 	return map[string]any{"connected": a.Sec.Get(cfSlot) != "", "zone": cf.Zone, "zone_id": cf.ZoneID, "wifi": cf.Wifi, "hi": cf.Hi,
-		"any_ip": cf.AnyIP, "links": links, "state": st, "guest_off": c.Names.Guest == ""}
+		"any_ip": cf.AnyIP, "links": links, "state": st, "guest_off": c.Names.Guest == "",
+		"address": cf.Address, "auto_address": homeIP(), "base": a.cfBase(c)}
 }
 
 // cloudflareAPI: connect / zones / settings / sync / disconnect (admins only).
@@ -339,6 +364,10 @@ func (a *App) cloudflareAPI(p, by string, body map[string]any) (any, error) {
 		}
 		cf := config.Cloudflare{ZoneID: s(body, "zone_id"), Wifi: strings.ToLower(strings.TrimSpace(s(body, "wifi"))),
 			Hi: strings.ToLower(strings.TrimSpace(s(body, "hi"))), AnyIP: b(body, "any_ip")}
+		cf.Address = strings.TrimSpace(s(body, "address"))
+		if ip := net.ParseIP(cf.Address); cf.Address != "" && (ip == nil || ip.To4() == nil || !ip.IsPrivate()) {
+			return nil, errors.New("the address must be HomeOwl's home-network IPv4 address, like 192.168.1.10")
+		}
 		for _, l := range []string{cf.Wifi, cf.Hi} {
 			if l != "" && !mdns.ValidLabel(l) {
 				return nil, errors.New("a subdomain is one word: letters, numbers and dashes (like “wifi”)")
