@@ -91,6 +91,10 @@ func TestShortLinks(t *testing.T) {
 	if w := get("/wifi"); w.Code != 200 || !strings.Contains(w.Body.String(), "Guest Wi-Fi") {
 		t.Fatalf("/wifi: %d", w.Code)
 	}
+	_ = a.Cfg.Update(func(c *config.Config) { c.Names.Guest = "" })
+	if w := get("/api/wifi"); w.Code != 404 || !strings.Contains(w.Body.String(), "Settings › Access") {
+		t.Fatalf("a turned-off guest card must say how to turn it on: %d %s", w.Code, w.Body.String())
+	}
 	if w := get("/app.js"); w.Code != http.StatusFound || !strings.Contains(w.Header().Get("Location"), ":8555/") {
 		t.Fatalf("/app.js must go to the real port: %d %s", w.Code, w.Header().Get("Location"))
 	}

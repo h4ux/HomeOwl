@@ -5,8 +5,10 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/h4ux/homeowl/internal/config"
@@ -61,7 +63,7 @@ func (a *App) ApplyNames() {
 	}
 	ln, err := net.Listen("tcp", ":80")
 	if err != nil {
-		a.port80Err = "Port 80 is busy or not allowed here (" + err.Error() + "), so the links need :" + strconv.Itoa(c.LAN.Port) + "."
+		a.port80Err = port80Help(err, c.LAN.Port)
 		return
 	}
 	srv := &http.Server{Handler: a.port80Handler(), ReadHeaderTimeout: 15 * time.Second, IdleTimeout: time.Minute}
@@ -148,6 +150,18 @@ func (a *App) fallbackLinks() map[string]string {
 	return out
 }
 
+// port80Help explains why port 80 couldn't be used, and how to allow it.
+func port80Help(err error, port int) string {
+	msg := "Port 80 couldn't be used (" + err.Error() + "), so the links include :" + strconv.Itoa(port) + ", and they work like that."
+	switch {
+	case errors.Is(err, syscall.EADDRINUSE):
+		msg += " Another program already uses port 80 on this computer."
+	case runtime.GOOS == "linux":
+		msg += " To allow port 80 on Linux, run: sudo setcap cap_net_bind_service=+ep \"$(command -v homeowl)\", then restart HomeOwl (with systemd, add AmbientCapabilities=CAP_NET_BIND_SERVICE)."
+	}
+	return msg
+}
+
 // canListen80: can this process take port 80? (Macs allow it without admin rights; Linux usually doesn't.)
 func canListen80() bool {
 	ln, err := net.Listen("tcp", ":80")
@@ -164,8 +178,12 @@ func (a *App) wifiAPI(w http.ResponseWriter, r *http.Request) {
 	c := a.Cfg.Get()
 	ip := net.ParseIP(clientIP(r))
 	home := ip != nil && (ip.IsLoopback() || c.LAN.Enabled && (ip.IsPrivate() || isLocalIP(ip)))
-	if c.Names.Guest == "" || !home {
+	if !home {
 		fail(w, 404, "not found")
+		return
+	}
+	if c.Names.Guest == "" {
+		fail(w, 404, "The guest Wi-Fi card is turned off. Turn it on in HomeOwl › Settings › Access.")
 		return
 	}
 	if r.Method != http.MethodGet {

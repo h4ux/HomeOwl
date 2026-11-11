@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.15] — 2026-11-11
+
+### Fixed
+- **Guest Wi-Fi card showed "not found"**: the card was simply turned off. The switch in Settings › Access now saves at once, and a card that is off says so and where to turn it on.
+- **Port 80 problems explain themselves**: Settings › Access says why port 80 couldn't be used (another program has it, or Linux needs permission, with the one command to allow it). The links then include HomeOwl's port and work as they are.
+
 ## [0.1.14] — 2026-11-11
 
 ### Changed

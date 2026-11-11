@@ -123,7 +123,7 @@ function easyLinks(nm, lan) {
     ? `<div class="msg warn">This computer's address (${esc(ip)}) can change, and then these links stop working. <button class="btn sm" id="st-keepip" data-mac="${esc(host.mac)}">Keep ${esc(ip)} for this computer…</button></div>` : "";
   return `<div class="ez-grid">${page("Check-in page", fb.checkin, nm.checkin)}
     ${page("Guest Wi-Fi card", nm.guest ? fb.guest : "", nm.guest, nm.guest ? `<span class="fine">On an Echo Show: say “Alexa, open Silk”, go to <span class="mono">${esc((fb.guest || "").replace(/^http:\/\//, ""))}</span> and bookmark it. Anyone on your network can see the guest password there.</span>` : "")}</div>
-    <label class="check"><input type="checkbox" id="st-nm-guestcard" ${nm.guest ? "checked" : ""}> <span>Show the guest Wi-Fi card</span></label>
+    <label class="check"><input type="checkbox" id="st-nm-guestcard" ${nm.guest ? "checked" : ""}> <span>Show the guest Wi-Fi card (name and password) to anyone on your home network</span></label>
     ${keep}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
     <details class="ez-more"><summary>Names and options</summary>
       <div class="grid g2" style="margin-top:8px">
@@ -132,7 +132,14 @@ function easyLinks(nm, lan) {
       <label class="check"><input type="checkbox" id="st-nm-80" ${nm.port80 ? "checked" : ""}> <span>Use port 80, so the links don't need “:${esc(lan.port)}”</span></label>
       ${nm.error ? `<div class="msg err">${esc(nm.error)}</div>` : ""}${nm.checkin || nm.guest ? namesStatus(nm) : ""}</details>`;
 }
-document.addEventListener("change", e => { if (e.target.id === "st-nm-guestcard") { const g = $("#st-nm-guest"); if (g) g.value = e.target.checked ? (g.value || "wifi") : ""; } });
+// the guest card switch saves at once (no "Save" to forget)
+document.addEventListener("change", async e => {
+  if (e.target.id !== "st-nm-guestcard") return;
+  const on = e.target.checked, g = $("#st-nm-guest"), name = on ? (g?.value.trim() || "wifi") : "";
+  try { await api("/api/settings", { names: { guest: name } }); toast(on ? "Guest Wi-Fi card is on" : "Guest Wi-Fi card is off", "ok"); }
+  catch (err) { e.target.checked = !on; toast(err.message, "err"); return; }
+  setTimeout(() => { if (S.view === "settings") loadSettings(); }, 1500);
+});
 document.addEventListener("click", e => {
   if (e.target.id !== "st-keepip") return;
   const m = S.model, c = m.clients.find(x => x.mac === e.target.dataset.mac), k = m.knownByMac?.[c?.mac]; if (!c) return;
