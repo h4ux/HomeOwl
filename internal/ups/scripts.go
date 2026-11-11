@@ -187,13 +187,12 @@ type Template struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Content     string `json:"content"`
-	Setup       string `json:"setup,omitempty"` // one-time step you do yourself (e.g. a sudoers line)
 	Exists      bool   `json:"exists"`
 	Same        bool   `json:"same"` // the file in the folder is exactly this template
 }
 
-// Suggestions returns the scripts HomeOwl suggests for goos; user is who HomeOwl runs as, root whether it's root/SYSTEM.
-func (s *Scripts) Suggestions(goos, user string, root bool) []Template {
+// Suggestions returns the scripts HomeOwl suggests for goos (ShutdownPermission says whether the shutdown one may run).
+func (s *Scripts) Suggestions(goos string) []Template {
 	var t []Template
 	switch goos {
 	case "windows":
@@ -208,15 +207,11 @@ func (s *Scripts) Suggestions(goos, user string, root bool) []Template {
 	case "darwin":
 		t = []Template{
 			{Name: "homeowl-shutdown.sh", Event: "shutdown", Title: "Shut down this Mac",
-				Description: "Shuts the Mac down through sudo when you allowed it (below), otherwise asks macOS like the Apple menu does (apps may ask to save their work first).",
+				Description: "Shuts the Mac down once you allow it below; otherwise asks macOS like the Apple menu does (apps may ask to save their work first, which can stop it).",
 				Content:     macShutdown},
 			{Name: "homeowl-notify.sh", Event: "onbatt", Title: "Show a notification",
 				Description: "Shows a macOS notification and writes the system log. Use it for on battery, back on mains, low battery and lost connection.",
 				Content:     macNotify},
-		}
-		if !root {
-			t[0].Setup = "Let HomeOwl shut down without a password (recommended): run `sudo visudo -f /etc/sudoers.d/homeowl-ups` and add the line\n" +
-				sudoUser(user) + " ALL=(root) NOPASSWD: /sbin/shutdown"
 		}
 	default:
 		t = []Template{
@@ -227,10 +222,6 @@ func (s *Scripts) Suggestions(goos, user string, root bool) []Template {
 				Description: "Writes the system log and sends a message to every terminal (wall). Use it for on battery, back on mains, low battery and lost connection.",
 				Content:     linuxNotify},
 		}
-		if !root {
-			t[0].Setup = "HomeOwl runs as " + sudoUser(user) + ", which may not power off the computer. Allow exactly that: run `sudo visudo -f /etc/sudoers.d/homeowl-ups` and add the line\n" +
-				sudoUser(user) + " ALL=(root) NOPASSWD: /usr/bin/systemctl poweroff, /sbin/shutdown"
-		}
 	}
 	for i := range t {
 		if b, err := os.ReadFile(filepath.Join(s.Dir, t[i].Name)); err == nil {
@@ -240,16 +231,9 @@ func (s *Scripts) Suggestions(goos, user string, root bool) []Template {
 	return t
 }
 
-func sudoUser(u string) string {
-	if u == "" || strings.ContainsAny(u, " \t\\") {
-		return "<your user>"
-	}
-	return u
-}
-
 // SaveSuggestion writes one of the built-in suggestions into the folder (never anything else).
 func (s *Scripts) SaveSuggestion(goos, name string, overwrite bool) error {
-	for _, t := range s.Suggestions(goos, "", true) {
+	for _, t := range s.Suggestions(goos) {
 		if t.Name != name {
 			continue
 		}
@@ -286,14 +270,14 @@ const macShutdown = `#!/bin/sh
 say() { logger -t homeowl-ups "$*" >/dev/null 2>&1; echo "$*"; }
 
 if [ "$HOMEOWL_UPS_TEST" = "1" ]; then
-  if [ "$(id -u)" = "0" ] || sudo -n -l /sbin/shutdown >/dev/null 2>&1; then how="with shutdown (sudo is set up)"; else how="by asking macOS (sudo is not set up)"; fi
+  if [ "$(id -u)" = "0" ] || sudo -n -l 2>/dev/null | grep -Eq 'NOPASSWD:.*(/sbin/shutdown( -h now)?(,|$)|[: ]ALL$)'; then how="with shutdown (allowed)"; else how="by asking macOS (not allowed yet: press Allow in HomeOwl)"; fi
   say "Test: would shut down this Mac now $how. UPS $UPSNAME: $HOMEOWL_UPS_STATUS, battery $HOMEOWL_UPS_CHARGE%."
   exit 0
 fi
 
 say "UPS $UPSNAME: $HOMEOWL_UPS_STATUS, battery $HOMEOWL_UPS_CHARGE% - shutting down this Mac."
-if [ "$(id -u)" = "0" ]; then exec /sbin/shutdown -h +0 "UPS battery low"; fi
-if sudo -n /sbin/shutdown -h +0 "UPS battery low" 2>/dev/null; then exit 0; fi
+if [ "$(id -u)" = "0" ]; then exec /sbin/shutdown -h now; fi
+if sudo -n /sbin/shutdown -h now 2>/dev/null; then exit 0; fi
 exec osascript -e 'tell application "System Events" to shut down'
 `
 
@@ -325,7 +309,7 @@ if command -v systemctl >/dev/null 2>&1; then off="systemctl poweroff"; else off
 run() { if [ "$(id -u)" = "0" ]; then $off; else sudo -n $off; fi; }
 
 if [ "$HOMEOWL_UPS_TEST" = "1" ]; then
-  if [ "$(id -u)" = "0" ] || sudo -n -l $off >/dev/null 2>&1; then ok="allowed"; else ok="NOT allowed yet - see the sudoers line in HomeOwl"; fi
+  if [ "$(id -u)" = "0" ] || sudo -n -l 2>/dev/null | grep -Eq 'NOPASSWD:.*(shutdown|poweroff|[: ]ALL$)'; then ok="allowed"; else ok="NOT allowed yet - see Allow shutdown in HomeOwl"; fi
   say "Test: would run '$off' now ($ok). UPS $UPSNAME: $HOMEOWL_UPS_STATUS, battery $HOMEOWL_UPS_CHARGE%."
   exit 0
 fi

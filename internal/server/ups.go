@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/h4ux/homeowl/internal/config"
@@ -70,13 +71,7 @@ func (a *App) upsView(admin bool, days int) map[string]any {
 	if !admin {
 		return out
 	}
-	who, root := "", ups.IsRoot()
-	if u, err := user.Current(); err == nil {
-		who = u.Username
-		if i := strings.LastIndexByte(who, '\\'); i >= 0 { // DOMAIN\name on Windows
-			who = who[i+1:]
-		}
-	}
+	who, root := runAsUser(), ups.IsRoot() // DOMAIN\name on Windows becomes name
 	actions := c.Actions
 	if actions == nil {
 		actions = []config.UPSAction{}
@@ -86,7 +81,8 @@ func (a *App) upsView(admin bool, days int) map[string]any {
 		"below_charge": c.BelowCharge, "below_runtime": c.BelowRuntime, "actions": actions}
 	out["scripts"] = a.UPS.Scripts.List()
 	out["folder"] = a.UPS.Scripts.Dir
-	out["suggestions"] = a.UPS.Scripts.Suggestions(runtime.GOOS, who, root)
+	out["suggestions"] = a.UPS.Scripts.Suggestions(runtime.GOOS)
+	out["shutdown_perm"] = a.shutdownPerm.get(who, root, false)
 	out["os"], out["run_as"], out["root"] = runtime.GOOS, who, root
 	out["event_names"] = ups.EventNames
 	out["write"] = a.Changes.Write && !a.ReadOnly
@@ -285,4 +281,62 @@ func (a *App) upsTestScript(ctx context.Context, body map[string]any, by string)
 		return nil, err
 	}
 	return res, nil
+}
+
+// permCache keeps the "may HomeOwl shut down?" answer for a while: the UPS page reloads every 15 seconds,
+// and each sudo check can leave a line in the system's auth log.
+type permCache struct {
+	mu sync.Mutex
+	at time.Time
+	p  ups.Permission
+}
+
+func (c *permCache) get(who string, root, fresh bool) ups.Permission {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if fresh || c.at.IsZero() || time.Since(c.at) > 10*time.Minute || c.p.User != who {
+		c.p, c.at = ups.ShutdownPermission(context.Background(), runtime.GOOS, who, root), time.Now()
+	}
+	return c.p
+}
+
+func runAsUser() string {
+	u, err := user.Current()
+	if err != nil {
+		return ""
+	}
+	who := u.Username
+	if i := strings.LastIndexByte(who, '\\'); i >= 0 {
+		who = who[i+1:]
+	}
+	return who
+}
+
+// upsShutdownPermission allows HomeOwl (or stops allowing it) to shut this computer down. On macOS the Mac asks
+// for an administrator's password in its own window; "check" only looks again. Changes are logged.
+func (a *App) upsShutdownPermission(ctx context.Context, body map[string]any, by string) (any, error) {
+	who, root := runAsUser(), ups.IsRoot()
+	if b(body, "check") {
+		return a.shutdownPerm.get(who, root, true), nil
+	}
+	allow := b(body, "allow")
+	desc := "Allow HomeOwl to shut down this computer (sudoers rule)"
+	if !allow {
+		desc = "Stop allowing HomeOwl to shut down this computer"
+	}
+	pub := unifi.Preview{Method: "SET", Path: ups.SudoersFile, Target: "this computer", After: map[string]any{"allow": allow, "user": who}, Description: desc}
+	var perr error
+	_, err := a.Changes.External("this computer", by, pub, false, func() (int, any) {
+		if perr = ups.SetShutdownPermission(ctx, who, allow); perr != nil {
+			return 500, map[string]any{"error": perr.Error()}
+		}
+		return 200, map[string]any{"allow": allow}
+	})
+	if perr != nil {
+		return nil, perr
+	}
+	if err != nil {
+		return nil, err
+	}
+	return a.shutdownPerm.get(who, root, true), nil
 }

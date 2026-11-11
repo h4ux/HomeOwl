@@ -276,6 +276,12 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		if err = a.UPS.Scripts.SaveSuggestion(runtime.GOOS, s(body, "name"), b(body, "overwrite")); err == nil {
 			res = a.upsView(true, 1)
 		}
+	case p == "ups/shutdown-permission":
+		if r.Method != http.MethodPost {
+			err = errors.New("use POST")
+			break
+		}
+		res, err = a.upsShutdownPermission(r.Context(), body, by)
 	case p == "ups/script/test":
 		res, err = a.upsTestScript(r.Context(), body, by)
 	case p == "checkins":

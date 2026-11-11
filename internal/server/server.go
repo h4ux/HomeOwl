@@ -56,22 +56,23 @@ type App struct {
 	// Restart is set by the command line: it restarts HomeOwl (after an update replaced the program file).
 	Restart func()
 
-	mu       sync.Mutex
-	lan      *http.Server
-	lanAddr  string
-	lanErr   string
-	cert     tls.Certificate
-	handler  http.Handler
-	started  time.Time
-	tsErr    string
-	logos    *ispLogos
-	checkins *checkins
-	History  *history.Store
-	firmware *firmwareWatch
-	Protect  *protect.Watcher
-	Access   *access.Client
-	UPS      *ups.Monitor
-	snaps    snapCache
+	mu           sync.Mutex
+	lan          *http.Server
+	lanAddr      string
+	lanErr       string
+	cert         tls.Certificate
+	handler      http.Handler
+	started      time.Time
+	tsErr        string
+	logos        *ispLogos
+	checkins     *checkins
+	History      *history.Store
+	firmware     *firmwareWatch
+	Protect      *protect.Watcher
+	Access       *access.Client
+	UPS          *ups.Monitor
+	snaps        snapCache
+	shutdownPerm permCache
 	// Startup is set by the command line: start HomeOwl with the computer (nil = not available).
 	Startup *Startup
 }

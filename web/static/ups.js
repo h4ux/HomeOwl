@@ -171,15 +171,43 @@ function upsAdmin(d) {
       <span class="mono">HOMEOWL_UPS_STATUS</span>, <span class="mono">HOMEOWL_UPS_CHARGE</span>, <span class="mono">HOMEOWL_UPS_RUNTIME_MIN</span>, <span class="mono">HOMEOWL_UPS_LOAD</span>, and <span class="mono">HOMEOWL_UPS_TEST=1</span> when you press Test. They run as ${esc(d.run_as || "HomeOwl's user")}${d.root ? " (with full rights)" : ""} for at most 2 minutes.</p></div>
 
   <div class="card section"><h2>Suggested scripts for ${esc(osName)}</h2>
-    <p class="fine">HomeOwl runs on ${esc(osName)}${d.os === "darwin" ? " as your user (a LaunchAgent)" : d.root ? " with full rights" : ` as ${esc(d.run_as || "a normal user")}`}. These scripts fit that. They only describe what they would do when you press Test.</p>
+    <p class="fine">They only describe what they would do when you press Test.</p>
     ${sug.map((t, i) => `<div class="ups-sug"><div class="ups-head"><div><h3>${esc(t.title)} <span class="mono fine">${esc(t.name)}</span></h3><p class="fine">${esc(t.description)} Suggested for: <b>${esc(UPS_EVENTS[t.event] || t.event)}</b>${t.event === "onbatt" ? ", Back on mains, Battery low, Lost the UPS" : ""}.</p></div>
         <div>${t.exists ? (t.same ? `<span class="tag good">in the folder</span>` : `<button class="btn sm" data-upssave="${esc(t.name)}" data-over="1">Replace with this</button>`) : `<button class="btn sm primary" data-upssave="${esc(t.name)}">Save to the scripts folder</button>`}</div></div>
-      ${t.setup ? `<p class="warn-t fine">${esc(t.setup.split("\n")[0])}</p>${copyBox("ups-setup" + i, t.setup.split("\n").slice(1).join("\n"))}` : ""}
+      ${t.event === "shutdown" ? upsPermBox(d) : ""}
       <details class="adv"><summary>Show the script</summary>${copyBox("ups-sug" + i, t.content.replace(/\r\n/g, "\n"))}</details></div>`).join("")}</div>
 
   ${S.upsChange ? upsConnectCard(d) : `<div class="card section"><h2>NUT server</h2>
     <p class="fine">Reading <span class="mono">${esc(d.settings?.user ? d.settings.user + "@" : "")}${esc(d.settings?.host || "")}:${esc(d.settings?.port || 3493)}</span>${d.status?.secondary ? ", registered as a secondary" : ""}.</p>
     <div class="btnrow"><button class="btn sm" id="ups-change">Change…</button><button class="btn sm" id="ups-disconnect">Disconnect</button></div></div>`}`;
+}
+
+// may HomeOwl power this computer off? It runs as a normal user (macOS: a login item), so usually it must be allowed once.
+function upsPermBox(d) {
+  const p = d.shutdown_perm; if (!p) return "";
+  const what = d.os === "darwin" ? "this Mac" : "this computer";
+  if (!p.needed) return `<p class="good-t fine">✓ HomeOwl runs ${d.os === "windows" ? "on Windows" : "with full rights"}, so it can shut down ${what} without any setup.</p>`;
+  if (p.allowed) return `<div class="ups-perm ok"><p class="good-t fine">✓ HomeOwl may shut down ${what} (allowed in <span class="mono">${esc(p.file)}</span>).</p>
+    ${p.one_click ? `<button class="btn sm" data-upsperm="0">Stop allowing…</button>` : `<details class="adv"><summary>Stop allowing it</summary>${copyBox("ups-permrm", p.remove)}</details>`}</div>`;
+  const why = `HomeOwl runs as <b>${esc(p.user || "a normal user")}</b>${d.os === "darwin" ? " (a login item, without administrator rights)" : ""}, and a normal user may not turn ${what} off.`;
+  if (!p.rule) return `<div class="ups-perm"><p class="warn-t fine">${why} HomeOwl's user name can't go in a sudoers rule automatically; allow <span class="mono">/sbin/shutdown -h now</span> for it with <span class="mono">sudo visudo</span>.</p></div>`;
+  return `<div class="ups-perm"><p class="warn-t fine">${why} Allow exactly this once: ${p.one_click ? "" : "run this on the computer running HomeOwl (it checks the rule with <span class=\"mono\">visudo</span> before using it):"}</p>
+    ${p.one_click ? `<div class="btnrow"><button class="btn sm primary" data-upsperm="1">Allow shutdown…</button><button class="btn sm" data-upspermcheck>Check again</button></div>
+      <p class="fine">macOS shows its own password window on the Mac running HomeOwl. Type an administrator's password there.</p>
+      <details class="adv"><summary>Or do it in Terminal</summary>${copyBox("ups-permcmd", p.command)}</details>`
+      : `${copyBox("ups-permcmd", p.command)}<div class="btnrow"><button class="btn sm" data-upspermcheck>Check again</button></div>`}
+    <details class="adv"><summary>What it allows</summary><p class="fine">One line in <span class="mono">${esc(p.file)}</span>, nothing else:</p>${copyBox("ups-permrule", p.rule)}</details></div>`;
+}
+
+async function upsSetPerm(allow, check) {
+  if (check) { try { S.ups.shutdown_perm = await api("/api/ups/shutdown-permission", { check: true }); upsRedraw(); } catch (err) { toast(err.message, "err"); } return; }
+  toast("Look at the Mac running HomeOwl: macOS is asking for a password.");
+  try {
+    S.ups.shutdown_perm = await api("/api/ups/shutdown-permission", { allow });
+    upsRedraw();
+    const ok = S.ups.shutdown_perm.allowed === allow;
+    toast(ok ? (allow ? "HomeOwl may now shut down this Mac." : "HomeOwl may no longer shut down this Mac.") : "Saved, but sudo doesn't see it yet. Press Check again.", ok ? "" : "err");
+  } catch (err) { toast(err.message, "err"); }
 }
 
 function upsCollect() {
@@ -209,6 +237,14 @@ function upsTest(name) {
 
 document.addEventListener("click", async e => {
   if (!e.target.closest("#ups-body")) return;
+  const perm = e.target.closest("[data-upsperm]");
+  if (perm) {
+    if (perm.dataset.upsperm === "1") { upsSetPerm(true); return; }
+    openModal({ title: "Stop allowing shutdown?", body: `<p>HomeOwl's shutdown script will then only ask macOS to shut down, and an app that wants to save its work can stop that.</p>`,
+      buttons: [{ label: "Cancel" }, { label: "Stop allowing", cls: "danger", onClick: () => { closeModal(); upsSetPerm(false); } }] });
+    return;
+  }
+  if (e.target.closest("[data-upspermcheck]")) { upsSetPerm(false, true); return; }
   const days = e.target.closest("[data-upsdays]");
   if (days) { S.upsDays = +days.dataset.upsdays; upsCollect(); loadUPS(); return; }
   const del = e.target.closest("[data-upsdel]");

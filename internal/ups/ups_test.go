@@ -317,25 +317,22 @@ func TestScriptsSafety(t *testing.T) {
 	}
 
 	for _, goos := range []string{"darwin", "linux", "windows"} {
-		sug := s.Suggestions(goos, "alex", false)
+		sug := s.Suggestions(goos)
 		if len(sug) != 2 || sug[0].Event != "shutdown" {
 			t.Fatalf("%s suggestions: %+v", goos, sug)
-		}
-		if goos != "windows" && !strings.Contains(sug[0].Setup, "alex ALL=(root) NOPASSWD:") {
-			t.Fatalf("%s sudoers hint: %q", goos, sug[0].Setup)
 		}
 	}
 	if err := s.SaveSuggestion(runtime.GOOS, "../evil.sh", false); err == nil {
 		t.Fatal("saved something that isn't a suggestion")
 	}
-	name := s.Suggestions(runtime.GOOS, "", true)[0].Name
+	name := s.Suggestions(runtime.GOOS)[0].Name
 	if err := s.SaveSuggestion(runtime.GOOS, name, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SaveSuggestion(runtime.GOOS, name, false); err == nil {
 		t.Fatal("overwrote without asking")
 	}
-	if sug := s.Suggestions(runtime.GOOS, "", true); !sug[0].Exists || !sug[0].Same {
+	if sug := s.Suggestions(runtime.GOOS); !sug[0].Exists || !sug[0].Same {
 		t.Fatalf("saved suggestion not recognised: %+v", sug[0])
 	}
 	// the suggested shutdown script only talks in test mode. Belt and braces: every command it could use to
@@ -347,5 +344,57 @@ func TestScriptsSafety(t *testing.T) {
 	}
 	if r := s.Run(ctx, name, []string{"PATH=" + stub + ":/usr/bin:/bin", "HOMEOWL_UPS_TEST=1", "NOTIFYTYPE=SHUTDOWN", "UPSNAME=rack@192.168.1.20", "HOMEOWL_UPS_CHARGE=20"}); r.Exit != 0 || !strings.HasPrefix(r.Output, "Test: would") {
 		t.Fatalf("suggested script in test mode: %+v", r)
+	}
+}
+
+func TestShutdownPermission(t *testing.T) {
+	// asks about another system, so nothing runs here
+	other := map[string]string{"darwin": "linux", "linux": "darwin", "windows": "darwin"}[runtime.GOOS]
+	if other == "" {
+		other = "linux"
+	}
+	p := ShutdownPermission(context.Background(), other, "alex", false)
+	if other != "windows" && (!p.Needed || !strings.HasPrefix(p.Rule, "alex ALL=(root) NOPASSWD: ") || !strings.Contains(p.Rule, "/sbin/shutdown -h now")) {
+		t.Fatalf("rule: %+v", p)
+	}
+	if strings.Contains(p.Command, "$") || strings.Count(p.Command, `"`) != 2 || !strings.Contains(p.Command, "visudo -cf") {
+		t.Fatalf("command must be a plain sudo sh -c \"…\" with a visudo check: %s", p.Command)
+	}
+	if p.OneClick != (other == "darwin") {
+		t.Fatalf("one click: %+v", p)
+	}
+	for _, bad := range []string{"", "x y", "a'b", `a"b`, "a;rm", "a$(id)", "-rf", strings.Repeat("a", 65)} {
+		if ShutdownRule("linux", bad) != "" || rootScript("darwin", bad, true) != "" {
+			t.Fatalf("accepted user %q", bad)
+		}
+	}
+	if p := ShutdownPermission(context.Background(), "linux", "alex", true); p.Needed || !p.Allowed {
+		t.Fatalf("root: %+v", p)
+	}
+	if p := ShutdownPermission(context.Background(), "windows", "alex", false); p.Needed {
+		t.Fatalf("windows: %+v", p)
+	}
+}
+
+func TestNopasswdAllows(t *testing.T) {
+	head := "Matching Defaults entries for alex on demo-mac:\n    env_reset\n\nUser alex may run the following commands on demo-mac:\n"
+	cases := []struct {
+		rules string
+		want  bool
+	}{
+		{"    (ALL) ALL\n", false}, // an admin, but only with a password
+		{"    (ALL) ALL\n    (root) NOPASSWD: /sbin/shutdown -h now\n", true},
+		{"    (root) NOPASSWD: /sbin/shutdown\n", true}, // any arguments
+		{"    (root) NOPASSWD: /sbin/shutdown -r now\n", false},
+		{"    (ALL : ALL) NOPASSWD: ALL\n", true},
+		{"    (root : wheel) NOSETENV: NOPASSWD: /bin/mkdir -p /x, /sbin/shutdown -h now\n", true},
+		{"    (root) NOPASSWD: /bin/x, PASSWD: /sbin/shutdown -h now\n", false},
+		{"    (nobody) NOPASSWD: /sbin/shutdown -h now\n", false},
+		{"    (root : wheel) NOSETENV: NOPASSWD: /bin/mkdir -m 775 -p /private/var/run\n", false},
+	}
+	for _, c := range cases {
+		if got := nopasswdAllows(head+c.rules, "/sbin/shutdown -h now"); got != c.want {
+			t.Errorf("%q: %v, want %v", c.rules, got, c.want)
+		}
 	}
 }
