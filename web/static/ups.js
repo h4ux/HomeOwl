@@ -17,7 +17,7 @@ const upsPct = v => v === null || v === undefined ? "–" : `${Math.round(v)}%`;
 const upsDur = s => s < 60 ? `${Math.max(1, Math.round(s))}s` : fmtDur(s);
 const upsVolts = v => v === null || v === undefined ? "–" : `${Math.round(v)} V`;
 
-V.ups = () => `<div class="head"><div><h1>UPS</h1><div class="muted">Battery backup through NUT (Network UPS Tools): power status and history, power cuts, and what this computer does when the power fails.</div></div></div>
+V.ups = () => `<div class="head"><div><h1>UPS ${hint("Battery backup through NUT (Network UPS Tools): power status and history, power cuts, and what this computer does when the power fails.")}</h1></div></div>
   <div id="ups-body"><div class="empty">Loading…</div></div>`;
 
 // demo: a fictional rack UPS with a 12-minute power cut three hours ago

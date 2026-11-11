@@ -40,7 +40,7 @@ function dnsProvider(ip) {
 }
 
 // ------------------------------------------------------------------ state
-const S = { bundle: null, model: null, findings: [], view: "overview", source: "live", sevFilter: "all", areaFilter: "all", token: null, write: false, readOnly: false, clientTab: "active" };
+const S = { bundle: null, model: null, findings: [], view: "today", source: "live", sevFilter: "all", areaFilter: "all", token: null, write: false, readOnly: false, clientTab: "active" };
 
 // ------------------------------------------------------------------ normalise
 function collectArrays(o) { if (Array.isArray(o)) return o; if (o && typeof o === "object") return Object.values(o).filter(Array.isArray).flat(); return []; }
@@ -483,7 +483,8 @@ function analyse(m) {
   if (m.settings.autoUpgrade === false) add("info", "Firmware", "Automatic device updates are off", "Patches only land when you remember to apply them.", "Settings → Control Plane → Updates → schedule automatic device updates for a quiet hour.", [], [setting("mgmt", { auto_upgrade: true }, "Turn automatic device updates on")]);
   for (const d of m.devices.filter(d => !d.online)) {
     const dx = diagnoseDevice(d, m);
-    add(d.state === 2 ? "low" : "high", "Devices", `${d.name} — ${d.stateLabel}${d.intState && d.intState !== d.stateLabel?.toUpperCase() ? ` (${d.intState.toLowerCase().replace(/_/g, " ")})` : ""}`, dx.summary, "Open Devices → " + d.name + " for the full debug panel: uplink port, PoE, events, raw data and actions.", dx.items.slice(0, 4), dx.actions);
+    add(d.state === 2 ? "low" : "high", "Devices", `${d.name} — ${d.stateLabel}${d.intState && d.intState !== d.stateLabel?.toUpperCase() ? ` (${d.intState.toLowerCase().replace(/_/g, " ")})` : ""}`, dx.summary, "Debug shows its switch port, PoE, recent events and what to try.", dx.items.slice(0, 4), dx.actions);
+    F[F.length - 1].dev = d.mac;
   }
   const hot = m.devices.filter(d => (d.cpu ?? 0) >= 85 || (d.mem ?? 0) >= 90);
   if (hot.length) add("low", "Devices", "Devices under heavy load", "High CPU/memory causes slow management and dropped connections.", "Check for IPS + heavy traffic on the gateway, or restart devices with memory leaks; update firmware.", hot.map(d => `${d.name}: CPU ${d.cpu ?? "–"}% / RAM ${d.mem ?? "–"}%`), hot.filter(d => d.role !== "gw").map(d => ({ kind: "devcmd", cmd: "restart", mac: d.mac, label: d.name, description: `Restart ${d.name}` })));
@@ -555,7 +556,7 @@ function diagnoseDevice(d, m) {
   const up = uplinkInfo(d, m);
   const st = d.state, is = d.intState || "";
   if (d.online) items.push("Device is connected and managed normally.");
-  if (d.partial) items.push("Not present in the main device list (stat/device) — it was only found in: " + Object.keys(d.sources).join(", ") + ". The console knows about it but isn't managing it fully.");
+  if (d.partial) { items.push("UniFi sees it but isn't managing it. Try restarting it, or remove and adopt it again."); steps.push("Technical: it is missing from stat/device and only listed in " + Object.keys(d.sources).join(", ") + "."); }
   if (st === 0 || is === "OFFLINE" || is === "CONNECTION_INTERRUPTED") {
     items.push(`Console lost contact${d.lastSeen ? " " + ago(d.lastSeen) : ""}.`);
     steps.push("Check power and the network cable at both ends.", "If powered by PoE, power-cycle its switch port (button below).", "If it stays offline, SSH in and run `info` to see its inform URL, then `set-inform http://<console-ip>:8080/inform`.");
@@ -645,67 +646,90 @@ function lineChart(series, { fmt = v => v, height = 190, legend = true } = {}) {
     return `${s.fill && p.length > 1 ? `<path d="${d}L${x(p[p.length - 1].t)},${y(0)}L${x(p[0].t)},${y(0)}Z" style="fill:${s.color || PAL[i]};opacity:.12"/>` : ""}<path d="${d}" fill="none" style="stroke:${s.color || PAL[i]}" stroke-width="1.8"/>${dots}`; }).join("");
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%">${g}${lines}</svg>${legend ? `<div class="legend">${series.map((s, i) => `<span><i style="background:${s.color || PAL[i]}"></i>${esc(s.name)}</span>`).join("")}</div>` : ""}`;
 }
-function gauge(score) {
+function gauge(score, size = 128) {
   const g = grade(score), col = score >= 80 ? "var(--ok)" : score >= 65 ? "var(--med)" : score >= 50 ? "var(--high)" : "var(--crit)";
   const R = 52, C = 2 * Math.PI * R, off = C * (1 - score / 100);
-  return `<svg width="128" height="128" viewBox="0 0 128 128" class="chart"><circle cx="64" cy="64" r="${R}" fill="none" style="stroke:var(--line)" stroke-width="12"/>
+  return `<svg width="${size}" height="${size}" viewBox="0 0 128 128" class="chart" role="img" aria-label="Configuration score ${score}, grade ${g}"><circle cx="64" cy="64" r="${R}" fill="none" style="stroke:var(--line)" stroke-width="12"/>
     <circle cx="64" cy="64" r="${R}" fill="none" style="stroke:${col}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 64 64)"/>
     <text x="64" y="66" text-anchor="middle" class="lbl" style="font-size:30px;font-weight:800">${score}</text><text x="64" y="86" text-anchor="middle">grade ${g}</text></svg>`;
 }
 
 // ------------------------------------------------------------------ sortable tables
-// Lists: every data table is drawn as list rows (the layout picked for HomeOwl): the first column (or `title`) is the row's
-// name, the other values become small labelled chips, numbers and buttons sit on the right, and a "Sort by" menu replaces
-// the column headers. Columns: { k, label, fmt, sort, num }.
+// Lists are compact tables: click a column header to sort (again to reverse). Columns: { k, label, fmt, sort, num, more }.
+// `more` columns aren't columns: they show as a small grey line under the row's name. Columns empty in every row are dropped.
+// `pin(row)` keeps rows (e.g. broken devices) at the top in red whatever the sort. On phones rows stack as cards.
 const TABLES = {};
 const emptyCell = h => !h || h === "–" || /^<span class="(muted|fine)">–<\/span>$/.test(h);
-function table(id, cols, rows, { search = false, empty = "Nothing here", rowAttr, title } = {}) {
+const cellHtml = (c, r) => String(c.fmt ? c.fmt(r) : esc(r[c.k] ?? "–")).trim();
+function table(id, cols, rows, { search = false, empty = "Nothing here", rowAttr, title, pin } = {}) {
   const ti = Math.max(0, title ? cols.findIndex(c => c.k === title) : 0);
   const prev = TABLES[id];
-  TABLES[id] = { cols, rows, sort: prev?.cols?.length === cols.length ? prev.sort : null, dir: prev?.dir || 1, q: "", rowAttr, ti };
+  const vis = cols.map((c, i) => i).filter(i => i === ti || (!cols[i].more && rows.some(r => !emptyCell(cellHtml(cols[i], r)))));
+  TABLES[id] = { cols, rows, sort: prev?.cols?.length === cols.length ? prev.sort : null, dir: prev?.dir || 1, q: prev?.q || "", rowAttr, ti, vis, pin };
   if (!rows.length) return `<div class="empty">${esc(empty)}</div>`;
-  const sortable = cols.map((c, i) => [c, i]).filter(([c]) => c.label);
+  return `${search && rows.length > 5 ? `<div class="li-tools"><input class="search" placeholder="Filter…" data-tsearch="${id}" aria-label="Filter" value="${esc(TABLES[id].q)}"></div>` : ""}
+    <div class="tw"><table class="tl" id="t-${id}">${thead(id)}<tbody>${tbody(id)}</tbody></table></div>`;
+}
+function thead(id) {
   const t = TABLES[id];
-  return `<div class="li-tools">${search ? `<input class="search" placeholder="Filter…" data-tsearch="${id}" aria-label="Filter">` : ""}
-      ${rows.length > 3 && sortable.length > 1 ? `<label class="li-sort">Sort by <select data-tsortsel="${id}"><option value="">as listed</option>${sortable.map(([c, i]) => `<option value="${i}" ${t.sort === i ? "selected" : ""}>${esc(c.label)}</option>`).join("")}</select>
-        <button class="btn xs" data-tsortdir="${id}" aria-label="Reverse the order" title="Reverse the order">${t.dir > 0 ? "↑" : "↓"}</button></label>` : ""}</div>
-    <div class="li" id="t-${id}" role="list">${tbody(id)}</div>`;
+  return `<thead><tr>${t.vis.map(i => { const c = t.cols[i], on = t.sort === i;
+    const lbl = c.label ? (t.rows.length > 1 ? `<button class="th-sort${on ? " on" : ""}" data-tsort="${id}" data-col="${i}" aria-label="Sort by ${esc(c.label)}">${esc(c.label)}<span aria-hidden="true">${on ? (t.dir > 0 ? " ↑" : " ↓") : ""}</span></button>` : esc(c.label)) : "";
+    return `<th class="${c.num ? "n" : ""}" ${on ? `aria-sort="${t.dir > 0 ? "ascending" : "descending"}"` : ""}>${lbl}</th>`; }).join("")}</tr></thead>`;
 }
 function tbody(id) {
   const t = TABLES[id]; let rows = t.rows;
   if (t.q) { const q = t.q.toLowerCase(); rows = rows.filter(r => JSON.stringify(r, (k, v) => k === "sources" || k === "blob" ? undefined : v).toLowerCase().includes(q)); }
   if (t.sort !== null) { const c = t.cols[t.sort], key = c.sort || (r => r[c.k]); rows = [...rows].sort((a, b) => { const x = key(a), y = key(b); return (x === y ? 0 : x === null || x === undefined ? 1 : y === null || y === undefined ? -1 : x > y ? 1 : -1) * t.dir; }); }
-  if (!rows.length) return `<div class="empty">Nothing matches.</div>`;
+  if (t.pin) rows = [...rows.filter(t.pin), ...rows.filter(r => !t.pin(r))];
+  if (!rows.length) return `<tr><td colspan="${t.vis.length}" class="empty">Nothing matches.</td></tr>`;
+  const more = t.cols.filter(c => c.more);
   return rows.map(r => {
-    let attr = t.rowAttr ? t.rowAttr(r) : "", cls = "li-row";
+    let attr = t.rowAttr ? t.rowAttr(r) : "", cls = t.pin?.(r) ? "pin" : "";
     attr = attr.replace(/\bclass="([^"]*)"/, (_, c) => { cls += " " + c; return ""; });
-    const chips = [], right = [], acts = [];
-    t.cols.forEach((c, i) => {
-      if (i === t.ti) return;
-      const h = c.fmt ? c.fmt(r) : esc(r[c.k] ?? "–"); if (emptyCell(String(h).trim())) return;
-      if (/<button|class="btn/.test(h)) acts.push(h);
-      else if (c.num) right.push(`<span class="li-num">${h}</span>${c.label ? `<span class="li-l">${esc(c.label)}</span>` : ""}`);
-      else chips.push(c.label ? `<span class="li-f"><span class="li-l">${esc(c.label)}</span> ${h}</span>` : `<span class="li-f">${h}</span>`);
-    });
-    const tc = t.cols[t.ti], th = tc.fmt ? tc.fmt(r) : esc(r[tc.k] ?? "–");
-    return `<div class="${cls}" role="listitem" ${attr}><div class="li-main"><div class="li-title">${th}</div>${chips.length ? `<div class="li-chips">${chips.join("")}</div>` : ""}</div>
-      ${right.length || acts.length ? `<div class="li-side">${right.map(x => `<span class="li-stat">${x}</span>`).join("")}${acts.length ? `<span class="li-acts">${acts.join("")}</span>` : ""}</div>` : ""}</div>`;
+    const sub = more.map(c => cellHtml(c, r)).filter(h => !emptyCell(h));
+    return `<tr class="${cls.trim()}" ${attr}>${t.vis.map(i => { const c = t.cols[i], h = cellHtml(c, r);
+      if (i === t.ti) return `<td class="tt">${h}${sub.length ? `<div class="sub">${sub.join(" · ")}</div>` : ""}</td>`;
+      const btn = /<button|class="btn/.test(h);
+      const nil = emptyCell(h);
+      return `<td class="${c.num ? "n" : ""}${btn ? " acts" : ""}${nil ? " nil" : ""}" ${c.label && !btn ? `data-l="${esc(c.label)}"` : ""}>${nil ? (c.label ? `<span class="muted">–</span>` : "") : `<span class="tv">${h}</span>`}</td>`; }).join("")}</tr>`;
   }).join("");
 }
-document.addEventListener("change", e => {
-  const id = e.target.dataset?.tsortsel; if (!id || !TABLES[id]) return;
-  TABLES[id].sort = e.target.value === "" ? null : +e.target.value; $(`#t-${id}`).innerHTML = tbody(id);
-});
+function redrawTable(id) { const el = $(`#t-${id}`); if (el) el.innerHTML = thead(id) + `<tbody>${tbody(id)}</tbody>`; }
 document.addEventListener("click", e => {
-  const b = e.target.closest("[data-tsortdir]"); if (!b) return;
-  const t = TABLES[b.dataset.tsortdir]; if (!t) return;
-  t.dir = -t.dir; if (t.sort === null) t.sort = t.cols.findIndex(c => c.label); b.textContent = t.dir > 0 ? "↑" : "↓";
-  const sel = $(`[data-tsortsel="${b.dataset.tsortdir}"]`); if (sel) sel.value = String(t.sort);
-  $(`#t-${b.dataset.tsortdir}`).innerHTML = tbody(b.dataset.tsortdir);
+  const b = e.target.closest("[data-tsort]"); if (!b) return;
+  const t = TABLES[b.dataset.tsort]; if (!t) return; const i = +b.dataset.col;
+  if (t.sort === i) t.dir = -t.dir; else { t.sort = i; t.dir = t.cols[i].num ? -1 : 1; }
+  redrawTable(b.dataset.tsort);
 });
-document.addEventListener("input", e => { const id = e.target.dataset.tsearch; if (!id) return; TABLES[id].q = e.target.value; $(`#t-${id}`).innerHTML = tbody(id); });
+document.addEventListener("input", e => { const id = e.target.dataset.tsearch; if (!id || !TABLES[id]) return; TABLES[id].q = e.target.value; const el = $(`#t-${id} tbody`); if (el) el.innerHTML = tbody(id); });
 
 const yes = (b, good = true) => b === null || b === undefined ? `<span class="muted">–</span>` : `<span class="tag ${b === good ? "good" : "bad"}">${b ? "on" : "off"}</span>`;
+// ⓘ next to a page title: the page's explanation, shown on click instead of a sentence under every title
+const hint = t => `<button class="hint" type="button" data-hint="${esc(t)}" aria-label="About this page" aria-expanded="false">i</button>`;
+document.addEventListener("click", e => {
+  const b = e.target.closest(".hint"); const open = $(".hint-pop");
+  if (open && (!b || open.dataset.for !== b.dataset.hint)) { open.remove(); $$(".hint[aria-expanded=true]").forEach(x => x.setAttribute("aria-expanded", "false")); if (!b) return; }
+  if (!b) return; e.preventDefault();
+  if (open) return;
+  const pop = document.createElement("div"); pop.className = "hint-pop"; pop.dataset.for = b.dataset.hint; pop.textContent = b.dataset.hint; pop.setAttribute("role", "note");
+  b.closest("h1, h2, .head")?.insertAdjacentElement("afterend", pop); b.setAttribute("aria-expanded", "true");
+});
+// charts that support a list fold away under "Insights"; open or closed is remembered per page in this browser
+const insightsOpen = k => { try { return localStorage.getItem("homeowl-ins-" + k) === "1"; } catch { return false; } };
+const insights = (k, html, label = "Insights") => `<details class="insights section" data-ins="${k}" ${insightsOpen(k) ? "open" : ""}><summary>${esc(label)}</summary><div class="ins-body">${html}</div></details>`;
+document.addEventListener("toggle", e => { const k = e.target.dataset?.ins; if (k) try { localStorage.setItem("homeowl-ins-" + k, e.target.open ? "1" : "0"); } catch { } }, true);
+// a thin bar split by severity, with counts: the "how bad is it" picture next to the status line
+function sevStrip(F) {
+  const c = SEV_ORDER.map(s => [s, F.filter(f => f.sev === s).length]).filter(([, n]) => n), tot = c.reduce((a, [, n]) => a + n, 0);
+  if (!tot) return "";
+  return `<div class="sevstrip" role="img" aria-label="${c.map(([s, n]) => n + " " + s).join(", ")}">${c.map(([s, n]) => `<span class="ss-${s}" style="flex:${n}"></span>`).join("")}</div>
+    <div class="sevleg">${c.map(([s, n]) => `<span><i class="ss-${s}"></i>${n} ${s}</span>`).join("")}</div>`;
+}
+// an empty page that says what you'll get and offers the one button that gets you there
+const emptyState = ({ title, text = "", points = [], btn = "", note = "" }) => `<div class="card empty-state"><h2>${esc(title)}</h2>${text ? `<p class="muted">${esc(text)}</p>` : ""}
+  ${points.length ? `<ul class="es-points">${points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}${btn ? `<div class="es-btn">${btn}</div>` : ""}${note ? `<p class="fine">${esc(note)}</p>` : ""}</div>`;
+// open Settings on one section
+document.addEventListener("click", e => { const b = e.target.closest("[data-setgo]"); if (!b) return; e.preventDefault(); S.setTab = b.dataset.setgo; try { localStorage.setItem("homeowl-settings-tab", S.setTab); } catch { } S.view = "settings"; render(); window.scrollTo(0, 0); });
 const sevTag = s => `<span class="sev ${s}">${s}</span>`;
 
 // ------------------------------------------------------------------ diagrams

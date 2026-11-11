@@ -9,7 +9,7 @@ V.firmware = m => {
   const days = d => { const p = pend[d.mac]; return p?.since ? Math.max(0, Math.floor((Date.now() / 1000 - p.since) / 86400)) : null; };
   const auto = m.settings.autoUpgrade;
   const notes = `<a href="https://community.ui.com/releases" target="_blank" rel="noopener noreferrer">release notes ↗</a>`;
-  return `<div class="head"><div><h1>Firmware</h1><div class="muted">Updates fix security holes and Wi-Fi bugs. Each device restarts while it updates (1–3 minutes offline).</div></div></div>
+  return `<div class="head"><div><h1>Firmware ${hint("Updates fix security holes and Wi-Fi bugs. Each device restarts while it updates (1–3 minutes offline).")}</h1></div></div>
   <div class="grid g3">
     ${kpi(waiting.length, "Devices with an update", !waiting.length ? "all up to date" : waiting.some(d => days(d) !== null) ? `oldest waiting ${plural(Math.max(...waiting.map(d => days(d) ?? 0)), "day")}` : "")}
     ${kpi(esc(m.info.consoleVersion || "–"), "Console (UniFi OS)", m.info.updateAvailable ? `<span class="tag warn">update available</span> — update it in UniFi OS › Settings` : "")}

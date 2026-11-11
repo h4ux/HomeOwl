@@ -21,14 +21,15 @@ const series = (rows, key) => rows.map(r => ({ t: r.t, v: r[key] }));
 V.analytics = () => {
   const st = S.an.st;
   const admin = S.role === "admin";
-  const head = `<div class="head"><div><h1>Analytics</h1><div class="muted">NextDNS queries, UniFi traffic, threats and syslog, stored in HomeOwl's built-in DuckDB database.</div></div>
+  const head = `<div class="head"><div><h1>Analytics ${hint("NextDNS queries, UniFi traffic, threats and syslog, stored in HomeOwl's built-in DuckDB database.")}</h1></div>
     <div class="an-controls"><div class="seg">${RANGES.map(([k, l]) => `<button data-anrange="${k}" class="${S.an.range === k ? "on" : ""}">${l}</button>`).join("")}</div>
     ${st?.profiles && Object.keys(st.profiles).length && !["explore", "people", "categories"].includes(S.an.tab) ? `<select id="an-profile"><option value="">All NextDNS profiles</option>${Object.entries(st.profiles).map(([id, n]) => `<option value="${esc(id)}" ${S.an.profile === id ? "selected" : ""}>${esc(n)} (${esc(id)})</option>`).join("")}</select>` : ""}</div></div>`;
   if (!st) return `${head}<div class="empty">Loading…</div>`;
   if (!st.engine || !st.enabled || !st.open) {
-    return `${head}<div class="card"><h2>Analytics isn't set up yet</h2>
-      <p>It imports your NextDNS query logs and UniFi gateway data into a local DuckDB database, so you can see usage per device, top domains, blocked trackers, traffic, threats and firewall logs over time.</p>
-      ${admin ? `<p><button class="btn primary" data-goto="settings">Set it up in Settings</button></p>` : `<p class="muted">An admin needs to turn it on in Settings.</p>`}</div>`;
+    return `<div class="head"><div><h1>Analytics</h1></div></div>${emptyState({ title: "See what your devices do online, over time",
+      points: ["Top sites and apps for each person and device", "Trackers and ads NextDNS blocked", "Internet traffic, threats and firewall logs by day"],
+      btn: admin ? (S.source === "live" ? `<button class="btn primary" data-setgo="analytics">Set up analytics</button>` : "") : "",
+      note: S.source !== "live" ? "Analytics needs a running HomeOwl connected to NextDNS or UniFi. It isn't part of the demo." : admin ? "Uses your NextDNS API key and UniFi logs. Everything stays on this computer." : "Ask an admin to turn it on in Settings." })}`;
   }
   const tabs = AN_TABS.filter(([k]) => k !== "sql" || admin);
   const syncing = Object.keys(st.running || {}).length, backfill = (st.sources || []).find(s => s.note && /Importing/.test(s.note));

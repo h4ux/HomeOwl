@@ -4,6 +4,21 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.11] — 2026-11-11
+
+### Changed
+A cleaner, shorter interface: less text, the list before the charts, and the fix button next to each problem.
+- **Today** (new, under Home, and where HomeOwl now opens): what needs you, the internet, who's home, a glance at the cameras, the UPS and the network, each linking to its full page.
+- **Overview** opens with one status line ("2 things need you" or "All good"), with a button for each item and a small configuration-score ring and severity bar beside it. Cards with no data are hidden, and the per-network details fold away.
+- **Suggestions** are one line each: severity, title, area and a button (Fix, Debug or Show). The explanation opens on click, and findings with the same cause are merged ("+ 1 more like it"). The filters are Needs you / Worth doing / Tips / All, plus an area menu. The Suggestions page went from about 2,200 words to under 100.
+- **Lists are compact tables** everywhere: click a column header to sort, again to reverse. Secondary details (model, IP address) sit in a small line under the name. On phones each row becomes a short card.
+- **Devices**: broken devices are pinned to the top of the list in red, with Debug (and Power-cycle port when that helps) on the row, instead of a separate box that repeated them.
+- **Clients**: the list comes first; the charts are under "Insights", which remembers whether you left it open.
+- Page explanations moved from a sentence under every title to an ⓘ button beside it.
+- Pages with several views (Devices › Topology › Switch ports, Wi-Fi, Networks) list them under the page in the side menu instead of tabs across the top.
+- Plainer messages, e.g. "UniFi sees it but isn't managing it" instead of internal API names (still shown in Debug).
+- Analytics, when it isn't set up, shows what you'll get and a "Set up analytics" button that opens the right Settings section.
+
 ## [0.1.10] — 2026-11-11
 
 ### Added

@@ -73,7 +73,7 @@ V.dns = m => {
   const tsSel = tsDevs.find(d => d.label === c.tsDevice);
   const domain = (lans.find(n => n.domain)?.domain) || "localdomain";
 
-  return `<div class="head"><div><h1>NextDNS &amp; Tailscale</h1><div class="muted">How DNS reaches NextDNS today, how to get real device names and per-network profiles, and how to connect your networks to Tailscale.</div></div>
+  return `<div class="head"><div><h1>NextDNS &amp; Tailscale ${hint("How DNS reaches NextDNS today, how to get real device names and per-network profiles, and how to connect your networks to Tailscale.")}</h1></div>
     <button class="btn" id="btn-ndtest">${S.remote ? "Test the HomeOwl computer's DNS" : "Test this computer's DNS"}</button></div>
   <div id="ndtest-out"></div>
 

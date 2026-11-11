@@ -78,37 +78,49 @@ async function toggleLock() {
 const V = {};
 const kpi = (v, l, s = "") => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
 
+// Overview: one status line (what needs you, with a button for each) beside a small score ring and severity bar,
+// then the internet, devices and clients. Cards with no data are left out.
+function needsYou(m) {
+  const out = [];
+  m.devices.filter(d => !d.online).forEach(d => out.push({ t: `${d.name} is ${d.stateLabel === "Disconnected" ? "offline" : d.stateLabel.toLowerCase()}${d.lastSeen ? " · " + ago(d.lastSeen) : ""}`, btn: `<button class="btn sm primary" data-dev="${esc(d.mac)}">Debug</button>` }));
+  m.wanLinks.filter(l => l.enabled && l.status && l.status !== "ok").forEach(l => out.push({ t: `Internet via ${l.isp || l.name} is down`, btn: `<button class="btn sm" data-goto="networks">Show</button>` }));
+  groupFindings(S.findings.filter(f => (f.sev === "critical" || f.sev === "high") && !f.dev)).forEach(g => {
+    const f = g.list[0], acts = g.list.flatMap(x => x.actions);
+    out.push({ t: f.title + (g.list.length > 1 ? ` (+${g.list.length - 1})` : ""), btn: (acts.length ? actBtn(acts, "Fix", f.title, "sm primary") : "") || (AREA_VIEW[f.area] ? `<button class="btn sm" data-goto="${AREA_VIEW[f.area]}">Show</button>` : "") });
+  });
+  return out;
+}
 V.overview = m => {
-  const F = S.findings, sc = scoreOf(F), cnt = s => F.filter(f => f.sev === s).length;
+  const F = S.findings, sc = scoreOf(F);
   const online = m.devices.filter(d => d.online).length, wired = m.clients.filter(c => c.wired).length;
   const byNet = {}; m.clients.forEach(c => { const k = c.network || "Unknown"; byNet[k] = (byNet[k] || 0) + 1; });
   const bands = { "2.4 GHz": 0, "5 GHz": 0, "6 GHz": 0, Wired: wired }; m.clients.filter(c => !c.wired).forEach(c => { const k = bandLabel(c.band); if (k in bands) bands[k]++; });
   const fw = { "Up to date": m.devices.filter(d => d.online && !d.upgradable).length, "Update available": m.devices.filter(d => d.online && d.upgradable).length, "Offline / not ready": m.devices.filter(d => !d.online).length };
   const last24 = m.history.hourly.filter(r => r.t > Date.now() - 86400000);
-  const problem = m.devices.filter(d => !d.online);
-  return `<div class="head"><div><h1>Overview</h1><div class="muted">${esc(m.info.hostname || m.info.host || "")} · site ${esc(m.info.site)} · Network ${esc(m.info.networkVersion || "?")} · collected ${esc(m.info.collectedAt || "")}</div></div></div>
-  ${problem.length ? `<div class="banner">⚠ ${plural(problem.length, "device")} not working: ${problem.map(d => `<a href="#" data-dev="${esc(d.mac)}">${esc(d.name)}</a> (${esc(d.stateLabel)})`).join(", ")} — click to debug.</div>` : ""}
-  <div class="grid g3">
-    <div class="card"><h2>Configuration score</h2><div class="score">${gauge(sc)}<div><div class="muted" style="font-size:13px">${F.length ? `${plural(F.filter(f => f.sev !== "info").length, "issue")} + ${cnt("info")} tips · ${F.filter(f => f.actions.length).length} fixable here` : "No issues found"}</div>
-      <div class="sevbar">${SEV_ORDER.map(s => `<span class="sev ${s}">${cnt(s)} ${s}</span>`).join("")}</div>
-      <p style="margin-top:12px"><a href="#" data-goto="findings">See all suggestions →</a></p></div></div></div>
+  const need = needsYou(m), at = Date.parse(m.info.collectedAt || "");
+  const wan = m.wanLinks.find(l => l.active) || m.wanLinks[0];
+  const net = !m.wanLinks.length ? ["–", "No internet reported"] : m.wanLinks.some(l => l.enabled && (!l.status || l.status === "ok")) ? ["Online", wan?.latency !== null && wan?.latency !== undefined ? `${wan.latency} ms` : "connected"] : ["Down", "no connection"];
+  return `<div class="head"><div><h1>Overview</h1><div class="muted">${esc(m.info.hostname || m.info.host || "")}${at ? ` · updated ${ago(at)}` : ""}</div></div></div>
+  <div class="status ${need.length ? "warn" : "good"}">
+    <div class="status-main"><div class="status-big">${need.length ? `${plural(need.length, "thing needs", "things need")} you` : "All good"}</div>
+      ${need.length ? `<ul class="status-list">${need.slice(0, 4).map(n => `<li><span>${esc(n.t)}</span>${n.btn}</li>`).join("")}${need.length > 4 ? `<li><a href="#" data-goto="findings">${need.length - 4} more…</a></li>` : ""}</ul>` : `<div class="muted">Nothing is broken and nothing urgent is open.${F.length ? ` ${plural(F.length, "suggestion")} when you have time.` : ""}</div>`}</div>
+    <a href="#" class="status-side" data-goto="findings" title="See all suggestions">${gauge(sc, 84)}<div class="status-sev"><div class="fine">Configuration score</div>${sevStrip(F) || `<div class="fine">No issues found</div>`}</div></a>
+  </div>
+  <div class="grid g4 section">${kpi(net[0], "Internet", net[1])}
+    ${kpi(`${online}/${m.devices.length}`, "Devices online", `${m.devices.filter(d => d.role === "ap").length} APs · ${m.devices.filter(d => d.role === "sw").length} switches`)}
+    ${kpi(m.clients.length, "Clients", `${wired} wired · ${m.clients.length - wired} Wi-Fi`)}
+    ${kpi(m.info.down !== null ? `${Math.round(m.info.down)}<span class="kpi-u"> / ${Math.round(m.info.up)} Mbps</span>` : "–", "Speed test", m.info.speedtestAt ? ago(m.info.speedtestAt) : actBtn({ kind: "devcmd", cmd: "speedtest", description: "Run an internet speed test on the gateway (uses your bandwidth for ~30 s)" }, "Run now", "Speed test"))}</div>
+  <div class="grid g3 section">
     <div class="card"><h2>Internet${m.wanLinks.length > 1 ? ` <span class="muted" style="font-weight:400;font-size:13px">· ${m.wanLinks.length} connections</span>` : ""}</h2>
       ${m.wanLinks.length ? `<div class="wan-list">${m.wanLinks.map(wanRow).join("")}</div>` : `<p class="muted">No internet connection reported.</p>`}
-      <dl class="kv" style="margin-top:10px">
-      <dt>Speed test</dt><dd>${m.info.down !== null ? `↓ ${fmtMbps(m.info.down)} · ↑ ${fmtMbps(m.info.up)} <span class="muted">${m.info.speedtestAt ? ago(m.info.speedtestAt) : ""}</span>` : "–"} ${actBtn({ kind: "devcmd", cmd: "speedtest", description: "Run an internet speed test on the gateway (uses your bandwidth for ~30 s)" }, "Run now", "Speed test")}</dd>
-      <dt>VPN</dt><dd>${m.vpn.remoteUser ? m.vpn.remoteUser + " remote-user server(s)" : "none"}${m.vpn.siteToSite ? ` · ${m.vpn.siteToSite} site-to-site` : ""}</dd></dl></div>
-    <div class="card"><h2>Device status</h2>${donut(Object.entries(fw).map(([label, value], i) => ({ label, value, color: ["var(--ok)", "var(--high)", "var(--crit)"][i] })), m.devices.length, "devices")}</div>
+      ${m.vpn.remoteUser || m.vpn.siteToSite ? `<p class="fine" style="margin:10px 0 0">VPN: ${m.vpn.remoteUser ? plural(m.vpn.remoteUser, "remote-access server") : ""}${m.vpn.siteToSite ? ` · ${m.vpn.siteToSite} site-to-site` : ""}</p>` : ""}
+      ${m.info.down !== null ? `<div style="margin-top:8px">${actBtn({ kind: "devcmd", cmd: "speedtest", description: "Run an internet speed test on the gateway (uses your bandwidth for ~30 s)" }, "Run speed test", "Speed test", "sm ghost")}</div>` : ""}</div>
+    <div class="card"><h2>Devices</h2>${donut(Object.entries(fw).map(([label, value], i) => ({ label, value, color: ["var(--ok)", "var(--high)", "var(--crit)"][i] })), m.devices.length, "devices")}</div>
+    <div class="card"><h2>Clients by connection</h2>${donut(Object.entries(bands).map(([label, value], i) => ({ label, value, color: PAL[[2, 0, 3, 1][i]] })), m.clients.length, "clients")}</div>
   </div>
-  <div class="grid g4 section">${kpi(`${online}/${m.devices.length}`, "Devices online", `${m.devices.filter(d => d.role === "ap").length} APs · ${m.devices.filter(d => d.role === "sw").length} switches`)}
-    ${kpi(m.clients.length, "Active clients", `${wired} wired · ${m.clients.length - wired} wireless · ${m.known.length} known`)}
-    ${kpi(m.networks.length, "Networks", `${m.networks.filter(n => n.isolated || n.guest).length} isolated/guest`)}
-    ${kpi(m.wlans.filter(w => w.enabled).length, "SSIDs", `${m.portForwards.filter(p => p.enabled).length} port forwards · IPS ${esc(m.settings.ips ?? "?")}`)}</div>
-  <div class="grid g2 section">
-    <div class="card"><h2>Internet traffic — last 24 h</h2>${lineChart([{ name: "Download", color: "var(--c1)", fill: true, points: last24.map(r => ({ t: r.t, v: r.wanRx })) }, { name: "Upload", color: "var(--c3)", points: last24.map(r => ({ t: r.t, v: r.wanTx })) }], { fmt: fmtBytes, height: 170 })}</div>
-    <div class="card"><h2>Clients by connection</h2>${donut(Object.entries(bands).map(([label, value], i) => ({ label, value, color: PAL[[2, 0, 3, 1][i]] })), m.clients.length, "clients")}
-      <h3 style="margin-top:14px">Per network</h3>${hbar(Object.entries(byNet).sort((a, b) => b[1] - a[1]).map(([label, value], i) => ({ label, value, color: PAL[i % PAL.length] })))}</div>
-  </div>
-  <div class="card section"><h2>Top suggestions</h2>${F.filter(f => f.sev !== "info").slice(0, 5).map(findingCard).join("") || `<div class="empty">Nothing urgent — nice.</div>`}</div>`;
+  ${last24.length > 2 ? `<div class="card section"><h2>Internet traffic · last 24 h</h2>${lineChart([{ name: "Download", color: "var(--c1)", fill: true, points: last24.map(r => ({ t: r.t, v: r.wanRx })) }, { name: "Upload", color: "var(--c3)", points: last24.map(r => ({ t: r.t, v: r.wanTx })) }], { fmt: fmtBytes, height: 170 })}</div>` : ""}
+  ${insights("overview", `<h3>Clients per network</h3>${hbar(Object.entries(byNet).sort((a, b) => b[1] - a[1]).map(([label, value], i) => ({ label, value, color: PAL[i % PAL.length] })))}
+    <p class="fine" style="margin-top:12px">${m.networks.length} networks (${m.networks.filter(n => n.isolated || n.guest).length} isolated or guest) · ${m.wlans.filter(w => w.enabled).length} Wi-Fi names · ${m.portForwards.filter(p => p.enabled).length} port forwards · IPS ${esc(m.settings.ips ?? "?")} · Network ${esc(m.info.networkVersion || "?")}</p>`, "More about this network")}`;
 };
 
 // one internet connection on the Overview: provider badge, name, status, IP, latency
@@ -133,24 +145,51 @@ async function saveIspLogo(isp, site) {
 async function loadIspLogos() { try { const r = await api("/api/isp-logos"); Object.assign(ISP_LOGOS, r.logos || {}); if (S.model && S.view === "overview") render(); } catch { } }
 document.addEventListener("click", e => { const b = e.target.closest("[data-isplogo]"); if (b) { e.preventDefault(); editIspLogo(b.dataset.isplogo); } });
 
-function findingCard(f) {
-  return `<div class="finding ${f.sev}"><div class="t">${sevTag(f.sev)}<span>${esc(f.title)}</span><span class="area">${esc(f.area)}</span>
-      ${f.actions.length ? `<span style="margin-left:auto">${actBtn(f.actions, f.actions.length > 1 ? `Apply fix (${f.actions.length})` : "Apply fix", f.title, "sm primary")}</span>` : ""}</div>
-    <p>${esc(f.why)}</p><div class="fix"><b>Fix:</b> ${esc(f.fix)}</div>
-    ${f.items.length ? `<div class="items">${f.items.slice(0, 20).map(i => `<span class="tag">${esc(i)}</span>`).join("")}${f.items.length > 20 ? ` <span class="muted">+${f.items.length - 20} more</span>` : ""}</div>` : ""}</div>`;
+// Suggestions: one line per problem (findings with the same explanation are merged), details open on click,
+// and the button that fixes it on the right: Fix (allow-listed change), Debug (a device) or Show (the page to change it on).
+const AREA_VIEW = { "Wi-Fi": "wifi", Radios: "wifi", Coverage: "wifi", Exposure: "security", Security: "security", Devices: "devices", Firmware: "firmware", Ports: "ports", Networks: "networks", Segmentation: "networks", DNS: "dns", Hygiene: "clients" };
+const F_GROUPS = [["now", "Needs you", ["critical", "high"]], ["soon", "Worth doing", ["medium"]], ["tips", "Tips", ["low", "info"]], ["all", "All", SEV_ORDER]];
+function groupFindings(F) {
+  const out = [], by = {};
+  for (const f of F) { const k = f.dev ? "dev" + f.id : `${f.sev}|${f.area}|${f.why}`; if (by[k]) by[k].list.push(f); else out.push(by[k] = { key: k, sev: f.sev, area: f.area, list: [f] }); }
+  return out;
 }
+function findingRow(g) {
+  const f = g.list[0], n = g.list.length, acts = g.list.flatMap(x => x.actions);
+  const btn = (f.dev ? "" : acts.length ? actBtn(acts, n > 1 || acts.length > 1 ? `Fix ${acts.length}` : "Fix", f.title, "sm primary") : "")
+    || (f.dev ? `<button class="btn sm primary" data-dev="${esc(f.dev)}">Debug</button>`
+    : AREA_VIEW[f.area] && AREA_VIEW[f.area] !== S.view ? `<button class="btn sm" data-goto="${AREA_VIEW[f.area]}">Show</button>` : "");
+  const items = [...new Set(g.list.flatMap(x => x.items))];
+  return `<div class="fr ${g.sev}" data-fkey="${esc(g.key)}"><div class="fr-line" role="button" tabindex="0" aria-expanded="false">${sevTag(g.sev)}
+      <span class="fr-t">${esc(f.title)}${n > 1 ? ` <span class="muted">+ ${n - 1} more like it</span>` : ""}</span><span class="fr-a">${esc(f.area)}</span>
+      <span class="fr-b">${btn}</span><span class="fr-c" aria-hidden="true">›</span></div>
+    <div class="fr-more" hidden><p>${esc(f.why)}</p><div class="fix"><b>How to fix:</b> ${esc(f.fix)}</div>
+      ${n > 1 ? `<ul class="fr-list">${g.list.map(x => `<li>${esc(x.title)}</li>`).join("")}</ul>` : ""}
+      ${items.length ? `<div class="items">${items.slice(0, 20).map(i => `<span class="tag">${esc(i)}</span>`).join("")}${items.length > 20 ? ` <span class="muted">+${items.length - 20} more</span>` : ""}</div>` : ""}</div></div>`;
+}
+document.addEventListener("click", e => {
+  const l = e.target.closest(".fr-line"); if (!l || e.target.closest("button,a")) return;
+  const more = l.nextElementSibling, open = more.hidden; more.hidden = !open; l.setAttribute("aria-expanded", String(open)); l.parentElement.classList.toggle("open", open);
+});
+document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.classList?.contains("fr-line")) { e.preventDefault(); e.target.click(); } });
 V.findings = m => {
-  const F = S.findings, areas = [...new Set(F.map(f => f.area))];
-  const shown = F.filter(f => (S.sevFilter === "all" || f.sev === S.sevFilter) && (S.areaFilter === "all" || f.area === S.areaFilter));
+  const F = S.findings, areas = [...new Set(F.map(f => f.area))].sort();
+  const inG = (f, g) => F_GROUPS.find(x => x[0] === g)[2].includes(f.sev);
+  if (!F_GROUPS.some(g => g[0] === S.sevFilter) || S.sevFilter === "all" && !S.fPicked) S.sevFilter = F.some(f => inG(f, "now")) ? "now" : "all";
+  if (S.areaFilter !== "all" && !areas.includes(S.areaFilter)) S.areaFilter = "all";
+  const shown = F.filter(f => inG(f, S.sevFilter) && (S.areaFilter === "all" || f.area === S.areaFilter));
   const fixable = shown.filter(f => f.actions.length && f.sev !== "info" && f.area !== "Devices" && f.area !== "Firmware");
-  const all = fixable.flatMap(f => f.actions);
-  return `<div class="head"><div><h1>Suggestions</h1><div class="muted">${F.length} findings, most important first. “Apply fix” shows a preview before anything changes. Menu names can differ slightly between UniFi Network versions.</div></div>
-    <div style="display:flex;gap:8px">${all.length > 1 ? actBtn(all, `Apply ${all.length} config fixes…`, "Apply all shown configuration fixes", "") : ""}<button class="btn" id="btn-md">Download as Markdown</button></div></div>
-    <div class="filters">${["all", ...SEV_ORDER].map(s => `<button data-sev="${s}" class="${S.sevFilter === s ? "on" : ""}">${s}${s === "all" ? "" : " (" + F.filter(f => f.sev === s).length + ")"}</button>`).join("")}</div>
-    <div class="filters">${["all", ...areas].map(a => `<button data-area="${esc(a)}" class="${S.areaFilter === a ? "on" : ""}">${esc(a)}</button>`).join("")}</div>
-    ${shown.map(findingCard).join("") || `<div class="empty">No findings for this filter.</div>`}`;
+  const all = fixable.flatMap(f => f.actions), now = F.filter(f => inG(f, "now")).length;
+  return `<div class="head"><div><h1>Suggestions ${hint("Most important first. Fix shows a preview before anything changes, and every change can be undone. Menu names can differ a little between UniFi Network versions.")}</h1>
+      <div class="muted">${now ? `${now} need you · ${F.length - now} more` : `Nothing urgent · ${plural(F.length, "suggestion")}`}</div></div>
+    <div class="head-acts">${all.length > 1 ? actBtn(all, `Fix all ${all.length}…`, "Apply all shown configuration fixes", "") : ""}<button class="btn ghost" id="btn-md" title="Download as Markdown">Download</button></div></div>
+    <div class="fbar"><div class="seg" role="group" aria-label="Show">${F_GROUPS.map(([k, l]) => { const c = F.filter(f => inG(f, k)).length; return `<button data-fgroup="${k}" class="${S.sevFilter === k ? "on" : ""}">${l} <span class="fbar-n">${c}</span></button>`; }).join("")}</div>
+      <select data-farea aria-label="Area"><option value="all">Every area</option>${areas.map(a => `<option ${S.areaFilter === a ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></div>
+    <div class="frs">${groupFindings(shown).map(findingRow).join("") || `<div class="empty">Nothing here. Nice.</div>`}</div>`;
 };
-V.topology = m => `<div class="head"><div><h1>Topology</h1><div class="muted">Physical layout built from device uplinks (click a device to debug it), and the logical map of networks and Wi-Fi.</div></div></div>
+document.addEventListener("click", e => { const b = e.target.closest("[data-fgroup]"); if (!b) return; S.sevFilter = b.dataset.fgroup; S.fPicked = true; render(); });
+document.addEventListener("change", e => { if (!e.target.matches("[data-farea]")) return; S.areaFilter = e.target.value; render(); });
+V.topology = m => `<div class="head"><div><h1>Topology ${hint("Physical layout built from device uplinks (click a device to debug it), and the logical map of networks and Wi-Fi.")}</h1></div></div>
   <div class="card"><h2>Physical</h2>${physicalDiagram(m)}</div>
   <div class="card section"><h2>Logical — Internet → Gateway → VLANs → SSIDs</h2>${logicalDiagram(m)}</div>`;
 
@@ -159,15 +198,19 @@ const roleName = r => ({ gw: "Gateway", sw: "Switch", ap: "Access point", ups: "
 const statusTag = d => d.online ? `<span class="tag good">online</span>` : `<span class="tag bad">${esc(d.stateLabel)}</span>`;
 V.devices = m => {
   const bad = m.devices.filter(d => !d.online);
-  return `<div class="head"><div><h1>Devices</h1><div class="muted">Click any device for details, debug info and actions.</div></div></div>
-  ${bad.length ? `<div class="card" style="border-color:var(--crit)"><h2>Not working (${bad.length})</h2>${bad.map(d => { const dx = diagnoseDevice(d, m); return `<div class="finding high"><div class="t"><span>${esc(d.name)}</span><span class="area">${esc(d.model || "")} · ${esc(d.mac)}</span>${statusTag(d)}<span style="margin-left:auto"><button class="btn sm primary" data-dev="${esc(d.mac)}">Debug</button></span></div><p>${esc(dx.summary)}</p></div>`; }).join("")}</div>` : ""}
-  <div class="card ${bad.length ? "section" : ""}">${table("devs", [
-    { k: "name", label: "Name", fmt: r => `${devIcon(r)}<a href="#" data-dev="${esc(r.mac)}">${esc(r.name)}</a>` }, { k: "role", label: "Role", fmt: r => roleName(r.role) }, { k: "model", label: "Model" },
-    { k: "ip", label: "IP", fmt: r => `<span class="mono">${esc(r.ip || "–")}</span>`, sort: r => ipToInt(r.ip || "") }, { k: "mac", label: "MAC", fmt: r => `<span class="mono">${esc(r.mac)}</span>` },
-    { k: "version", label: "Firmware", fmt: r => esc(r.version || "–") + (r.upgradable ? ` <span class="tag bad">→ ${esc(r.upgradeTo || "update")}</span>` : "") },
-    { k: "online", label: "Status", fmt: statusTag }, { k: "uptime", label: "Uptime", num: 1, fmt: r => r.online ? fmtDur(r.uptime) : `<span class="muted">seen ${ago(r.lastSeen)}</span>` }, { k: "clients", label: "Clients", num: 1 },
-    { k: "cpu", label: "CPU", num: 1, fmt: r => r.cpu === null || r.cpu === undefined ? "–" : r.cpu + "%" }, { k: "mem", label: "RAM", num: 1, fmt: r => r.mem === null || r.mem === undefined ? "–" : r.mem + "%" },
-  ], m.devices, { search: true, empty: "No devices returned" })}</div>
+  const fixes = d => { if (d.online) return ""; const dx = diagnoseDevice(d, m); return dx.actions.filter(a => a.cmd !== "restart").slice(0, 1).map(a => actBtn(a, a.cmd === "power-cycle" ? "Power-cycle port" : a.cmd === "adopt" ? "Adopt" : "Fix", a.description)).join("") + `<button class="btn sm primary" data-dev="${esc(d.mac)}">Debug</button>`; };
+  return `<div class="head"><div><h1>Devices</h1><div class="muted">${m.devices.length - bad.length} of ${m.devices.length} online${bad.length ? ` · <span class="bad-t">${bad.length} not working</span>` : ""}</div></div></div>
+  ${table("devs", [
+    { k: "name", label: "Name", fmt: r => `${devIcon(r)}${esc(r.name)}${r.upgradable ? ` <span class="tag warn" title="Firmware ${esc(r.version || "")} → ${esc(r.upgradeTo || "newer")}">update</span>` : ""}` },
+    { k: "role", label: "Type", fmt: r => roleName(r.role) },
+    { k: "online", label: "Status", fmt: r => r.online ? `<span class="tag good">online</span>` : `<span class="tag bad">${esc(r.stateLabel === "Disconnected" ? "offline" : r.stateLabel)}</span> <span class="fine">${r.lastSeen ? ago(r.lastSeen) : ""}</span>`, sort: r => r.online ? 1 : 0 },
+    { k: "clients", label: "Clients", num: 1 },
+    { k: "uptime", label: "Uptime", num: 1, fmt: r => r.online ? fmtDur(r.uptime) : "–" },
+    { k: "cpu", label: "CPU", num: 1, fmt: r => r.cpu === null || r.cpu === undefined || !r.online ? "–" : r.cpu + "%" },
+    { k: "mem", label: "RAM", num: 1, fmt: r => r.mem === null || r.mem === undefined || !r.online ? "–" : r.mem + "%" },
+    { k: "model", more: 1, fmt: r => esc(r.model || "") }, { k: "ip", more: 1, fmt: r => r.ip ? `<span class="mono">${esc(r.ip)}</span>` : "" },
+    { k: "x", label: "", fmt: fixes },
+  ], m.devices, { search: true, empty: "No devices returned", pin: r => !r.online, rowAttr: r => `data-dev="${esc(r.mac)}" class="clickable"` })}
   <div class="card section"><h2>Physical topology</h2>${physicalDiagram(m)}</div>`;
 };
 function devActions(d) {
@@ -222,7 +265,7 @@ V.ports = m => {
     const up = p.isUplink && s.uplinkMac ? [`↑ ${esc(m.devByMac[s.uplinkMac]?.name || "uplink")}`] : [];
     return [...up, ...devs, ...cl.slice(0, 4), cl.length > 4 ? `+${cl.length - 4}` : ""].filter(Boolean).join(", ") || `<span class="muted">–</span>`;
   };
-  return `<div class="head"><div><h1>Switch ports</h1><div class="muted">Link speed, PoE, errors and what's plugged into every port.</div></div></div>` + sws.map((s, si) => `
+  return `<div class="head"><div><h1>Switch ports ${hint("Link speed, PoE, errors and what's plugged into every port.")}</h1></div></div>` + sws.map((s, si) => `
   <div class="card ${si ? "section" : ""}"><h2>${esc(s.name)} <span class="muted" style="font-weight:400">${esc(s.model || "")} · ${s.portsUp}/${s.ports.length} up${s.poeMax ? ` · PoE ${s.poeW.toFixed(1)}/${s.poeMax} W` : s.poeW ? ` · PoE ${s.poeW.toFixed(1)} W` : ""}</span></h2>
     <div class="ports">${s.ports.map(p => `<div class="port ${!p.up ? "down" : !p.speed ? "unk" : p.speed >= 2500 ? "mg" : p.speed >= 1000 ? "gig" : "slow"} ${p.rxErr + p.txErr > 100 ? "err" : ""}" title="Port ${p.idx}${p.name && p.name !== `Port ${p.idx}` ? " — " + esc(p.name) : ""}&#10;${p.up ? (p.speed ? fmtSpeed(p.speed) + "bps" : "link up") + (p.fdx ? "" : " half-duplex") : "no link"}${p.poeW ? `&#10;PoE ${p.poeW} W` : ""}${p.rxErr + p.txErr ? `&#10;${p.rxErr + p.txErr} errors` : ""}"><b>${p.idx}</b>${p.poeW ? "<i>⚡</i>" : ""}${p.sfp ? "<i>SFP</i>" : ""}</div>`).join("")}</div>
     <div class="legend"><span><i style="background:var(--ok)"></i>1 G</span><span><i style="background:var(--c1)"></i>2.5 G+</span><span><i style="background:var(--med)"></i>10/100</span><span><i style="background:var(--line)"></i>no link</span><span>red outline = errors · ⚡ PoE</span></div>
@@ -308,7 +351,7 @@ V.neighbors = m => {
   const { cands, plan } = channelPlan(m);
   const changes = plan.filter(p => p.change);
   const ch5 = [...new Set([36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 149, 153, 157, 161, 165, ...N.filter(n => n.band === "5").map(n => n.channel)])].filter(Boolean).sort((a, b) => a - b);
-  return `<div class="head"><div><h1>Neighbour Wi-Fi</h1><div class="muted">${N.length} networks your APs heard in the last 24 h. Orange bars = channels your own APs use.</div></div></div>
+  return `<div class="head"><div><h1>Neighbour Wi-Fi ${hint("Orange bars are the channels your own APs use.")}</h1><div class="muted">${N.length} networks heard in the last 24 h</div></div></div>
   <div class="grid g2"><div class="card"><h2>2.4 GHz — networks per channel</h2>${chartFor("2.4", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])}</div>
     <div class="card"><h2>5 GHz — networks per channel</h2>${chartFor("5", ch5)}</div></div>
   <div class="card section"><h2>Suggested 2.4 GHz plan</h2>
@@ -401,32 +444,32 @@ V.clients = m => {
   const tabs = { active: ["Active", m.clients.length], known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length] };
   const tab = S.clientTab;
   const tbl = tab === "active" ? table("clients", [
-    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}` }, { k: "ip", label: "IP", fmt: r => `<span class="mono">${esc(r.ip || "–")}</span>${r.fixedIp ? " 📌" : ""}`, sort: r => ipToInt(r.ip || "") }, { k: "mac", label: "MAC", fmt: r => `<span class="mono">${esc(r.mac)}</span>` },
-    { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "wifi")} · ${bandLabel(r.band)}` },
-    { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}">${r.signal}</span>` },
+    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}` },
+    { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "Wi-Fi")} · ${bandLabel(r.band)}` },
+    { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}" title="${r.signal < -75 ? "Weak" : r.signal < -67 ? "OK" : "Good"}">${r.signal} dBm</span>` },
     { k: "satisfaction", label: "Experience", num: 1, fmt: r => r.satisfaction === null || r.satisfaction === undefined ? "–" : r.satisfaction + "%" },
     { k: "traffic", label: "Traffic", num: 1, sort: r => (r.tx || 0) + (r.rx || 0), fmt: r => fmtBytes((r.tx || 0) + (r.rx || 0)) }, { k: "uptime", label: "Connected", num: 1, fmt: r => fmtDur(r.uptime) },
-    { k: "x", label: "", fmt: () => `<span class="muted">⋯</span>` },
+    { k: "ip", more: 1, fmt: r => r.ip ? `<span class="mono">${esc(r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
   ], m.clients, { search: true, empty: "No clients returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` })
     : table("known-" + tab, [
       { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}` }, { k: "online", label: "Status", fmt: r => r.online ? `<span class="tag good">online</span>` : `<span class="muted">seen ${ago(r.lastSeen)}</span>`, sort: r => r.online ? Infinity : (r.lastSeen || 0) },
-      { k: "ip", label: "IP", fmt: r => `<span class="mono">${esc(r.fixedIp || r.ip || "–")}</span>${r.fixedIp ? " 📌" : ""}` }, { k: "mac", label: "MAC", fmt: r => `<span class="mono">${esc(r.mac)}</span>` },
+      { k: "ip", more: 1, fmt: r => r.fixedIp || r.ip ? `<span class="mono">${esc(r.fixedIp || r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
       { k: "vendor", label: "Vendor" }, { k: "network", label: "Network" }, { k: "blocked", label: "Blocked", fmt: r => r.blocked ? `<span class="tag bad">blocked</span>` : "" },
-      { k: "firstSeen", label: "First seen", num: 1, fmt: r => fmtTime(r.firstSeen) }, { k: "x", label: "", fmt: () => `<span class="muted">⋯</span>` },
+      { k: "firstSeen", label: "First seen", num: 1, fmt: r => fmtTime(r.firstSeen) },
     ], tab === "blocked" ? m.known.filter(k => k.blocked) : m.known, { search: true, empty: tab === "blocked" ? "No blocked clients" : "No known-client list returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` });
-  return `<div class="head"><div><h1>Clients</h1><div class="muted">${m.clients.length} active · ${m.known.length} known. Click a client for details, app usage and actions.</div></div></div>
-  <div class="grid g2"><div class="card"><h2>Wireless signal strength (dBm)</h2>${columns(bins)}<p class="fine">Green ≥ −67 (good for calls/video) · amber −67…−75 · red &lt; −75 (weak)</p></div>
+  return `<div class="head"><div><h1>Clients</h1><div class="muted">${m.clients.length} active · ${m.known.length} known</div></div></div>
+  <div class="filters">${Object.entries(tabs).map(([k, [l, n]]) => `<button data-ctab="${k}" class="${tab === k ? "on" : ""}">${l} (${n})</button>`).join("")}</div>${tbl}
+  ${insights("clients", `<div class="grid g2"><div class="card"><h2>Wireless signal strength (dBm)</h2>${columns(bins)}<p class="fine">Green ≥ −67 (good for calls/video) · amber −67…−75 · red &lt; −75 (weak)</p></div>
     <div class="card"><h2>Top 10 by traffic (since connected)</h2>${hbar(top.map(c => ({ label: c.label, value: (c.tx || 0) + (c.rx || 0), color: "var(--c2)" })), { fmt: fmtBytes })}</div>
     <div class="card"><h2>Wireless clients per AP</h2>${hbar(Object.entries(byAp).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value, color: "var(--c4)" })))}</div>
-    <div class="card"><h2>Whole-network app categories</h2>${hbar([...m.dpiCats].sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx)).slice(0, 8).map(d => ({ label: d.cat, value: d.rx + d.tx, color: "var(--c1)" })), { fmt: fmtBytes })}</div></div>
-  <div class="card section"><div class="filters">${Object.entries(tabs).map(([k, [l, n]]) => `<button data-ctab="${k}" class="${tab === k ? "on" : ""}">${l} (${n})</button>`).join("")}</div>${tbl}</div>`;
+    <div class="card"><h2>Whole-network app categories</h2>${hbar([...m.dpiCats].sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx)).slice(0, 8).map(d => ({ label: d.cat, value: d.rx + d.tx, color: "var(--c1)" })), { fmt: fmtBytes })}</div></div>`)}`;
 };
 
 // ---- history & events
 V.history = m => {
   const H = m.history, wk = H.hourly;
   const top = (list, key) => Object.entries(list.reduce((a, x) => { const k = x[key] || "?"; a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([label, value]) => ({ label, value, color: "var(--crit)" }));
-  return `<div class="head"><div><h1>History &amp; Events</h1><div class="muted">Usage over time, console events, and threats seen by IPS.</div></div></div>
+  return `<div class="head"><div><h1>History &amp; Events</h1></div></div>
   <div class="grid g2">
     <div class="card"><h2>Internet traffic per hour — 7 days</h2>${lineChart([{ name: "Download", color: "var(--c1)", fill: true, points: wk.map(r => ({ t: r.t, v: r.wanRx })) }, { name: "Upload", color: "var(--c3)", points: wk.map(r => ({ t: r.t, v: r.wanTx })) }], { fmt: fmtBytes })}</div>
     <div class="card"><h2>Connected clients — 7 days</h2>${lineChart([{ name: "Clients", color: "var(--c2)", fill: true, points: wk.map(r => ({ t: r.t, v: r.sta })) }], { fmt: v => Math.round(v) })}</div>
@@ -442,7 +485,7 @@ V.history = m => {
 };
 
 // ---- changes
-V.changes = () => `<div class="head"><div><h1>Changes</h1><div class="muted">Everything this app changed during this server run. Also appended to <code>changes-log.jsonl</code> next to server.py.</div></div><button class="btn" id="btn-reload-changes">Refresh</button></div>
+V.changes = () => `<div class="head"><div><h1>Changes ${hint("Everything HomeOwl changed since it started. Also saved to changes-log.jsonl in HomeOwl's data folder.")}</h1></div><button class="btn" id="btn-reload-changes">Refresh</button></div>
   <div class="card" id="changes-body"><div class="empty">${S.source === "live" ? "Loading…" : "Changes are only available with a live connection."}</div></div>`;
 async function loadChanges() {
   if (S.source !== "live") return;
@@ -482,7 +525,7 @@ V.cheatsheet = m => {
   const c = cheatData(m);
   const kv = rows => `<dl class="kv">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v ?? "–")}</dd>`).join("")}</dl>`;
   const small = (cols, rows) => rows.length ? `<table><thead><tr>${cols.map(c => `<th>${esc(c[0])}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${c[1](r)}</td>`).join("")}</tr>`).join("")}</tbody></table>` : `<div class="muted">–</div>`;
-  return `<div class="head no-print"><div><h1>Cheatsheet</h1><div class="muted">Print it or save as Markdown. Passwords are never included.</div></div>
+  return `<div class="head no-print"><div><h1>Cheatsheet ${hint("Passwords are never included.")}</h1></div>
     <div style="display:flex;gap:8px"><button class="btn" id="btn-print">Print / PDF</button><button class="btn" id="btn-cheat-md">Download Markdown</button></div></div>
   <div class="cheat">
     <div class="cols"><div><h2>Console</h2>${kv(c.console)}</div><div><h2>Key settings</h2>${kv(c.settings)}<h2>Health</h2>${kv([["Score", `${scoreOf(S.findings)}/100 (grade ${grade(scoreOf(S.findings))})`], ["Open issues", S.findings.filter(f => f.sev !== "info").length], ["Collected", m.info.collectedAt]])}</div></div>
@@ -510,7 +553,7 @@ V.cheatsheet = m => {
 
 V.raw = () => {
   const log = arr(S.bundle?.meta?.log);
-  return `<div class="head"><div><h1>Raw data</h1><div class="muted">Every endpoint the app queried. Secrets are replaced with <code>{"__redacted__":true,"length":n}</code> before reaching this page. Failed rows are normal — not every console supports every endpoint.</div></div>
+  return `<div class="head"><div><h1>Raw data ${hint("Every endpoint HomeOwl asked. Secrets are replaced before they reach this page. Some failed rows are normal: not every console supports every endpoint.")}</h1></div>
     <button class="btn" id="btn-dl">Download redacted JSON</button></div>
   <div class="grid g2"><div class="card">${table("log", [
     { k: "source", label: "API" }, { k: "name", label: "Data" }, { k: "status", label: "Status", num: 1, fmt: r => `<span class="${r.ok ? "ok-t" : "bad-t"}">${r.status || "err"}</span>` },
@@ -571,8 +614,6 @@ function load(bundle, source, keepView) {
 document.addEventListener("click", e => {
   const dev = e.target.closest("[data-dev]"); if (dev) { e.preventDefault(); showDevice(dev.dataset.dev); return; }
   const nav = e.target.closest("#nav a,[data-goto]"); if (nav) { e.preventDefault(); closeModal(); S.view = nav.dataset.view || nav.dataset.goto; render(); window.scrollTo(0, 0); return; }
-  const sev = e.target.closest("[data-sev]"); if (sev) { S.sevFilter = sev.dataset.sev; render(); return; }
-  const area = e.target.closest("[data-area]"); if (area) { S.areaFilter = area.dataset.area; render(); return; }
   const raw = e.target.closest("[data-raw]"); if (raw) { e.preventDefault(); const [src, name] = raw.dataset.raw.split("|"); $("#raw-title").textContent = `${src} / ${name}`; $("#raw-json").textContent = JSON.stringify(S.bundle[src]?.[name], null, 2); return; }
   const id = e.target.id;
   if (id === "btn-md") download("unifi-suggestions.md", findingsMd());

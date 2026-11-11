@@ -2,7 +2,7 @@
 "use strict";
 
 S.hist = { list: null, sel: null, since: 24 };
-V.confighistory = () => `<div class="head"><div><h1>Config history</h1><div class="muted">HomeOwl keeps a copy of your UniFi settings whenever they change (passwords stay hidden), so you can see what changed and when.</div></div>
+V.confighistory = () => `<div class="head"><div><h1>Config history ${hint("HomeOwl keeps a copy of your UniFi settings whenever they change (passwords stay hidden), so you can see what changed and when.")}</h1></div>
   <button class="btn" id="hist-reload">Refresh</button></div><div id="hist-body"><div class="empty">Loading…</div></div>`;
 
 const HIST_AGO = [[24, "Since yesterday"], [168, "Last 7 days"], [720, "Last 30 days"]];

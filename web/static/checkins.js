@@ -3,7 +3,7 @@
 "use strict";
 
 S.checkins = null;
-V.checkins = () => `<div class="head"><div><h1>Device check-ins</h1><div class="muted">Family members name their own devices; you approve.</div></div>
+V.checkins = () => `<div class="head"><div><h1>Device check-ins ${hint("Family members name their own devices; you approve.")}</h1></div>
   <button class="btn" id="ci-reload">Refresh</button></div><div id="ci-body"><div class="empty">Loading…</div></div>`;
 
 const CI_KIND = { phone: "📱", tablet: "📱", laptop: "💻", computer: "🖥", tv: "📺", console: "🎮", speaker: "🔊", watch: "⌚", camera: "📷", printer: "🖨", other: "❔" };

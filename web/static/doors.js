@@ -7,7 +7,7 @@ const CRED = { NFC: "card", PIN_CODE: "PIN", MOBILE_TAP: "phone (tap)", MOBILE_B
   REMOTE: "remote", BUTTON: "exit button", QR_CODE: "QR code", TOUCH_PASS: "Touch Pass", WAVE: "wave", LICENSE_PLATE: "licence plate" };
 const credName = c => CRED[c] || String(c || "").toLowerCase().replace(/_/g, " ");
 
-V.doors = () => `<div class="head"><div><h1>Doors</h1><div class="muted">UniFi Access: which doors are locked or open, who came in, and a remote unlock for when you're not home.</div></div></div>
+V.doors = () => `<div class="head"><div><h1>Doors ${hint("UniFi Access: which doors are locked or open, who came in, and a remote unlock for when you're not home.")}</h1></div></div>
   <div id="doors-body"><div class="empty">Loading…</div></div>`;
 
 function doorsFromBundle() {

@@ -38,7 +38,7 @@ function camFromBundle() {
       .filter(e => e.start >= now - S.camF.days * 86400e3) };
 }
 
-V.cameras = () => `<div class="head"><div><h1>Cameras</h1><div class="muted">UniFi Protect at a glance: what the cameras see, whether they're healthy, and who came to the door. Read-only.</div></div>
+V.cameras = () => `<div class="head"><div><h1>Cameras ${hint("UniFi Protect at a glance: what the cameras see, whether they're healthy, and who came to the door. Read-only.")}</h1></div>
   <div class="btnrow"><label class="check cam-livesw" title="Refresh the pictures every 2 seconds instead of every 15"><input type="checkbox" id="cam-live" ${S.camLive ? "checked" : ""}> Live</label><button class="btn sm" id="cam-refresh">Refresh pictures</button><button class="btn sm primary" id="cam-wall-open">Camera wall</button></div></div>
   <div id="cam-body"><div class="empty">Loading…</div></div>`;
 

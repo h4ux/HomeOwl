@@ -5,7 +5,7 @@
 S.prDays = 1;
 S.pr = null;
 
-V.presence = () => `<div class="head"><div><h1>Who's home</h1><div class="muted">Someone is home while their phone (or another device you tag) is connected to the home Wi-Fi. Worked out on this computer only.</div></div></div>
+V.presence = () => `<div class="head"><div><h1>Who's home ${hint("Someone is home while their phone (or another device you tag) is connected to the home Wi-Fi. Worked out on this computer only.")}</h1></div></div>
   <div id="pr-body"><div class="empty">Loading…</div></div>`;
 
 // demo: two fictional people with the demo's first wireless clients

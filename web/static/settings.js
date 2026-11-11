@@ -1,7 +1,7 @@
 /* HomeOwl — Settings (admins): UniFi connection, access (home network + built-in Tailscale), users, AI & MCP, analytics. */
 "use strict";
 
-V.settings = () => `<div class="head"><div><h1>Settings</h1><div class="muted">Stored on the computer running HomeOwl.</div></div></div><div id="settings-body"><div class="empty">Loading…</div></div>`;
+V.settings = () => `<div class="head"><div><h1>Settings</h1></div></div><div id="settings-body"><div class="empty">Loading…</div></div>`;
 
 const MCP_MODES = [
   ["off", "Off", "No AI assistant or MCP client can connect."],

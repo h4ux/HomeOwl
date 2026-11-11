@@ -3,7 +3,7 @@
 "use strict";
 
 S.guest = null;
-V.guest = () => `<div class="head"><div><h1>Guest Wi-Fi</h1><div class="muted">Let visitors join with a scan: show this page or print a card for the fridge.</div></div></div>
+V.guest = () => `<div class="head"><div><h1>Guest Wi-Fi ${hint("Let visitors join with a scan: show this page or print a card for the fridge.")}</h1></div></div>
   <div id="guest-body"><div class="empty">Loading…</div></div>`;
 
 // demo / saved report: guest SSIDs straight from the bundle (live passwords come from the server, which only sends guest ones)
