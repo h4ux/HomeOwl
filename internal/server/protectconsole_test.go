@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,5 +67,63 @@ func TestProtectOnAnotherConsole(t *testing.T) {
 	}
 	if _, err := a.protectDisconnect(); err != nil || a.Sec.Get(protectKeySlot) != "" || a.protectClient() != a.UniFi {
 		t.Fatalf("disconnect: %v", err)
+	}
+}
+
+func TestDiscoverProtect(t *testing.T) {
+	nvr := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/system":
+			_, _ = w.Write([]byte(`{"name":"Garage NVR","hardware":{"shortname":"UNVR","name":"UniFi NVR"}}`))
+		case "/proxy/protect/integration/v1/meta/info":
+			w.WriteHeader(401)
+			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer nvr.Close()
+	printer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("<html>printer</html>"))
+	}))
+	defer printer.Close()
+	gateway := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/proxy/network/integration/v1/info":
+			_, _ = w.Write([]byte(`{"applicationVersion":"9.0"}`))
+		case "/proxy/network/api/s/default/stat/sta":
+			_, _ = w.Write([]byte(`{"data":[{"mac":"aa:bb:cc:00:00:10","ip":"192.168.1.5","oui":"Ubiquiti Inc","hostname":"UNVR"},
+				{"mac":"aa:bb:cc:00:00:11","ip":"192.168.1.6","oui":"Ubiquiti Inc","hostname":"U6-Printer-Bridge"},
+				{"mac":"aa:bb:cc:00:00:12","ip":"192.168.1.7","oui":"Apple","hostname":"iPhone"},
+				{"mac":"aa:bb:cc:00:00:13","ip":"203.0.113.9","oui":"Ubiquiti Inc","hostname":"far-away"}]}`))
+		default:
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		}
+	}))
+	defer gateway.Close()
+	old := discoverBase
+	defer func() { discoverBase = old }()
+	discoverBase = func(ip string) (string, bool) {
+		switch ip {
+		case "192.168.1.5":
+			return nvr.URL, true
+		case "192.168.1.6":
+			return printer.URL, true
+		case "192.168.1.7":
+			return "https://192.0.2.1", true // must never be asked: not a Ubiquiti device
+		}
+		return "", false
+	}
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.UniFi.Connect(gateway.URL, "gw-key", false, "default"); err != nil {
+		t.Fatal(err)
+	}
+	a.Cache.Get(true, 0)
+	found := a.discoverProtect(context.Background())
+	if len(found) != 1 || found[0]["ip"] != "192.168.1.5" || found[0]["name"] != "Garage NVR" || found[0]["likely"] != true {
+		t.Fatalf("found: %v", found)
 	}
 }

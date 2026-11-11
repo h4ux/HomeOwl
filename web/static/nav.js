@@ -28,6 +28,7 @@ const NAV = [
     { label: "Guest Wi-Fi", views: [["guest", "Guest Wi-Fi"]] },
   ] },
   { id: "family", name: "Family", pages: [
+    { label: "Who's home", views: [["presence", "Who's home"]] },
     { label: "Analytics", views: [["analytics", "Analytics"]] },
     { label: "Check-ins", views: [["checkins", "Check-ins"]], pill: "nav-checkins", hidden: true },
   ] },

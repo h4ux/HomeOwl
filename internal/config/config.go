@@ -113,6 +113,14 @@ type Guest struct {
 	QRTheme string   `json:"qr_theme,omitempty"` // style of the join code: classic, rounded (default), blue, night, fridge
 }
 
+// Presence is "who's home": the devices that say a person is home, and the history of arrivals and departures.
+type Presence struct {
+	Devices     map[string]string `json:"devices,omitempty"`      // MAC (lower case) → person id
+	NoHistory   bool              `json:"no_history,omitempty"`   // keep only the current state
+	Days        int               `json:"days,omitempty"`         // history to keep (default 90)
+	AwayMinutes int               `json:"away_minutes,omitempty"` // away after this long without a device (default 10)
+}
+
 // Menubar is the macOS menu bar icon.
 type Menubar struct {
 	Hide bool   `json:"hide,omitempty"` // shown unless turned off
@@ -132,6 +140,7 @@ type Config struct {
 	Updates        Updates   `json:"updates"`
 	Guest          Guest     `json:"guest"`
 	Menubar        Menubar   `json:"menubar"`
+	Presence       Presence  `json:"presence"`
 	Cameras        Cameras   `json:"cameras"`
 	Access         Access    `json:"access"`
 	UPS            UPS       `json:"ups"`

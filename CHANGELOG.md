@@ -4,6 +4,22 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.9] — 2026-11-11
+
+### Added
+- **Family › Who's home.** Tag the device each person takes with them, usually their phone. They count as home while it's connected to your Wi-Fi, and as away once it has been gone for 10 minutes (adjustable), so a phone that drops Wi-Fi while asleep doesn't count as leaving. The page shows:
+  - who's home and since when, a strip of today for each person, time at home over 1, 7 or 30 days, and every arrival and departure.
+  - The history is optional (on by default), kept for 7 to 365 days on this computer only, and can be cleared or turned off, which deletes it. A tagged device also counts as that person's in Analytics.
+  - Hints about private Wi-Fi addresses ("Fixed", not "Rotating").
+  - The menu bar's "who's home" and the new MCP read tool `whos_home` use the same data.
+- Camera wall: every camera, or the ones you pick, in a grid that fills the window or the whole screen (Auto, 1, 2×2, 3×3 or 4×4). Click a camera for a single large, sharper view. Fewer cameras refresh faster (about every 0.7 s for one).
+- Float a camera: a small window that stays on top while you work. In Chrome and Edge it's a floating page; other browsers use video picture-in-picture. Single cameras also open full screen.
+- Cameras: HomeOwl looks for the console that runs Protect among the Ubiquiti devices on your network (asking them without a key, read-only) and suggests it, so you only paste an API key.
+
+### Fixed
+- Camera health: a long "Detects" list squeezed its label into one letter per line. Labels now stay on one line, and long lists show the first five and "+N more".
+- The demo data contained a real first name in a device name; it is now fictional.
+
 ## [0.1.8] — 2026-11-11
 
 ### Added

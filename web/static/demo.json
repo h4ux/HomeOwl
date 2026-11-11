@@ -454,7 +454,7 @@
     "tx_bytes": 27642297818,
     "rx_bytes": 64734536207,
     "uptime": 95719,
-    "hostname": "iPhone-Alon",
+    "hostname": "iPhone-Alex",
     "essid": "Home",
     "radio": "na",
     "signal": -77,
@@ -1677,7 +1677,7 @@
    {
     "time": 1794127340177,
     "key": "EVT_WU_Roam",
-    "msg": "User[iPhone-Alon] roamed from Living Room AP to Upstairs AP",
+    "msg": "User[iPhone-Alex] roamed from Living Room AP to Upstairs AP",
     "subsystem": "wlan"
    },
    {

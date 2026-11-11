@@ -28,6 +28,7 @@ import (
 	"github.com/h4ux/homeowl/internal/config"
 	"github.com/h4ux/homeowl/internal/history"
 	"github.com/h4ux/homeowl/internal/mcp"
+	"github.com/h4ux/homeowl/internal/presence"
 	"github.com/h4ux/homeowl/internal/protect"
 	"github.com/h4ux/homeowl/internal/secrets"
 	"github.com/h4ux/homeowl/internal/tsnetx"
@@ -69,6 +70,8 @@ type App struct {
 	History      *history.Store
 	firmware     *firmwareWatch
 	Protect      *protect.Watcher
+	presence     *presence.Tracker
+	presenceKick chan struct{}
 	ProtectUniFi *unifi.Client // Protect on its own console; unused (not connected) when Protect is on the Network console
 	Access       *access.Client
 	UPS          *ups.Monitor
@@ -100,6 +103,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.firmware = newFirmwareWatch(dataDir)
 	a.Access = &access.Client{}
 	a.UPS = newUPSMonitor(a)
+	a.presence, a.presenceKick = newPresence(dataDir), make(chan struct{}, 1)
 	a.ProtectUniFi = unifi.New()
 	a.Protect = &protect.Watcher{Client: a.protectClient, Store: protect.NewStore(filepath.Join(dataDir, "protect-events.json"))}
 	a.Cache.OnCollect = func(b map[string]any) {
@@ -127,6 +131,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.autoConnect()
 	a.configureAccess()
 	go a.connectProtectSaved(ctx)
+	go a.presenceLoop(ctx)
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)

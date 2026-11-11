@@ -39,7 +39,7 @@ function camFromBundle() {
 }
 
 V.cameras = () => `<div class="head"><div><h1>Cameras</h1><div class="muted">UniFi Protect at a glance: what the cameras see, whether they're healthy, and who came to the door. Read-only.</div></div>
-  <div class="btnrow"><label class="check cam-livesw" title="Refresh the pictures every 2 seconds instead of every 15"><input type="checkbox" id="cam-live" ${S.camLive ? "checked" : ""}> Live</label><button class="btn sm" id="cam-refresh">Refresh pictures</button></div></div>
+  <div class="btnrow"><label class="check cam-livesw" title="Refresh the pictures every 2 seconds instead of every 15"><input type="checkbox" id="cam-live" ${S.camLive ? "checked" : ""}> Live</label><button class="btn sm" id="cam-refresh">Refresh pictures</button><button class="btn sm primary" id="cam-wall-open">Camera wall</button></div></div>
   <div id="cam-body"><div class="empty">Loading…</div></div>`;
 
 async function loadCameras() {
@@ -48,7 +48,7 @@ async function loadCameras() {
     try { S.cam = await api(`/api/cameras?days=${S.camF.days}`); }
     catch (err) { el.innerHTML = `<div class="card"><p class="muted">${esc(err.message)}</p></div>`; return; }
   } else S.cam = camFromBundle();
-  if ($("#cam-body")) { $("#cam-body").innerHTML = camBody(S.cam); if (S.source === "live") refreshSnaps(true); }
+  if ($("#cam-body")) { $("#cam-body").innerHTML = camBody(S.cam); if (S.source === "live") refreshSnaps(true); if ($("#cam-found")) camDiscover(); }
 }
 
 function camPicture(c, demo) {
@@ -112,7 +112,9 @@ function camBody(r) {
     ${table("cams", [
       { k: "name", label: "Camera", fmt: c => `${esc(c.name)} <span class="fine">${esc(c.model || "")}</span>`, sort: c => c.name },
       { k: "state", label: "State", fmt: c => c.state === "CONNECTED" ? `<span class="tag good">online</span>` : `<span class="tag bad">${esc((c.state || "offline").toLowerCase())}</span>` },
-      { k: "smart", label: "Detects", fmt: c => (c.smart || []).length ? (c.smart || []).map(k => `<span class="tag">${esc(kindName(k))}</span>`).join(" ") : `<span class="fine">motion only</span>` },
+      { k: "smart", label: "Detects", fmt: c => { const k = arr(c.smart); if (!k.length) return `<span class="fine">motion only</span>`;
+        const show = k.slice(0, 5).map(x => `<span class="tag">${esc(kindName(x))}</span>`).join(" ");
+        return k.length > 5 ? `${show} <span class="tag" title="${esc(k.slice(5).map(kindName).join(", "))}">+${k.length - 5} more</span>` : show; } },
       { k: "mode", label: "Video", fmt: c => esc([c.mode && c.mode !== "default" ? c.mode : "", c.hdr && c.hdr !== "off" ? `HDR ${c.hdr}` : ""].filter(Boolean).join(" · ") || "standard") },
       { k: "mic", label: "Microphone", fmt: c => c.mic ? "on" : "off" },
       { k: "last", label: "Last event", fmt: c => last[c.id] ? `${esc(camEventLabel(last[c.id]))} <span class="fine">${ago(last[c.id].start)}</span>` : "–", sort: c => -(last[c.id]?.start || 0) },
@@ -127,13 +129,33 @@ function camBody(r) {
 // where Protect runs, when it isn't the Network console (admins)
 function camConsoleForm(r) {
   if (S.role !== "admin") return `<p class="fine">An admin can connect the console that runs Protect.</p>`;
-  return `<div class="cam-console"><p>Connect the console that runs Protect. On that console, open <b>Settings › Control Plane › Integrations</b>, create an API key, and paste it here. HomeOwl only reads from Protect. The key is kept in this computer's keychain.</p>
+  return `<div class="cam-console"><div id="cam-found" class="cam-found">${camFoundHtml()}</div><p>Connect the console that runs Protect. On that console, open <b>Settings › Control Plane › Integrations</b>, create an API key, and paste it here. HomeOwl only reads from Protect. The key is kept in this computer's keychain.</p>
     <div class="grid g2"><label>Console IP or name<input id="cam-host" value="${esc(r.protect_console || "")}" placeholder="192.168.1.5" spellcheck="false" autocomplete="off"></label>
       <label>API key<input id="cam-key" type="password" autocomplete="off" placeholder="${r.protect_console ? "saved — leave empty to keep it" : "from that console"}"></label></div>
     <label class="check"><input type="checkbox" id="cam-verify"> Check the console's certificate (only if it has a real one)</label>
     <div class="btnrow"><button class="btn primary" id="cam-console-save">Connect</button>
       ${r.protect_console ? `<button class="btn" id="cam-console-off">Use the Network console again</button>` : ""}
       ${S.camConsoleEdit ? `<button class="btn ghost" id="cam-console-cancel">Cancel</button>` : ""}</div></div>`;
+}
+
+// consoles on the home network that may run Protect (HomeOwl asks them without a key; read-only)
+function camFoundHtml() {
+  const f = S.camFound;
+  if (!f) return `<p class="fine muted">Looking for UniFi consoles with Protect on your network…</p>`;
+  if (f.error) return `<p class="fine muted">Couldn't look for consoles: ${esc(f.error)}</p>`;
+  const list = arr(f.found).filter(x => !x.connected);
+  if (!list.length) return `<p class="fine muted">HomeOwl didn't find another UniFi console on your network. Enter its address below.</p>`;
+  return `<p><b>${list.some(x => x.likely) ? "Found on your network:" : "Other UniFi consoles on your network:"}</b></p>
+    <div class="cam-found-list">${list.map(x => `<div class="cam-found-row ${x.likely ? "likely" : ""}"><div><b>${esc(x.name || x.ip)}</b> <span class="fine muted">${esc([x.model, x.ip].filter(Boolean).join(" · "))}</span>
+      ${x.likely ? `<span class="tag good">runs Protect</span>` : x.protect ? `<span class="tag">may run Protect</span>` : ""}</div>
+      <button class="btn sm ${x.likely ? "primary" : ""}" data-camuse="${esc(x.ip)}">Use this</button></div>`).join("")}</div>`;
+}
+async function camDiscover() {
+  if (S.camFound || S.camFinding || S.source !== "live" || S.role !== "admin") return;
+  S.camFinding = true;
+  try { S.camFound = await api("/api/cameras/discover"); } catch (err) { S.camFound = { error: err.message }; }
+  S.camFinding = false;
+  if ($("#cam-found")) $("#cam-found").innerHTML = camFoundHtml();
 }
 
 async function camConsole(body) {
@@ -162,7 +184,7 @@ function openCamera(id) {
   const body = !live ? camPicture(c, S.cam.demo)
     : `<div class="cam-pic big"><img id="cam-big" data-camid="${esc(c.id)}" alt="Picture from ${esc(c.name)}" hidden><span class="cam-wait" id="cam-big-msg">Loading picture…</span><span class="cam-live" id="cam-big-fps">live</span></div>`;
   const evs = arr(S.cam.events).filter(e => e.camera === id).slice(0, 8);
-  openModal({ title: c.name, wide: true, body: `${body}
+  openModal({ title: c.name, wide: true, buttons: live ? [{ label: "Float", onClick: () => { closeModal(); camFloat(c.id); } }, { label: "Full screen", onClick: () => { closeModal(); openWall(c.id); if (document.fullscreenEnabled) $("#cam-wall")?.requestFullscreen().catch(() => { }); } }, { label: "Close" }] : [{ label: "Close" }], body: `${body}
     <p class="fine">${esc(c.model || "")}${c.doorbell ? " · doorbell" : ""} · The video and recordings stay in UniFi Protect.</p>
     ${evs.length ? `<h3>Latest events</h3>${evs.map(e => `<div class="cam-ev"><span class="mono cam-t">${fmtTime(e.start)}</span><span class="tag ${camEventTag(e)}">${esc(camEventLabel(e))}</span></div>`).join("")}` : ""}` });
   if (live) camBigLoop(c.id);
@@ -226,7 +248,9 @@ document.addEventListener("change", e => {
 });
 
 document.addEventListener("click", e => {
-  if (e.target.id === "cam-console-edit") { S.camConsoleEdit = true; $("#cam-body").innerHTML = camBody(S.cam); return; }
+  if (e.target.id === "cam-console-edit") { S.camConsoleEdit = true; $("#cam-body").innerHTML = camBody(S.cam); camDiscover(); return; }
+  const use = e.target.closest("[data-camuse]");
+  if (use) { const h = $("#cam-host"); if (h) { h.value = use.dataset.camuse; $("#cam-key")?.focus(); toast("Now paste an API key created on that console", ""); } return; }
   if (e.target.id === "cam-console-cancel") { S.camConsoleEdit = false; $("#cam-body").innerHTML = camBody(S.cam); refreshSnaps(true); return; }
   if (e.target.id === "cam-console-save") { const h = $("#cam-host")?.value.trim(); if (!h) { toast("Enter the console's IP or name", "err"); return; } e.target.disabled = true; camConsole({ host: h, key: $("#cam-key")?.value.trim() || "", verify_tls: !!$("#cam-verify")?.checked }).finally(() => { e.target.disabled = false; }); return; }
   if (e.target.id === "cam-console-off") { camConsole({ disconnect: true }); return; }
@@ -259,4 +283,124 @@ document.addEventListener("change", async e => {
 { const _render = render; render = function () {
   _render();
   if (S.view === "cameras") { loadCameras(); if (!camTimer) camTimer = setInterval(camTick, 1000); }
+  else if (CW.open) closeWall();
 }; }
+
+// ------------------------------------------------------------------ camera wall (full window, pick cameras) and floating player
+// Pictures come from the same snapshot endpoint (HomeOwl shares one per camera about once a second), so the wall
+// refreshes each tile as fast as that allows: about every 0.7 s for one camera, slower when many are shown.
+const CW = { open: false, focus: null, layout: "auto", sel: null, gen: 0 };
+try { CW.sel = JSON.parse(localStorage.getItem("homeowl-cam-wall") || "null"); CW.layout = localStorage.getItem("homeowl-cam-wall-layout") || "auto"; } catch { }
+const cwCams = () => arr(S.cam?.cameras);
+const cwShown = () => { const all = cwCams(), sel = Array.isArray(CW.sel) ? CW.sel : all.filter(c => c.state === "CONNECTED").map(c => c.id); return CW.focus ? all.filter(c => c.id === CW.focus) : all.filter(c => sel.includes(c.id)); };
+const cwSave = () => { try { localStorage.setItem("homeowl-cam-wall", JSON.stringify(CW.sel)); localStorage.setItem("homeowl-cam-wall-layout", CW.layout); } catch { } };
+
+function openWall(focus = null) {
+  if (!cwCams().length) return;
+  CW.open = true; CW.focus = focus;
+  if (!$("#cam-wall")) document.body.insertAdjacentHTML("beforeend", `<div id="cam-wall" class="cam-wall" role="dialog" aria-label="Camera wall"></div>`);
+  cwRender();
+}
+function closeWall() {
+  CW.open = false; CW.focus = null; CW.gen++;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+  $$("#cam-wall img").forEach(i => { if (i.src.startsWith("blob:")) URL.revokeObjectURL(i.src); });
+  $("#cam-wall")?.remove();
+}
+function cwRender() {
+  const el = $("#cam-wall"); if (!el) return;
+  const all = cwCams(), shown = cwShown(), n = shown.length;
+  const cols = CW.focus ? 1 : CW.layout !== "auto" ? +CW.layout : n <= 1 ? 1 : n <= 4 ? 2 : n <= 9 ? 3 : 4;
+  const sel = Array.isArray(CW.sel) ? CW.sel : shown.map(c => c.id);
+  el.innerHTML = `<div class="cw-bar">
+      ${CW.focus ? `<button class="btn sm" data-cw="back">← All cameras</button><b class="cw-title">${esc(shown[0]?.name || "")}</b>`
+        : `<div class="cw-pick" role="group" aria-label="Cameras to show">${all.map(c => `<button class="cw-chip ${sel.includes(c.id) ? "on" : ""}" data-cwcam="${esc(c.id)}" aria-pressed="${sel.includes(c.id)}" ${c.state !== "CONNECTED" ? `title="offline"` : ""}>${esc(c.name)}</button>`).join("")}</div>
+        <select data-cw="layout" aria-label="Layout">${[["auto", "Auto"], ["1", "1 big"], ["2", "2 × 2"], ["3", "3 × 3"], ["4", "4 × 4"]].map(([v, l]) => `<option value="${v}" ${CW.layout === v ? "selected" : ""}>${l}</option>`).join("")}</select>`}
+      <span class="cw-sp"></span>
+      ${CW.focus ? `<button class="btn sm" data-cw="float" data-id="${esc(CW.focus)}">Float</button>` : ""}
+      ${document.fullscreenEnabled ? `<button class="btn sm" data-cw="fs">${document.fullscreenElement ? "Exit full screen" : "Full screen"}</button>` : ""}
+      <button class="btn sm" data-cw="close" aria-label="Close the camera wall">✕</button></div>
+    <div class="cw-grid" style="--cw-cols:${cols}">${n ? shown.map(c => `<div class="cw-tile ${c.state !== "CONNECTED" ? "off" : ""}" data-cwtile="${esc(c.id)}" tabindex="0" role="button" aria-label="${CW.focus ? "Back to all cameras" : `Show ${esc(c.name)} large`}">
+        ${S.cam.demo ? camPicture(c, true) : c.state !== "CONNECTED" ? `<div class="cw-msg">Offline</div>` : `<img alt="${esc(c.name)}" data-cwimg="${esc(c.id)}" hidden><div class="cw-msg" data-cwmsg="${esc(c.id)}">Loading…</div>`}
+        <span class="cw-name">${esc(c.name)}</span><span class="cw-age" data-cwage="${esc(c.id)}"></span></div>`).join("")
+      : `<div class="cw-empty">Pick cameras above.</div>`}</div>`;
+  const gen = ++CW.gen;
+  if (!S.cam.demo) shown.filter(c => c.state === "CONNECTED").forEach(c => cwLoop(c.id, gen, n));
+}
+// one loop per tile; stops when the wall changes (gen) or closes
+async function cwLoop(id, gen, n) {
+  const hq = n <= 2, every = n <= 1 ? 700 : n <= 4 ? 1000 : n <= 9 ? 2000 : 3000;
+  while (CW.gen === gen && CW.open) {
+    if (document.hidden) { await new Promise(r => setTimeout(r, 1000)); continue; }
+    const t = Date.now(), r = await camFetch(id, hq);
+    const img = $(`[data-cwimg="${CSS.escape(id)}"]`);
+    if (CW.gen !== gen || !img) { if (r.url) URL.revokeObjectURL(r.url); return; }
+    const msg = $(`[data-cwmsg="${CSS.escape(id)}"]`), age = $(`[data-cwage="${CSS.escape(id)}"]`);
+    if (r.url) { const old = img.src; img.src = r.url; img.hidden = false; if (old.startsWith("blob:")) URL.revokeObjectURL(old); if (msg) msg.hidden = true; if (age) age.textContent = "live"; }
+    else { if (msg) { msg.hidden = false; msg.textContent = r.error; } await new Promise(r => setTimeout(r, 3000)); }
+    const wait = every - (Date.now() - t); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  }
+}
+
+document.addEventListener("click", e => {
+  if (e.target.closest("#cam-wall-open")) { openWall(); return; }
+  const w = $("#cam-wall"); if (!w || !w.contains(e.target)) return;
+  const b = e.target.closest("[data-cw]"), chip = e.target.closest("[data-cwcam]"), tile = e.target.closest("[data-cwtile]");
+  if (chip) {
+    const id = chip.dataset.cwcam, cur = Array.isArray(CW.sel) ? CW.sel : cwShown().map(c => c.id);
+    CW.sel = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]; cwSave(); cwRender(); return;
+  }
+  if (b?.dataset.cw === "close") { closeWall(); return; }
+  if (b?.dataset.cw === "back") { CW.focus = null; cwRender(); return; }
+  if (b?.dataset.cw === "float") { camFloat(b.dataset.id); return; }
+  if (b?.dataset.cw === "fs") { (document.fullscreenElement ? document.exitFullscreen() : w.requestFullscreen()).catch(() => { }).finally(() => setTimeout(cwRender, 150)); return; }
+  if (tile && !b) { CW.focus = CW.focus ? null : tile.dataset.cwtile; cwRender(); }
+});
+document.addEventListener("change", e => { if (e.target.closest?.("[data-cw=layout]")) { CW.layout = e.target.value; cwSave(); cwRender(); } });
+document.addEventListener("keydown", e => {
+  if (!CW.open) return;
+  if (e.key === "Escape" && !document.fullscreenElement) { e.stopPropagation(); if (CW.focus) { CW.focus = null; cwRender(); } else closeWall(); }
+  if (e.key === "Enter" && e.target.closest?.("[data-cwtile]")) e.target.click();
+}, true);
+document.addEventListener("fullscreenchange", () => { if (CW.open) setTimeout(cwRender, 50); });
+
+// Float: a small always-on-top window with one camera. Chrome and Edge get a real floating page (Document
+// Picture-in-Picture); other browsers get video Picture-in-Picture fed from the pictures through a canvas.
+const camFloats = new Map(); // id → stop()
+async function camFloat(id) {
+  const c = cwCams().find(x => x.id === id); if (!c) return;
+  if (S.cam.demo) { toast("The demo has no real pictures to float", ""); return; }
+  camFloats.get(id)?.();
+  let alive = true; const stop = () => { alive = false; camFloats.delete(id); };
+  camFloats.set(id, stop);
+  if (window.documentPictureInPicture) {
+    let win;
+    try { win = await documentPictureInPicture.requestWindow({ width: 480, height: 270 }); } catch (err) { stop(); toast(err.message, "err"); return; }
+    const d = win.document;
+    d.title = c.name;
+    const st = d.createElement("style");
+    st.textContent = "html,body{margin:0;height:100%;background:#000;overflow:hidden;font:12px system-ui,sans-serif}img{width:100%;height:100%;object-fit:contain;display:block}span{position:fixed;left:8px;bottom:6px;color:#fff;background:rgba(0,0,0,.5);padding:2px 7px;border-radius:6px}";
+    d.head.append(st);
+    const img = d.createElement("img"), lab = d.createElement("span");
+    img.alt = c.name; lab.textContent = c.name; d.body.append(img, lab);
+    win.addEventListener("pagehide", stop);
+    while (alive && !win.closed) {
+      const t = Date.now(), r = await camFetch(id, true);
+      if (r.url) { const old = img.src; img.src = r.url; if (old.startsWith("blob:")) URL.revokeObjectURL(old); lab.textContent = c.name; }
+      else lab.textContent = `${c.name}: ${r.error}`;
+      const wait = 800 - (Date.now() - t); if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    }
+    stop(); return;
+  }
+  // fallback: draw each picture on a canvas and show the canvas stream as a video in Picture-in-Picture
+  const canvas = document.createElement("canvas"); canvas.width = 1280; canvas.height = 720;
+  const ctx = canvas.getContext("2d"), video = document.createElement("video");
+  video.muted = true; video.playsInline = true; video.srcObject = canvas.captureStream(4);
+  const draw = async () => { const r = await camFetch(id, true); if (!r.url) return false; const im = new Image(); im.src = r.url; await im.decode().catch(() => { }); ctx.drawImage(im, 0, 0, canvas.width, canvas.height); URL.revokeObjectURL(r.url); return true; };
+  if (!(await draw())) { stop(); toast("Couldn't get a picture from this camera", "err"); return; }
+  try { await video.play(); await video.requestPictureInPicture(); }
+  catch (err) { stop(); toast("This browser can't float the camera: " + err.message, "err"); return; }
+  video.addEventListener("leavepictureinpicture", stop);
+  while (alive) { const t = Date.now(); await draw(); const wait = 900 - (Date.now() - t); if (wait > 0) await new Promise(r => setTimeout(r, wait)); }
+  video.srcObject?.getTracks().forEach(t => t.stop());
+}

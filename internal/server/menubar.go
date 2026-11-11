@@ -136,6 +136,16 @@ func (a *App) menubarView(guest bool) map[string]any {
 
 // peopleHome: everyone with a UniFi device, and whether one of those devices is connected right now.
 func (a *App) peopleHome(bundle map[string]any) []map[string]any {
+	if len(a.presencePeople()) > 0 { // tagged devices (Family › Who's home) decide
+		now := a.presence.Now()
+		out := []map[string]any{}
+		for _, p := range a.An.People() {
+			if st, ok := now[p.ID]; ok {
+				out = append(out, map[string]any{"name": p.Name, "color": p.Color, "home": st.Home, "since": st.Since})
+			}
+		}
+		return out
+	}
 	online := map[string]bool{}
 	for _, cl := range section(bundle, "legacy", "clients") {
 		if mac, _ := cl["mac"].(string); mac != "" {

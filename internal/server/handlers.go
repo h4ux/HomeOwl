@@ -175,6 +175,12 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			a.cameraSnapshot(w, r)
 		}
 		return
+	case "presence":
+		if r.Method == http.MethodGet {
+			days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+			send(w, 200, a.presenceView(who.Admin(), days))
+			return
+		}
 	case "ups":
 		if r.Method == http.MethodGet {
 			days, _ := strconv.Atoi(r.URL.Query().Get("days"))
@@ -305,6 +311,20 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		} else {
 			res = a.startupView()
 		}
+	case p == "presence/tag":
+		if err = a.presenceTag(body); err == nil {
+			res = a.presenceView(true, 1)
+		}
+	case p == "presence/settings":
+		if err = a.presenceSettings(body); err == nil {
+			res = a.presenceView(true, 1)
+		}
+	case p == "presence/clear":
+		a.presence.Clear()
+		_ = a.presence.Save()
+		res = a.presenceView(true, 1)
+	case p == "cameras/discover":
+		res = map[string]any{"found": a.discoverProtect(r.Context())}
 	case p == "cameras/console":
 		if r.Method != http.MethodPost {
 			err = errors.New("use POST")

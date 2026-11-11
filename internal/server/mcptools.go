@@ -319,6 +319,13 @@ func (a *App) allTools() []mcp.Tool {
 			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
 				return map[string]any{"people": a.An.People()}, nil
 			}},
+		{Name: "whos_home", Title: "Who's home", Level: "read",
+			Description: "Who is home right now (a person counts as home while one of their tagged devices, usually a phone, is on the home network), " +
+				"since when, and the arrivals and departures of the last days when history is kept.",
+			Schema: obj(map[string]any{"days": intP("history to include, 1–365 (default 1)")}),
+			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
+				return a.presenceView(false, argN(args, "days", 1)), nil
+			}},
 		{Name: "cameras", Title: "Cameras & detections", Level: "read",
 			Description: "UniFi Protect cameras (online or not, doorbell, what they detect) and the motion, person/vehicle/package detections and doorbell rings " +
 				"HomeOwl recorded (newest first; times in ms since 1970). No pictures.",
