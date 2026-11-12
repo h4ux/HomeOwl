@@ -1,4 +1,5 @@
-/* HomeOwl — navigation: an icon strip picks the area, the area's pages are listed beside it, and a page's other views are indented under it.
+/* HomeOwl — navigation: an icon strip picks the area; the area's pages are tabs across the top, and a page with
+   several views gets a second, smaller row of tabs.
    Loaded right after core.js (it builds the sidebar before app.js uses it); wraps render() once every script has loaded. */
 "use strict";
 
@@ -66,9 +67,9 @@ const navPageOf = v => { for (const a of NAV) for (const p of a.pages) if (p.vie
   const rail = $("#rail"), nav = $("#nav"); if (!rail || !nav) return;
   rail.innerHTML = NAV.map(a => `<a href="#" class="rail-btn" data-area="${a.id}" data-goto="${a.pages[0].views[0][0]}" title="${esc(a.name)}" aria-label="${esc(a.name)}">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICON[a.id]}</svg><span>${esc(a.name)}</span></a>`).join("");
-  nav.innerHTML = NAV.map(a => `<div class="nav-area" data-navarea="${a.id}"><div class="nav-h">${esc(a.name)}</div>
-    ${a.pages.map(p => `<a data-view="${p.views[0][0]}" data-views="${p.views.map(([v]) => v).join(" ")}"${p.id ? ` id="${p.id}"` : ""}${p.hidden ? " hidden" : ""}>${esc(p.label)}${p.pill ? ` <span class="pill" id="${p.pill}"></span>` : ""}</a>`
-      + p.views.slice(1).map(([v, l]) => `<a class="nav-sub" data-view="${v}" data-sub="${v}" data-parent="${p.views[0][0]}" hidden>${esc(l)}</a>`).join("")).join("")}</div>`).join("");
+  nav.innerHTML = NAV.map(a => `<div class="nav-area" data-navarea="${a.id}"><div class="nav-tabs"><span class="nav-h">${esc(a.name)}</span>
+    ${a.pages.map(p => `<a data-view="${p.views[0][0]}" data-views="${p.views.map(([v]) => v).join(" ")}"${p.id ? ` id="${p.id}"` : ""}${p.hidden ? " hidden" : ""}>${esc(p.label)}${p.pill ? ` <span class="pill" id="${p.pill}"></span>` : ""}</a>`).join("")}</div>
+    <div class="nav-subs">${a.pages.filter(p => p.views.length > 1).map(p => p.views.map(([v, l]) => `<a class="nav-sub" data-view="${v}" data-sub="${v}" data-parent="${p.views[0][0]}" hidden>${esc(l)}</a>`).join("")).join("")}</div></div>`).join("");
 })();
 
 function syncNav() {
@@ -78,9 +79,9 @@ function syncNav() {
     const a = NAV.find(x => x.id === b.dataset.area), first = a.pages.find(p => !$(`#nav a[data-view="${p.views[0][0]}"]`)?.hidden) || a.pages[0]; b.dataset.goto = first.views[0][0]; });
   $$("#nav .nav-area").forEach(el => { el.hidden = el.dataset.navarea !== area.id; });
   $$("#nav a[data-views]").forEach(a => a.classList.toggle("active", a.dataset.views.split(" ").includes(S.view)));
-  // a page's other views are indented under it in the side menu while you're on that page (no tabs across the top)
+  // a page with several views: its views are a second row of tabs while you're on it
   $$("#nav a[data-sub]").forEach(a => { a.hidden = a.dataset.parent !== page.views[0][0]; a.classList.toggle("active", a.dataset.sub === S.view); });
-  $$("#nav a[data-views]").forEach(a => { if (page.views.length > 1 && a.dataset.view === page.views[0][0]) a.classList.toggle("active", S.view === page.views[0][0]); });
+  $$("#nav .nav-subs").forEach(el => { el.hidden = !el.querySelector("a:not([hidden])"); });
   $("#page-tabs")?.remove();
 }
 document.addEventListener("DOMContentLoaded", () => { const _render = render; render = function () { _render(); syncNav(); }; });

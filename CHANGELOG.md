@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.21] — 2026-11-12
+
+### Changed
+- **Navigation takes much less room**:
+  - The icon rail stays on the left. Each area's pages are now a row of tabs at the top, and pages with several views (Devices › Topology › Switch ports) get a second, smaller row.
+  - Settings sections are a row of pills instead of a third column.
+  - The console status, version, lock, Refresh, Save report and Sign out sit in one slim bar across the top.
+  - Pages get nearly the full width of the window.
+
 ## [0.1.20] — 2026-11-11
 
 ### Fixed

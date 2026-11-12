@@ -25,22 +25,20 @@
 
 <!-- ============ APP ============ -->
 <div id="app" class="app" hidden>
-  <aside class="side">
-    <div class="rail-col"><img class="logo-img rail-logo" src="icon.png" alt="HomeOwl"><div class="rail" id="rail"></div></div>
-    <div class="side-col">
-      <div class="brand">HomeOwl</div>
+  <aside class="side"><img class="logo-img rail-logo" src="icon.png" alt="HomeOwl"><div class="rail" id="rail"></div></aside>
+  <div class="app-col">
+    <header class="topbar">
       <div class="site-chip" id="site-chip"></div>
       <a href="#" class="update-chip" id="update-chip" hidden></a>
+      <span class="topbar-sp"></span>
       <button class="btn sm lock" id="btn-lock" hidden>🔒 Changes locked</button>
-      <nav id="nav" aria-label="Pages"></nav>
-      <div class="side-foot">
-        <button class="btn ghost sm" id="btn-refresh">Refresh</button>
-        <button class="btn ghost sm" id="btn-export">Save report</button>
-        <button class="btn ghost sm" id="btn-logout">Sign out</button>
-      </div>
-    </div>
-  </aside>
-  <main id="main"></main>
+      <button class="btn ghost sm" id="btn-refresh">Refresh</button>
+      <button class="btn ghost sm" id="btn-export">Save report</button>
+      <button class="btn ghost sm" id="btn-logout">Sign out</button>
+    </header>
+    <nav id="nav" class="tabnav" aria-label="Pages"></nav>
+    <main id="main"></main>
+  </div>
 </div>
 
 <div id="modal" class="modal" hidden><div id="modal-box" class="modal-box" role="dialog" aria-modal="true"></div></div>

@@ -713,9 +713,9 @@ boot();
 // ------------------------------------------------------------------ sidebar chip (who / data age)
 function renderChip() {
   const m = S.model; if (!m) return;
-  if (S.source === "none") { $("#site-chip").innerHTML = `not connected to UniFi` + (S.user ? `<br><span>👤 ${esc(S.user.name || S.user.username)} · ${S.role === "admin" ? "admin" : "view only"}</span>` : ""); return; }
+  const who = S.user ? `<span class="chip-who">👤 ${esc(S.user.name || S.user.username)} · ${S.role === "admin" ? "admin" : "view only"}${S.user.via === "tailscale" ? " · via Tailscale" : ""}</span>` : "";
+  if (S.source === "none") { $("#site-chip").innerHTML = `<span>not connected to UniFi</span>${who}`; return; }
   const age = S.dataAt ? Math.round((Date.now() - S.dataAt) / 60000) : null;
-  $("#site-chip").innerHTML = `${esc(m.info.hostname || m.info.host || "")}<br>${S.source === "demo" ? "<b>demo data</b>" : S.source === "file" ? "saved report" : `live · ${age === null ? "" : age < 1 ? "just updated" : `updated ${age} min ago`}`}` +
-    (S.user ? `<br><span>👤 ${esc(S.user.name || S.user.username)} · ${S.role === "admin" ? "admin" : "view only"}${S.user.via === "tailscale" ? " · via Tailscale" : ""}</span>` : "");
+  $("#site-chip").innerHTML = `<b>${esc(m.info.hostname || m.info.host || "")}</b><span>${S.source === "demo" ? "<b>demo data</b>" : S.source === "file" ? "saved report" : `live · ${age === null ? "" : age < 1 ? "just updated" : `updated ${age} min ago`}`}</span>${who}`;
 }
 setInterval(renderChip, 60000);
