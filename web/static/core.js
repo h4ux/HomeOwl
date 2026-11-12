@@ -360,6 +360,8 @@ const SEV_CAP = { critical: 60, high: 36, medium: 24, low: 8, info: 0 };
 const RISKY_PORTS = { 21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP", 135: "MS-RPC", 139: "NetBIOS", 445: "SMB", 1433: "MSSQL", 1521: "Oracle", 2375: "Docker API", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL", 5900: "VNC", 5985: "WinRM", 6379: "Redis", 8080: "HTTP admin", 8443: "HTTPS admin", 9200: "Elasticsearch", 27017: "MongoDB", 10000: "Webmin" };
 function portsIn(spec) { const out = []; String(spec || "").split(",").forEach(p => { const [a, b] = p.split("-").map(Number); if (!isNaN(a)) { if (!isNaN(b) && b - a < 70000) { for (let i = a; i <= Math.min(b, a + 5000); i++) out.push(i); } else out.push(a); } }); return out; }
 const IOT_RE = /iot|smart|cam|camera|thing|device|nest|hue|alexa|echo|ring|tuya|sonos|tv|printer|appliance/i;
+// an SSID for smart-home things: by its own name or the network it's on
+const isIoTWlan = (m, w) => IOT_RE.test(w.name) || IOT_RE.test(m.netById[w.networkId]?.name || "");
 
 function analyse(m) {
   const F = [];
@@ -375,11 +377,12 @@ function analyse(m) {
   // ---- Wi-Fi security
   for (const w of enabledW) {
     const net = m.netById[w.networkId];
+    const iot = isIoTWlan(m, w); // smart-home devices often can't do WPA3 or 802.11r: don't suggest those there
     if (w.sec === "Open" && !w.guest && !net?.guest) add("critical", "Wi-Fi", `“${w.name}” is an open network`, "Anyone in range can join and reach devices on this network; traffic is unencrypted.", "Settings → WiFi → " + w.name + " → Security: WPA2/WPA3 Personal with a strong passphrase.", [w.name], [wl(w, { enabled: false }, `Turn off “${w.name}” until it has a password`)]);
     else if (w.sec === "Open") add("medium", "Wi-Fi", `Guest Wi-Fi “${w.name}” is unencrypted`, "Guests' traffic can be sniffed by anyone nearby.", "Use WPA2/WPA3 with a simple shared password, or Enhanced Open (OWE) if your clients support it.", [w.name]);
     if (w.sec === "WEP") add("critical", "Wi-Fi", `“${w.name}” uses WEP`, "WEP can be cracked in minutes.", "Switch to WPA2/WPA3 Personal.", [w.name]);
     if (w.sec === "WPA1" || w.sec === "WPA/WPA2" || w.tkip) add("high", "Wi-Fi", `“${w.name}” allows legacy WPA/TKIP`, "WPA1 and TKIP are deprecated and weaken the whole SSID; they also cap affected clients at 54 Mbps.", "Settings → WiFi → " + w.name + " → Security: WPA2 (AES/CCMP) or WPA2/WPA3.", [w.name]);
-    if (w.sec === "WPA2" && !w.enterprise) add("low", "Wi-Fi", `“${w.name}” could use WPA3`, "WPA3 (SAE) resists offline password-guessing attacks. Transition mode keeps older WPA2 devices working.", "Settings → WiFi → " + w.name + " → Security → WPA2/WPA3. Leave IoT-only SSIDs on WPA2 if devices struggle.", [w.name], IOT_RE.test(w.name) ? [] : [wl(w, { wpa3_support: true, wpa3_transition: true, pmf_mode: "optional" }, `Enable WPA2/WPA3 transition on “${w.name}”`)]);
+    if (w.sec === "WPA2" && !w.enterprise && !iot) add("low", "Wi-Fi", `“${w.name}” could use WPA3`, "WPA3 (SAE) resists offline password-guessing attacks. Transition mode keeps older WPA2 devices working.", "Settings → WiFi → " + w.name + " → Security → WPA2/WPA3.", [w.name], [wl(w, { wpa3_support: true, wpa3_transition: true, pmf_mode: "optional" }, `Enable WPA2/WPA3 transition on “${w.name}”`)]);
     if (w.pmf === "disabled" && w.sec !== "Open" && !/WPA3/.test(w.sec)) add("medium", "Wi-Fi", `PMF is off on “${w.name}”`, "Protected Management Frames stop de-authentication / disconnect attacks.", "Settings → WiFi → " + w.name + " → Advanced → PMF: Optional.", [w.name], [wl(w, { pmf_mode: "optional" }, `PMF → optional on “${w.name}”`)]);
     if (w.pskLen !== null && w.pskLen < 12 && !w.enterprise && w.sec !== "Open") add("high", "Wi-Fi", `Short Wi-Fi password on “${w.name}” (${w.pskLen} characters)`, "WPA2 passphrases under 12 characters can be brute-forced offline from a captured handshake.", "Use 16+ random characters or a 4–5 word passphrase (change it in the UniFi app — this tool never handles passwords). Consider Private PSK for IoT.", [w.name]);
     if (w.hidden) add("low", "Wi-Fi", `“${w.name}” is hidden`, "Hiding the SSID adds no security (it is visible in probe requests) and makes devices probe for it everywhere, leaking the name and hurting roaming.", "Settings → WiFi → " + w.name + " → Advanced → uncheck Hide WiFi Name.", [w.name], [wl(w, { hide_ssid: false }, `Unhide “${w.name}”`)]);
@@ -390,7 +393,7 @@ function analyse(m) {
       add("medium", "Segmentation", `IoT SSID “${w.name}” shares your main network`, "Cameras, smart plugs and TVs rarely get security updates; on the main LAN a compromised one can reach your laptops and NAS.",
         iotNet ? `Point “${w.name}” at your existing “${iotNet.name}” network (Settings → WiFi → ${w.name} → Network) and isolate that network. Devices will reconnect and get new IPs — update any fixed IPs / port forwards.` : "Create an IoT VLAN (Settings → Networks → New, VLAN 20, Isolate Network), then point the SSID at it.", [w.name]);
     }
-    if (multiAP && !w.fastRoaming && !w.enterprise && w.clients > 0) add("info", "Wi-Fi", `Fast roaming is off on “${w.name}”`, "802.11r speeds up hand-off between APs for calls and video. Some old IoT devices dislike it, so enable it only on SSIDs for phones/laptops.", "Settings → WiFi → " + w.name + " → Advanced → Fast Roaming.", [w.name], IOT_RE.test(w.name) ? [] : [wl(w, { fast_roaming_enabled: true }, `802.11r on “${w.name}”`)]);
+    if (multiAP && !w.fastRoaming && !w.enterprise && w.clients > 0 && !iot) add("info", "Wi-Fi", `Fast roaming is off on “${w.name}”`, "802.11r speeds up hand-off between APs for calls and video. Some old IoT devices dislike it, so enable it only on SSIDs for phones/laptops.", "Settings → WiFi → " + w.name + " → Advanced → Fast Roaming.", [w.name], [wl(w, { fast_roaming_enabled: true }, `802.11r on “${w.name}”`)]);
     if (w.macFilter) add("info", "Wi-Fi", `MAC filtering on “${w.name}”`, "MAC addresses are trivially spoofed and modern phones randomise them, so this mostly causes support headaches.", "Prefer per-device keys (Private PSK) or an isolated VLAN.", [w.name]);
   }
   const ssidPerBand = { "2g": 0, "5g": 0, "6g": 0 };
@@ -511,7 +514,9 @@ function analyse(m) {
 
   // ---- clients / WAN
   const wlc = m.clients.filter(c => !c.wired);
-  const weak = wlc.filter(c => c.signal !== null && c.signal < -75);
+  // smart plugs, sensors and cameras far from an AP send little and are fine at a weak signal: count people's devices
+  const iotSSIDs = new Set(m.wlans.filter(w => isIoTWlan(m, w)).map(w => w.name));
+  const weak = wlc.filter(c => c.signal !== null && c.signal < -75 && !iotSSIDs.has(c.ssid) && !IOT_RE.test(c.network || ""));
   if (weak.length >= 3 || (wlc.length && weak.length / wlc.length > 0.2)) add("low", "Coverage", `${plural(weak.length, "client")} with weak signal (< −75 dBm)`, "Weak clients transmit at low data rates and slow down every other client on the same AP.", "Move/add APs near those devices, enable minimum data rates, or wire stationary devices.", weak.slice(0, 12).map(c => `${c.label} (${c.signal} dBm)`));
   const unhappy = m.clients.filter(c => c.satisfaction !== null && c.satisfaction < 50);
   if (unhappy.length >= 2) add("low", "Coverage", `${plural(unhappy.length, "client")} with poor experience score`, "UniFi rates these connections below 50% (retries, latency, signal).", "Look at the Clients view for the AP / band they use; usually a coverage or interference problem.", unhappy.slice(0, 12).map(c => `${c.label} (${c.satisfaction}%)`));

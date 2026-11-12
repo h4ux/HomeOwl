@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.22] — 2026-11-12
+
+### Changed
+- **Suggestions leave IoT networks alone**: an SSID whose name, or whose network's name, looks like smart-home gear (IoT, cameras, TVs, Alexa…) no longer gets "could use WPA3" or "Fast roaming is off", because many such devices can't connect with those turned on. Clients on those networks no longer count towards "clients with weak signal".
+
 ## [0.1.21] — 2026-11-12
 
 ### Changed
