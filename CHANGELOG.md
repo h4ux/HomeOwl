@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.39] — 2026-11-13
+
+### Added
+- **Home Screen icon per profile type** (Settings › Device profiles). The icon that iPhone and iPad get with their setup profile can open the device's check-in page (as before), open HomeOwl itself, or be left out. A HomeOwl icon opens by HomeOwl's trusted name and runs full screen when there's a Let's Encrypt certificate; otherwise it opens HomeOwl's address in Safari. Changing the choice shows "Update ready" on the device's page.
+
 ## [0.1.38] — 2026-11-13
 
 ### Added

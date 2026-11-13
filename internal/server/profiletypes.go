@@ -44,6 +44,7 @@ type ProfileType struct {
 	WiFi   []string `json:"wifi,omitempty"` // UniFi wlanconf _id
 	VPN    *VPNConf `json:"vpn,omitempty"`
 	People []string `json:"people,omitempty"`
+	Icon   string   `json:"icon,omitempty"` // Home Screen icon on iPhone and iPad: "" the check-in page, "app" HomeOwl, "none"
 }
 
 type profileTypes struct {
@@ -131,6 +132,7 @@ type vpnPayload struct {
 }
 
 type profileExtras struct {
+	Icon string // the type's Home Screen icon choice (see ProfileType.Icon)
 	Clip *webClip
 	Mac  bool
 	WiFi []wifiNet
@@ -198,6 +200,7 @@ func (a *App) extrasFor(x CheckIn) (profileExtras, bool) {
 	if !has {
 		return ex, true
 	}
+	ex.Icon = t.Icon
 	ok := true
 	var all []map[string]any
 	if len(t.WiFi) > 0 || t.VPN != nil && t.VPN.OnDemand {
@@ -233,7 +236,11 @@ func (a *App) setupHash(x CheckIn) string {
 		return ""
 	}
 	h := sha256.New()
-	_ = json.NewEncoder(h).Encode([]any{x.NDProfile, x.Name, ex.WiFi, ex.VPN})
+	parts := []any{x.NDProfile, x.Name, ex.WiFi, ex.VPN}
+	if ex.Icon != "" { // only when set, so devices installed before the choice existed don't all show an update
+		parts = append(parts, ex.Icon)
+	}
+	_ = json.NewEncoder(h).Encode(parts)
 	return hex.EncodeToString(h.Sum(nil))[:16]
 }
 
@@ -255,6 +262,7 @@ func (a *App) includes(x CheckIn) map[string]any {
 		return out
 	}
 	out["type"] = t.Name
+	out["icon"] = orDefault(t.Icon, "checkin")
 	if all, err := a.wlans(); err == nil {
 		var names []string
 		for _, w := range wifiFor(all, t.WiFi) {
@@ -397,7 +405,7 @@ func vpnPayloadXML(p plistW, base string, v *vpnPayload, mac bool) {
 func (a *App) devTypesView() (map[string]any, error) {
 	types := []map[string]any{}
 	for _, t := range a.devTypes.List() {
-		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People,
+		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"),
 			"secret_set": a.Sec.Get(vpnSecretSlot(t.ID)) != "", "password_set": a.Sec.Get(vpnPasswordSlot(t.ID)) != ""})
 	}
 	wl := []map[string]any{}
@@ -418,7 +426,14 @@ var vpnHostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9]
 
 // saveDevType adds or changes a type. Secrets: "" keeps the saved one, "-" removes it.
 func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
-	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name"))}
+	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon")}
+	switch t.Icon {
+	case "", "checkin":
+		t.Icon = ""
+	case "app", "none":
+	default:
+		return nil, errors.New("pick the check-in page, HomeOwl or no Home Screen icon")
+	}
 	if t.Name == "" || len(t.Name) > 40 {
 		return nil, errors.New("give the type a name (up to 40 characters)")
 	}

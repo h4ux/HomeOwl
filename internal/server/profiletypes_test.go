@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"io"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -158,5 +159,38 @@ func TestProfileTypes(t *testing.T) {
 	}
 	if one, _ := a.devTypes.Get(r1["id"].(string)); len(one.People) != 0 {
 		t.Fatalf("Alex should have moved: %+v", one)
+	}
+
+	// the Home Screen icon: the check-in page (default), HomeOwl itself, or none
+	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "abc123", "type_id": ""}); err != nil {
+		t.Fatal(err)
+	}
+	two := a.devTypes.List()[1]
+	if _, err := a.saveDevType(map[string]any{"id": two.ID, "name": "Two", "people": []any{alex}, "icon": "desktop"}); err == nil {
+		t.Fatal("unknown icon choice accepted")
+	}
+	if p := get("?p=ios"); !strings.Contains(p, "<string>http://homeowl.lan:8555/hi</string>") {
+		t.Fatal("the default icon opens the check-in page")
+	}
+	h0 := a.setupHash(a.checkins.List()[0])
+	if _, err := a.saveDevType(map[string]any{"id": two.ID, "name": "Two", "people": []any{alex}, "icon": "app"}); err != nil {
+		t.Fatal(err)
+	}
+	if a.setupHash(a.checkins.List()[0]) == h0 {
+		t.Fatal("another icon should show as an update")
+	}
+	app := get("?p=ios")
+	if !strings.Contains(app, "<string>http://homeowl.lan:"+strconv.Itoa(a.Cfg.Get().LAN.Port)+"/</string>") || strings.Contains(app, "/hi</string>") ||
+		!strings.Contains(app, "opens HomeOwl") || !strings.Contains(app, "<key>FullScreen</key><false/>") {
+		t.Fatalf("app icon:\n%s", app)
+	}
+	if _, err := a.saveDevType(map[string]any{"id": two.ID, "name": "Two", "people": []any{alex}, "icon": "none"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(get("?p=ios"), "webClip") {
+		t.Fatal("no icon wanted")
+	}
+	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["includes"].(map[string]any)["icon"] != "none" {
+		t.Fatal("the device's page should know there's no icon")
 	}
 }

@@ -176,13 +176,18 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	a.checkins.Touch(x.ID, x.NDProfile, a.setupHash(x))
 	ex.Mac = r.URL.Query().Get("p") == "mac"
-	if r.URL.Query().Get("p") == "ios" { // iPhone and iPad: also a Home Screen icon for the device's check-in page
-		scheme := "http"
-		if r.TLS != nil {
-			scheme = "https"
-		}
+	if r.URL.Query().Get("p") == "ios" && ex.Icon != "none" { // iPhone and iPad: also a Home Screen icon
 		icon, _ := fs.ReadFile(web.Static, "static/icon-192.png")
-		ex.Clip = &webClip{URL: scheme + "://" + r.Host + "/hi", Icon: icon}
+		if ex.Icon == "app" { // HomeOwl itself, for an admin's or a viewer's own phone
+			u, trusted := a.appURL(r)
+			ex.Clip = &webClip{URL: u, Icon: icon, App: true, FullScreen: trusted}
+		} else { // the device's check-in page, for updates later
+			scheme := "http"
+			if r.TLS != nil {
+				scheme = "https"
+			}
+			ex.Clip = &webClip{URL: scheme + "://" + r.Host + "/hi", Icon: icon}
+		}
 	}
 	body := mobileConfig(x, ex)
 	if sc := a.signer(); sc != nil { // signed with the Let's Encrypt certificate: iOS shows it as "Verified"
@@ -224,8 +229,35 @@ func signProfile(body []byte, c *tls.Certificate) ([]byte, error) {
 
 // webClip is a Home Screen icon (iPhone and iPad only; macOS doesn't take them in a profile).
 type webClip struct {
-	URL  string
-	Icon []byte // PNG
+	URL        string
+	Icon       []byte // PNG
+	App        bool   // opens HomeOwl itself rather than the check-in page
+	FullScreen bool   // like an app, without Safari's bars (only with a trusted certificate: no warning to click through)
+}
+
+// appURL is where a Home Screen icon opens HomeOwl: its trusted name when there's a certificate (trusted is true),
+// else the address the device reached HomeOwl by, on HomeOwl's own port. The check-in name (hi.local) only serves
+// the check-in page, so then it's the computer's IP address.
+func (a *App) appURL(r *http.Request) (u string, trusted bool) {
+	if c := a.certURL(); c != "" {
+		return c + "/", true
+	}
+	c := a.Cfg.Get().LAN
+	host := r.Host
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if a.nameHost(r) != "" {
+		if ip := homeIP(); ip != "" {
+			host = ip
+		}
+	}
+	scheme := "http"
+	if c.TLS && a.cert.Certificate != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + net.JoinHostPort(host, fmt.Sprint(c.Port)) + "/", false
 }
 
 // mobileConfig builds the profile. Its identifiers come from the device's MAC address, so installing a newer one
@@ -267,13 +299,17 @@ func mobileConfig(x CheckIn, ex profileExtras) []byte {
 		b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n</dict>\n")
 	}
 	if clip != nil {
-		b.WriteString("<dict>\n<key>FullScreen</key><false/>\n")
+		b.WriteString("<dict>\n<key>FullScreen</key><" + fmt.Sprint(clip.FullScreen) + "/>\n")
 		if len(clip.Icon) > 0 {
 			b.WriteString("<key>Icon</key><data>" + base64.StdEncoding.EncodeToString(clip.Icon) + "</data>\n")
 		}
 		b.WriteString("<key>IgnoreManifestScope</key><true/>\n<key>IsRemovable</key><true/>\n")
 		str("Label", "HomeOwl")
-		str("PayloadDescription", "A Home Screen icon that opens this device's HomeOwl page (at home).")
+		if clip.App {
+			str("PayloadDescription", "A Home Screen icon that opens HomeOwl (at home, or over Tailscale).")
+		} else {
+			str("PayloadDescription", "A Home Screen icon that opens this device's HomeOwl page (at home).")
+		}
 		str("PayloadDisplayName", "HomeOwl icon")
 		str("PayloadIdentifier", base+".webclip")
 		str("PayloadType", "com.apple.webClip.managed")

@@ -109,6 +109,7 @@ document.addEventListener("change", e => { if (e.target.id === "cis-type" && S.c
 document.addEventListener("click", e => { if (e.target.id === "cis-wgrm") { e.preventDefault(); $("#cis-wg").dataset.rm = "1"; e.target.parentElement.innerHTML = "This device's WireGuard config <span class=\"tag warn\">removed when you save</span>"; } });
 
 // ---- Settings › Device profiles: profile types (profiletypes.go)
+const DT_ICONS = [["checkin", "The device's check-in page", "For updating the profile later. Good for most devices."], ["app", "HomeOwl", "Opens HomeOwl itself — for the phones of people with a HomeOwl account. Full screen like an app when HomeOwl has a trusted certificate."], ["none", "No icon", ""]];
 const VPN_TYPES = [["", "No VPN"], ["ikev2", "IKEv2 (built in)"], ["l2tp", "L2TP over IPsec (built in)"], ["wireguard", "WireGuard (app)"]];
 async function renderDevTypes() {
   const el = $("#st-devtypes"); if (!el) return;
@@ -124,12 +125,13 @@ async function renderDevTypes() {
       { k: "people", label: "People", fmt: t => arr(t.people).length ? esc(t.people.map(pname).join(", ")) : `<span class="muted">nobody yet</span>` },
       { k: "wifi", label: "Wi-Fi", fmt: t => arr(t.wifi).length ? esc(t.wifi.map(wname).join(", ")) : "–" },
       { k: "vpn", label: "VPN", fmt: t => t.vpn ? `${esc(t.vpn.name || "Home VPN")} <span class="fine muted">${esc(VPN_TYPES.find(v => v[0] === t.vpn.type)?.[1] || t.vpn.type)}${t.vpn.on_demand ? " · on when away" : ""}</span>` : "–" },
+      { k: "icon", label: "Home Screen", fmt: t => t.icon === "app" ? "HomeOwl" : t.icon === "none" ? `<span class="muted">no icon</span>` : "check-in page" },
       { k: "id", label: "", fmt: t => `<div class="btnrow"><button class="btn sm" data-dtedit="${esc(t.id)}">Edit</button><button class="btn sm" data-dtdel="${esc(t.id)}">Delete</button></div>` }], r.types)
       : `<p class="muted">No profile types yet. Devices get their NextDNS setup only.</p>`}
     <div class="btnrow" style="margin-top:10px"><button class="btn primary" data-dtedit="">+ Profile type</button></div>`;
 }
 function editDevType(id) {
-  const r = S.devTypes, t = r.types.find(x => x.id === id) || { name: "", wifi: [], people: [], vpn: null }, v = t.vpn || {};
+  const r = S.devTypes, t = r.types.find(x => x.id === id) || { name: "", wifi: [], people: [], vpn: null, icon: "checkin" }, v = t.vpn || {};
   const keep = set => set ? "Saved — leave empty to keep" : "";
   openModal({ title: id ? `Edit ${t.name}` : "New profile type", wide: true, body: `
     <label>Name<input id="dt-name" maxlength="40" value="${esc(t.name)}" placeholder="e.g. Kids, Adults"></label>
@@ -137,6 +139,8 @@ function editDevType(id) {
     <div class="dt-checks">${S.devTypePeople.length ? S.devTypePeople.map(p => `<label class="check"><input type="checkbox" data-dtp="${esc(p.id)}" ${arr(t.people).includes(p.id) ? "checked" : ""}> <span>${esc(p.name)}</span></label>`).join("") : `<span class="fine muted">Add people in Family › People & groups.</span>`}</div>
     <h3>Wi-Fi networks</h3><p class="fine muted">The device joins them by itself. The password goes into the device's profile.</p>
     <div class="dt-checks">${r.wlans.length ? r.wlans.map(w => `<label class="check"><input type="checkbox" data-dtw="${esc(w.id)}" ${arr(t.wifi).includes(w.id) ? "checked" : ""} ${w.usable ? "" : "disabled"}> <span>${esc(w.ssid)}${w.guest ? ` <span class="fine muted">guest</span>` : ""}${w.usable ? "" : ` <span class="fine muted">enterprise — not possible</span>`}</span></label>`).join("") : `<span class="fine muted">No Wi-Fi networks from UniFi.</span>`}</div>
+    <h3>Home Screen icon</h3><p class="fine muted">iPhone and iPad get a HomeOwl icon with the profile. Macs don't take one.</p>
+    <div class="dt-checks dt-radios">${DT_ICONS.map(([k, l, d]) => `<label class="check"><input type="radio" name="dt-icon" value="${k}" ${(t.icon || "checkin") === k ? "checked" : ""}> <span>${esc(l)}${d ? ` <span class="fine muted">${esc(d)}</span>` : ""}</span></label>`).join("")}</div>
     <h3>VPN</h3>
     <label>Kind<select id="dt-vpn">${VPN_TYPES.map(([k, l]) => `<option value="${k}" ${(v.type || "") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <div class="dt-vpn">
@@ -156,6 +160,7 @@ function editDevType(id) {
     buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
       const kind = $("#dt-vpn").value;
       const body = { id, name: $("#dt-name").value.trim(), people: $$("[data-dtp]").filter(c => c.checked).map(c => c.dataset.dtp), wifi: $$("[data-dtw]").filter(c => c.checked).map(c => c.dataset.dtw),
+        icon: $("input[name=dt-icon]:checked")?.value || "checkin",
         vpn: kind ? { type: kind, name: $("#dt-vname").value.trim(), server: $("#dt-server").value.trim(), remote_id: $("#dt-rid").value.trim(), local_id: $("#dt-lid").value.trim(), auth: $("#dt-auth").value, user: $("#dt-user").value.trim(), on_demand: $("#dt-od").checked } : null,
         secret: $("#dt-secret").value, password: $("#dt-pass").value };
       try { S.devTypes = await api("/api/devtypes/save", body); closeModal(); toast("Saved — devices with this type show Update ready", "ok"); renderDevTypes(); S.ciTypes = null; }
