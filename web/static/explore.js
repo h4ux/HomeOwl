@@ -293,7 +293,7 @@ function ppDevChips(p) {
   const names = new Map(arr(S.ex.meta?.clients).map(c => [c.mac, c.name || c.hostname || c.mac]));
   const macs = p.devices.filter(d => d.kind === "mac").map(d => d.key);
   if (!macs.length) return "";
-  return `<div class="pp-devs">${macs.map(mac => `<span class="dp-chip">${cliIcon({ name: names.get(mac) }, 16)}${esc(names.get(mac) || mac)}${canRename(mac) ? `<button type="button" class="x" data-rename="${esc(mac)}" title="Rename in UniFi" aria-label="Rename ${esc(names.get(mac) || mac)}">✎</button>` : ""}</span>`).join("")}</div>`;
+  return `<div class="pp-devs">${macs.map(mac => `<span class="dp-chip">${cliIcon({ mac, name: names.get(mac) }, 16)}${esc(names.get(mac) || mac)}${canRename(mac) ? `<button type="button" class="x" data-rename="${esc(mac)}" title="Rename in UniFi" aria-label="Rename ${esc(names.get(mac) || mac)}">✎</button>` : ""}</span>`).join("")}</div>`;
 }
 function ppCount(p) {
   const prof = p.devices.filter(d => d.kind === "profile").length, dev = p.devices.length - prof;

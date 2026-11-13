@@ -407,17 +407,43 @@ V.security = m => {
 document.addEventListener("click", e => { const b = e.target.closest("[data-rename]"); if (b) { e.preventDefault(); e.stopPropagation(); renameClient(b.dataset.rename); } }, true);
 
 // ---- clients
-// rename a UniFi client (its alias): previewed, logged and undoable like every change. false when it can't be renamed.
-const canRename = mac => { const m = S.model; if (S.source !== "live" || S.role !== "admin" || !m?.hasLegacy) return false; const c = m.clients.find(x => x.mac === mac) || m.knownByMac?.[mac]; return !!(c && (c.userId || m.knownByMac?.[mac]?.id)); };
+// edit a client: its name and note live in UniFi (previewed, logged and undoable like every change); its type
+// (which sets the icon) is kept by HomeOwl. false when it can't be edited.
+const canRename = mac => { const m = S.model; if (S.source !== "live" || S.role !== "admin" || !m?.hasLegacy) return false; return !!(m.clients.find(x => x.mac === mac) || m.knownByMac?.[mac]); };
+const CLIENT_TYPES = ["phone", "tablet", "laptop", "desktop", "tv", "speaker", "console", "watch", "printer", "nas", "server", "camera", "doorbell", "plug", "bulb", "thermostat", "vacuum", "iot", "ups", "router", "car"];
 function renameClient(mac) {
   const m = S.model, c = m.clients.find(x => x.mac === mac) || m.knownByMac[mac]; if (!c) return toast("HomeOwl doesn't see that device in UniFi right now", "err");
-  const userId = c.userId || m.knownByMac[mac]?.id; if (!userId) return toast("UniFi didn't return this device's record, so it can't be renamed here", "err");
-  const label = c.label || c.name || mac;
-  openModal({ title: `Rename ${label}`, body: `<label>Name in UniFi<input id="cl-name" maxlength="60" value="${esc(c.name || "")}" placeholder="${esc(c.hostname || "e.g. Living room TV")}"></label>
-      <p class="fine muted">Changes the name UniFi shows for this device (its alias). You see the change before it's made, and can undo it.</p>`,
-    buttons: [{ label: "Cancel" }, { label: "Preview", cls: "primary", onClick: () => { const v = $("#cl-name").value.trim(); if (!v) return toast("Type a name", "err"); closeModal(); runActions([{ kind: "rest", resource: "user", id: userId, fields: { name: v }, description: `Rename ${label} → ${v}` }], "Rename device"); } }] });
+  const k = m.knownByMac[mac] || {}, userId = c.userId || k.id;
+  const label = c.label || c.name || mac, note = k.note || c.note || "";
+  const chosen = S.cliTypes?.[mac] || "", guess = clientKind({ ...c, mac: null });
+  openModal({ title: `Edit ${label}`, wide: true, body: `
+    <label>Name<input id="cl-name" maxlength="60" value="${esc(c.name || "")}" placeholder="${esc(c.hostname || "e.g. Living room TV")}" ${userId ? "" : "disabled"}></label>
+    <div class="fine muted" style="margin:-4px 0 6px">Type — sets the icon everywhere in HomeOwl</div>
+    <div class="type-grid" role="radiogroup" aria-label="Device type">
+      <button type="button" class="type-opt ${chosen ? "" : "on"}" data-ctype="" role="radio" aria-checked="${!chosen}">${iconSvg(guess, 22)}<span>Automatic<small>${esc(ICON_LABEL[guess] || "")}</small></span></button>
+      ${CLIENT_TYPES.map(t => `<button type="button" class="type-opt ${chosen === t ? "on" : ""}" data-ctype="${t}" role="radio" aria-checked="${chosen === t}">${iconSvg(t, 22)}<span>${esc(ICON_LABEL[t])}</span></button>`).join("")}
+    </div>
+    <label>Note<textarea id="cl-note" rows="2" maxlength="500" placeholder="e.g. In the kitchen, bought 2024, on the IoT network on purpose" ${userId ? "" : "disabled"}>${esc(note)}</textarea></label>
+    <p class="fine muted">${userId ? "The name and note are saved in UniFi: you see the change before it's made, and can undo it. The type is kept by HomeOwl." : "UniFi didn't return this device's record, so only its type can be changed here."}</p>`,
+    buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
+      const name = $("#cl-name").value.trim(), newNote = $("#cl-note").value.trim(), type = $(".type-opt.on")?.dataset.ctype || "";
+      if (userId && !name && c.name) return toast("Type a name", "err");
+      if (type !== chosen) {
+        try { S.cliTypes = (await api("/api/client-types/set", { mac, kind: type })).types || {}; } catch (err) { return toast(err.message, "err"); }
+      }
+      closeModal();
+      const fields = {};
+      if (userId && name && name !== (c.name || "")) fields.name = name;
+      if (userId && newNote !== note) { fields.note = newNote; fields.noted = newNote !== ""; }
+      if (Object.keys(fields).length) runActions([{ kind: "rest", resource: "user", id: userId, fields, description: `Edit ${label}${fields.name ? ` → ${fields.name}` : ""}` }], "Edit device");
+      else { if (type !== chosen) toast("Saved", "ok"); render(); }
+    } }] });
   setTimeout(() => $("#cl-name")?.select(), 30);
 }
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-ctype]"); if (!b) return;
+  $$(".type-opt").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); });
+});
 function showClient(mac) {
   const m = S.model, c = m.clients.find(x => x.mac === mac) || m.knownByMac[mac]; if (!c) return;
   const k = m.knownByMac[mac] || {}, userId = c.userId || k.id;
@@ -436,7 +462,7 @@ function showClient(mac) {
     ${live ? `<h3 style="margin-top:12px">Actions</h3><div class="btnrow">
       ${c.online !== false && !c.wired ? actBtn({ kind: "stacmd", cmd: "kick-sta", mac, label: c.label, description: `Reconnect ${c.label} (kick from Wi-Fi)` }, "Reconnect") : ""}
       ${actBtn({ kind: "stacmd", cmd: c.blocked ? "unblock-sta" : "block-sta", mac, label: c.label, description: `${c.blocked ? "Unblock" : "Block"} ${c.label}` }, c.blocked ? "Unblock" : "Block")}
-      ${userId ? `<button class="btn sm" id="cl-rename">Rename</button><button class="btn sm" id="cl-fixed">${c.fixedIp ? "Change / clear fixed IP" : "Set fixed IP"}</button>` : `<span class="fine">Rename / fixed IP need the client's record (not returned for this device).</span>`}</div>` : ""}`;
+      ${userId ? `<button class="btn sm" id="cl-rename">Edit name, type &amp; note</button><button class="btn sm" id="cl-fixed">${c.fixedIp ? "Change / clear fixed IP" : "Set fixed IP"}</button>` : `<span class="fine">Rename / fixed IP need the client's record (not returned for this device).</span>`}</div>` : ""}`;
   openModal({ title: c.label, body, wide: true });
   $("#cl-rename")?.addEventListener("click", () => renameClient(mac));
   $("#cl-fixed")?.addEventListener("click", () => {
@@ -457,7 +483,7 @@ V.clients = m => {
   const tabs = { active: ["Active", m.clients.length], known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length] };
   const tab = S.clientTab;
   const tbl = tab === "active" ? table("clients", [
-    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Rename" aria-label="Rename ${esc(r.label)}">✎</button>` : ""}` },
+    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${m.knownByMac[r.mac]?.note ? `<div class="fine muted cl-note">${esc(m.knownByMac[r.mac].note)}</div>` : ""}` },
     { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "Wi-Fi")} · ${bandLabel(r.band)}` },
     { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}" title="${r.signal < -75 ? "Weak" : r.signal < -67 ? "OK" : "Good"}">${r.signal} dBm</span>` },
     { k: "satisfaction", label: "Experience", num: 1, fmt: r => r.satisfaction === null || r.satisfaction === undefined ? "–" : r.satisfaction + "%" },
@@ -465,7 +491,7 @@ V.clients = m => {
     { k: "ip", more: 1, fmt: r => r.ip ? `<span class="mono">${esc(r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
   ], m.clients, { search: true, empty: "No clients returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` })
     : table("known-" + tab, [
-      { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}` }, { k: "online", label: "Status", fmt: r => r.online ? `<span class="tag good">online</span>` : `<span class="muted">seen ${ago(r.lastSeen)}</span>`, sort: r => r.online ? Infinity : (r.lastSeen || 0) },
+      { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${r.note ? `<div class="fine muted cl-note">${esc(r.note)}</div>` : ""}` }, { k: "online", label: "Status", fmt: r => r.online ? `<span class="tag good">online</span>` : `<span class="muted">seen ${ago(r.lastSeen)}</span>`, sort: r => r.online ? Infinity : (r.lastSeen || 0) },
       { k: "ip", more: 1, fmt: r => r.fixedIp || r.ip ? `<span class="mono">${esc(r.fixedIp || r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
       { k: "vendor", label: "Vendor" }, { k: "network", label: "Network" }, { k: "blocked", label: "Blocked", fmt: r => r.blocked ? `<span class="tag bad">blocked</span>` : "" },
       { k: "firstSeen", label: "First seen", num: 1, fmt: r => fmtTime(r.firstSeen) },
@@ -640,7 +666,10 @@ document.addEventListener("click", e => {
 // ------------------------------------------------------------------ sign-in, setup and start-up
 async function collectLive(quiet, fresh) {
   if (!quiet) busy(true, fresh || !S.dataAge ? "Collecting configuration… (15–40 s)" : "Loading…");
-  try { load(await api("/api/collect", { fresh: !!fresh }), "live", quiet); S.dataAt = (S.bundle?.meta?.cached_at || Date.now() / 1000) * 1000; renderChip(); } finally { busy(false); }
+  try {
+    const [bundle, types] = await Promise.all([api("/api/collect", { fresh: !!fresh }), api("/api/client-types").catch(() => null)]);
+    if (types) S.cliTypes = types.types || {};
+    load(bundle, "live", quiet); S.dataAt = (S.bundle?.meta?.cached_at || Date.now() / 1000) * 1000; renderChip(); } finally { busy(false); }
 }
 const EMPTY_BUNDLE = { integration: {}, legacy: {}, v2: {}, meta: {} };
 async function authPost(path, body) {

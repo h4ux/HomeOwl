@@ -41,6 +41,9 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if _, err := a.approveCheckIn(map[string]any{"id": id, "name": "Alex's iPad", "nd_profile": "abc123"}, "admin"); err != nil {
 		t.Fatal(err)
 	}
+	if a.cliTypes.All()["aa:bb:cc:00:00:40"] != "tablet" {
+		t.Errorf("the check-in's kind should set the icon: %v", a.cliTypes.All())
+	}
 	// the device's page now offers the setup
 	_, out := hi(a, "GET", "192.168.1.40", "", nil)
 	reg, _ := out["registered"].(map[string]any)

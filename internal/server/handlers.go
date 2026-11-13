@@ -122,6 +122,9 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	case "nextdns-test":
 		send(w, 200, nextdnsTest())
 		return
+	case "client-types": // the device types admins chose (they set the icons), for everyone signed in
+		send(w, 200, map[string]any{"types": a.cliTypes.All()})
+		return
 	case "analytics/query":
 		params, _ := body["params"].(map[string]any)
 		res, err := a.An.Query(s(body, "name"), params)
@@ -316,6 +319,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.upsTestScript(r.Context(), body, by)
 	case p == "checkins":
 		res = a.checkinView()
+	case p == "client-types/set":
+		if err = a.cliTypes.Set(s(body, "mac"), s(body, "kind"), false); err == nil {
+			res = map[string]any{"types": a.cliTypes.All()}
+		}
 	case p == "checkins/ndprofiles":
 		res = a.ndProfileChoices()
 	case p == "checkins/approve":

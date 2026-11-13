@@ -393,6 +393,9 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 			return nil, err
 		}
 	}
+	if k := checkinType[x.Kind]; k != "" && x.MAC != "" { // the icon follows what they said it is, unless an admin chose one
+		_ = a.cliTypes.Set(x.MAC, k, true)
+	}
 	if pid != "" && nd != "" { // the setup profile names the device in NextDNS's logs: those are this person's too
 		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+x.Name); err != nil {
 			return nil, err

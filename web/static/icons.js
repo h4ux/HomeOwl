@@ -102,6 +102,8 @@ const CLIENT_RULES = [
 /** Icon kind for a client (phone, laptop, TV…), guessed from its name, hostname, maker and OS fingerprint. */
 function clientKind(c) {
   if (!c) return "unknown";
+  const chosen = c.mac && typeof S !== "undefined" && S.cliTypes?.[String(c.mac).toLowerCase()]; // set by an admin (clienttypes.go)
+  if (chosen && ICON_LABEL[chosen]) return chosen;
   if (c.icon) return c.icon;
   const name = [c.name, c.label, c.hostname, c.device, c.model, c.device_model].filter(Boolean).join(" ").toLowerCase();
   const extra = [c.os_name, c.dev_family, c.dev_vendor, c.oui, c.vendor].filter(Boolean).join(" ").toLowerCase();

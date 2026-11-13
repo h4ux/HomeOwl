@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.26] — 2026-11-13
+
+### Added
+- **Edit a client's name, type and note** (the ✎ next to a client, or Edit in its details):
+  - **Name and note** are saved in UniFi itself, previewed and undoable like every change.
+  - **Type** (phone, TV, smart plug, camera…) sets the device's icon everywhere in HomeOwl. HomeOwl keeps it, because UniFi has no simple field for it. "Automatic" goes back to HomeOwl's guess.
+  - Notes show under the client's name in the list.
+  - Both the active and the "all known" lists have the edit button.
+- **Approved check-ins set the type:** a device approved at check-in gets the type the family member picked (phone, tablet, TV…), unless an admin already chose one.
+
 ## [0.1.25] — 2026-11-13
 
 ### Added

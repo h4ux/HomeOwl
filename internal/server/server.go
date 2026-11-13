@@ -81,6 +81,7 @@ type App struct {
 	tsErr        string
 	logos        *ispLogos
 	checkins     *checkins
+	cliTypes     *clientTypes
 	History      *history.Store
 	firmware     *firmwareWatch
 	Protect      *protect.Watcher
@@ -107,7 +108,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	}
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")},
-		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}}
+		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
