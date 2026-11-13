@@ -17,6 +17,11 @@ func checkinApp(t *testing.T) *App {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/integration/v1/info"):
 			_, _ = w.Write([]byte(`{"applicationVersion":"9.0"}`))
+		case strings.HasSuffix(r.URL.Path, "/rest/wlanconf"):
+			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[
+				{"_id":"w1","name":"Example Home","security":"wpapsk","x_passphrase":"example-pass-123","enabled":true},
+				{"_id":"w2","name":"Example Guests","security":"wpapsk","x_passphrase":"guest-pass-456","is_guest":true,"enabled":true},
+				{"_id":"w3","name":"Example Work","security":"wpaeap","enabled":true}]}`))
 		case strings.HasSuffix(r.URL.Path, "/stat/sta"):
 			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[
 				{"ip":"192.168.1.40","mac":"AA:BB:CC:00:00:40","hostname":"ipad","oui":"Apple","user_id":"u40","network":"Default"},

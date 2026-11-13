@@ -128,7 +128,7 @@ func ndDeviceLabel(name string) string {
 // deviceSetup is what the device's own check-in page shows once it is approved.
 func (a *App) deviceSetup(x CheckIn) map[string]any {
 	res := map[string]any{"name": x.Name, "kind": x.Kind, "person": x.PersonName, "profile_at": x.ProfileAt,
-		"update": x.ProfileND != "" && x.ProfileND != x.NDProfile} // settings changed since the last install
+		"update": x.ProfileAt > 0 && a.setupUpdate(x), "includes": a.includes(x)} // settings changed since the last install
 	if x.PersonID != "" && a.An.Open() {
 		for _, p := range a.An.People() {
 			if p.ID == x.PersonID {
@@ -137,6 +137,9 @@ func (a *App) deviceSetup(x CheckIn) map[string]any {
 		}
 	}
 	if x.NDProfile == "" {
+		if inc := res["includes"].(map[string]any); len(inc) > 0 {
+			res["apple_only"] = true // Wi-Fi and VPN only: there's something to install on Apple devices
+		}
 		return res
 	}
 	label := ndDeviceLabel(x.Name)
@@ -163,24 +166,25 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "This device isn't approved yet. Check in first, then come back once an admin has approved it.")
 		return
 	}
-	if x.NDProfile == "" {
-		fail(w, 404, "An admin hasn't chosen a NextDNS profile for this device yet.")
+	ex, _ := a.extrasFor(x)
+	if x.NDProfile == "" && len(ex.WiFi) == 0 && ex.VPN == nil {
+		fail(w, 404, "There's nothing to set up on this device yet: an admin chooses its NextDNS profile or a profile type.")
 		return
 	}
 	if x.ProfileND != "" && x.ProfileND != x.NDProfile && a.An.Open() {
 		_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+x.Name)
 	}
-	a.checkins.Touch(x.ID, x.NDProfile)
-	var clip *webClip
+	a.checkins.Touch(x.ID, x.NDProfile, a.setupHash(x))
+	ex.Mac = r.URL.Query().Get("p") == "mac"
 	if r.URL.Query().Get("p") == "ios" { // iPhone and iPad: also a Home Screen icon for the device's check-in page
 		scheme := "http"
 		if r.TLS != nil {
 			scheme = "https"
 		}
 		icon, _ := fs.ReadFile(web.Static, "static/icon-192.png")
-		clip = &webClip{URL: scheme + "://" + r.Host + "/hi", Icon: icon}
+		ex.Clip = &webClip{URL: scheme + "://" + r.Host + "/hi", Icon: icon}
 	}
-	body := mobileConfig(x, clip)
+	body := mobileConfig(x, ex)
 	if sc := a.signer(); sc != nil { // signed with the Let's Encrypt certificate: iOS shows it as "Verified"
 		if signed, err := signProfile(body, sc); err == nil {
 			body = signed
@@ -226,7 +230,8 @@ type webClip struct {
 
 // mobileConfig builds the profile. Its identifiers come from the device's MAC address, so installing a newer one
 // replaces the old one instead of adding a second.
-func mobileConfig(x CheckIn, clip *webClip) []byte {
+func mobileConfig(x CheckIn, ex profileExtras) []byte {
+	clip := ex.Clip
 	base := "io.github.h4ux.homeowl.device." + strings.ReplaceAll(x.MAC, ":", "")
 	doh := "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
 	var b bytes.Buffer
@@ -241,19 +246,26 @@ func mobileConfig(x CheckIn, clip *webClip) []byte {
 <dict>
 <key>PayloadContent</key>
 <array>
-<dict>
-<key>DNSSettings</key>
-<dict>
 `)
-	str("DNSProtocol", "HTTPS")
-	str("ServerURL", doh)
-	b.WriteString("</dict>\n")
-	str("PayloadDescription", "Encrypted DNS through NextDNS, so this device is recognised by name on any network.")
-	str("PayloadDisplayName", "NextDNS · "+x.Name)
-	str("PayloadIdentifier", base+".dns")
-	str("PayloadType", "com.apple.dnsSettings.managed")
-	str("PayloadUUID", stableUUID(base+".dns"))
-	b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n</dict>\n")
+	p := plistW{&b}
+	for _, w := range ex.WiFi {
+		wifiPayload(p, base, w)
+	}
+	if ex.VPN != nil {
+		vpnPayloadXML(p, base, ex.VPN, ex.Mac)
+	}
+	if x.NDProfile != "" {
+		b.WriteString("<dict>\n<key>DNSSettings</key>\n<dict>\n")
+		str("DNSProtocol", "HTTPS")
+		str("ServerURL", doh)
+		b.WriteString("</dict>\n")
+		str("PayloadDescription", "Encrypted DNS through NextDNS, so this device is recognised by name on any network.")
+		str("PayloadDisplayName", "NextDNS · "+x.Name)
+		str("PayloadIdentifier", base+".dns")
+		str("PayloadType", "com.apple.dnsSettings.managed")
+		str("PayloadUUID", stableUUID(base+".dns"))
+		b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n</dict>\n")
+	}
 	if clip != nil {
 		b.WriteString("<dict>\n<key>FullScreen</key><false/>\n")
 		if len(clip.Icon) > 0 {
@@ -271,7 +283,11 @@ func mobileConfig(x CheckIn, clip *webClip) []byte {
 		b.WriteString("</dict>\n")
 	}
 	b.WriteString("</array>\n")
-	str("PayloadDescription", "Set up by HomeOwl for "+x.Name+". It contains no passwords and can be removed at any time in Settings.")
+	desc := "Set up by HomeOwl for " + x.Name + ". It contains no passwords and can be removed at any time in Settings."
+	if len(ex.WiFi) > 0 || ex.VPN != nil {
+		desc = "Set up by HomeOwl for " + x.Name + ": " + strings.Join(profileParts(x, ex), ", ") + ". It can be removed at any time in Settings."
+	}
+	str("PayloadDescription", desc)
 	str("PayloadDisplayName", "HomeOwl · "+x.Name)
 	str("PayloadIdentifier", base)
 	str("PayloadOrganization", "HomeOwl")
@@ -292,7 +308,17 @@ func stableUUID(s string) string {
 // setupStatus: is the device's setup in use? The setup names the device in NextDNS, so its queries in the
 // imported NextDNS logs show it working — and from where.
 func (a *App) setupStatus(x CheckIn) map[string]any {
-	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileND != "" && x.ProfileND != x.NDProfile}
+	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileAt > 0 && a.setupUpdate(x)}
+	if t, ok := a.typeFor(x); ok {
+		st["type"] = t.Name
+		if t.VPN != nil && t.VPN.Type == "wireguard" {
+			st["wg"] = a.Sec.Get(deviceWGSlot(x.ID)) != "" // whether it's there, never the config
+		}
+	}
+	if x.NDProfile == "" {
+		st["state"] = "no_nextdns" // Wi-Fi and VPN only: nothing NextDNS could show
+		return st
+	}
 	if !a.An.Open() || len(a.An.NDSlots()) == 0 {
 		st["state"] = "unknown" // no NextDNS logs to look in
 		return st
@@ -375,6 +401,18 @@ var homePubCache struct {
 // new setup ("update ready"), and its NextDNS name moves to the new profile in People.
 func (a *App) changeSetup(body map[string]any) (any, error) {
 	id, nd := s(body, "id"), s(body, "nd_profile")
+	if has(body, "type_id") {
+		if t := s(body, "type_id"); t != "" && t != typeNone {
+			if _, ok := a.devTypes.Get(t); !ok {
+				return nil, errors.New("that profile type is gone")
+			}
+		}
+	}
+	if wg := s(body, "wg"); wg != "" && wg != "-" {
+		if err := checkWG(wg); err != nil {
+			return nil, err
+		}
+	}
 	if nd != "" && !ndProfileRE.MatchString(nd) {
 		return nil, errors.New("that isn't a NextDNS profile ID")
 	}
@@ -406,11 +444,38 @@ func (a *App) changeSetup(body map[string]any) (any, error) {
 			return nil, err
 		}
 	}
+	switch wg := s(body, "wg"); wg {
+	case "":
+	case "-":
+		a.Sec.Delete(deviceWGSlot(id))
+	default:
+		if err := a.Sec.Set(deviceWGSlot(id), strings.TrimSpace(wg)+"\n"); err != nil {
+			return nil, err
+		}
+	}
 	a.checkins.Edit(id, func(c *CheckIn) {
+		if has(body, "type_id") {
+			c.TypeID = s(body, "type_id")
+		}
 		c.NDProfile, c.ProfileND, c.SetupChanged = nd, inst, time.Now().Unix()
 		if nd == "" {
 			c.SetupLost = 0
 		}
 	})
 	return a.checkinView(), nil
+}
+
+// profileParts names what a profile holds, for its description.
+func profileParts(x CheckIn, ex profileExtras) []string {
+	var parts []string
+	if x.NDProfile != "" {
+		parts = append(parts, "encrypted DNS through NextDNS")
+	}
+	for _, w := range ex.WiFi {
+		parts = append(parts, "Wi-Fi "+w.SSID)
+	}
+	if ex.VPN != nil {
+		parts = append(parts, "the "+orDefault(ex.VPN.Conf.Name, "Home VPN")+" VPN")
+	}
+	return parts
 }

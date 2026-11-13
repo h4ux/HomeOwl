@@ -88,6 +88,7 @@ async function loadSettings() {
   <div class="spane" data-spane="analytics"><div id="an-settings"></div></div>
 
   <div class="spane" data-spane="alerts"><div class="card" id="st-alerts"><div class="empty">Loading…</div></div></div>
+  <div class="spane" data-spane="devices"><div class="card" id="st-devtypes"><div class="empty">Loading…</div></div></div>
   <div class="spane" data-spane="home"><div class="card" id="st-guestrot"></div><div class="card section" id="st-cameras"></div>
     <div class="card section"><h2>Doors, UPS and guest Wi-Fi</h2><p class="fine">These are set up on their own pages.</p>
       <div class="btnrow"><a class="btn sm" href="#" data-goto="doors">Doors</a><a class="btn sm" href="#" data-goto="ups">UPS</a><a class="btn sm" href="#" data-goto="guest">Guest Wi-Fi</a><a class="btn sm" href="#" data-goto="checkins">Device check-in</a></div></div></div>
@@ -106,6 +107,7 @@ async function loadSettings() {
   if (typeof renderUpdateSettings === "function") { renderUpdateSettings(); if (!S.update) loadUpdate().then(renderUpdateSettings); }
   if (typeof renderCameraSettings === "function") renderCameraSettings();
   if (typeof renderAlertSettings === "function") renderAlertSettings();
+  if (typeof renderDevTypes === "function") renderDevTypes();
   if (typeof renderGuestRotation === "function") renderGuestRotation();
 }
 
@@ -301,7 +303,7 @@ function namesStatus(nm) {
     : `Announcing on ${esc(ifs.join(", "))}. Open one of the .local names on a phone, then <a href="#" id="st-nm-check">check again</a>.`;
   return `<div class="names-st fine"><div>${line}</div></div>`;
 }
-const SET_TABS = [["connection", "Connection"], ["access", "Access"], ["users", "Users"], ["alerts", "Alerts"], ["analytics", "Analytics"], ["home", "Home"], ["ai", "AI & MCP"], ["system", "System"]];
+const SET_TABS = [["connection", "Connection"], ["access", "Access"], ["users", "Users"], ["alerts", "Alerts"], ["devices", "Device profiles"], ["analytics", "Analytics"], ["home", "Home"], ["ai", "AI & MCP"], ["system", "System"]];
 try { S.setTab = localStorage.getItem("homeowl-settings-tab") || "connection"; } catch { S.setTab = "connection"; }
 function setTabs() {
   const nav = $("#set-nav"), se = S.settings; if (!nav || !se) return;
@@ -309,7 +311,7 @@ function setTabs() {
   const ts = se.tailscale || {}, dot = {
     connection: se.unifi?.connected ? "ok" : "bad",
     access: ts.enabled && ts.status?.state && ts.status.state !== "Running" ? "warn" : "",
-    users: "", alerts: "", analytics: "", home: "", ai: se.mcp?.mode === "god" ? "warn" : "",
+    users: "", alerts: "", devices: "", analytics: "", home: "", ai: se.mcp?.mode === "god" ? "warn" : "",
     system: S.update?.available ? "warn" : "",
   };
   const count = { users: (se.users || []).length };

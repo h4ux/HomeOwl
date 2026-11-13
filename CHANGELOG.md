@@ -4,6 +4,23 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.34] — 2026-11-13
+
+### Added
+- **Profile types (Settings › Device profiles):** named sets of settings, such as "Kids" or "Adults", that the device setup profile carries besides NextDNS on iPhone, iPad and Mac.
+  - **Wi-Fi networks:** the device joins them by itself. The password is read from UniFi when the device downloads its profile and isn't stored by HomeOwl. Enterprise (802.1X) networks can't be included.
+  - **A VPN, in one of three kinds:**
+    - **IKEv2** (built in), with a shared secret or a user name and password;
+    - **L2TP over IPsec** (built in; UniFi gateways can run an L2TP server);
+    - **WireGuard** (needs the app): each device gets its own config, pasted in Check-ins › Change….
+  - **"Connect by itself when not on the home Wi-Fi"** for IKEv2 and WireGuard.
+  - VPN secrets and WireGuard configs live in the secret store, never go back to the browser, and only go into that device's profile.
+- **How types reach devices:** a type is attached to people, so their devices get it. A device can be given another type, or none, in Check-ins › Change….
+- **What the device's page shows:** what the setup holds (NextDNS, which Wi-Fi, which VPN). It says **Update ready** when any of that changes, including a new Wi-Fi password in UniFi.
+
+### Changed
+- A device can be set up with Wi-Fi and VPN only, without a NextDNS profile.
+
 ## [0.1.33] — 2026-11-13
 
 ### Added

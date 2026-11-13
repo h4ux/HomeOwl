@@ -45,7 +45,11 @@ const copyRow = (v, label) => `<div class="cmd"><code>${esc(v)}</code><button cl
 // the device is approved: offer to set it up so it's recognised by name everywhere (devprofile.go)
 function registered(st) {
   const r = st.registered, nd = r.nextdns, pf = platform();
-  const apple = `<a class="btn primary" href="/api/hi/profile${pf === "ios" ? "?p=ios" : ""}" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
+  const apple = `<a class="btn primary" href="/api/hi/profile${pf === "ios" ? "?p=ios" : pf === "mac" ? "?p=mac" : ""}" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
+  const inc = r.includes || {}, wifi = inc.wifi || [], vpn = inc.vpn, extra = wifi.length || vpn;
+  const holds = extra ? `<ul class="hi-holds">${nd ? `<li>Encrypted DNS through NextDNS, under this device's name</li>` : ""}
+      ${wifi.length ? `<li>Wi-Fi: ${wifi.map(esc).join(", ")} — joins by itself</li>` : ""}
+      ${vpn ? `<li>VPN: ${esc(vpn.name)}${vpn.on_demand ? " — turns on by itself away from home" : ""}${vpn.app ? ` (needs the ${esc(vpn.app)} app${vpn.ready === false ? "; an admin still has to add this device's key" : ""})` : ""}</li>` : ""}</ul>` : "";
   const how = {
     ios: notSafariIOS()
       ? `<div class="msg warn">iPhone and iPad install profiles only from <b>Safari</b>. This browser would just save the file.</div>
@@ -59,10 +63,12 @@ function registered(st) {
       <li>Turn on IPv4, set Preferred DNS to <code>${esc(nd.servers[0])}</code> and Alternate to <code>${esc(nd.servers[1])}</code>.</li>
       <li>For each, set <b>DNS over HTTPS</b> to <b>On (manual template)</b> and paste:</li></ol>${copyRow(nd.doh, "template")}`,
   };
-  const setup = !nd ? `<p class="fine">An admin can also choose a NextDNS profile for this device; then this page offers to set it up.</p>`
+  const setup = !nd && !r.apple_only ? `<p class="fine">An admin can also choose a NextDNS profile for this device; then this page offers to set it up.</p>`
     : `${r.update ? `<div class="msg warn hi-update"><b>Update ready.</b> This device's settings changed. ${pf === "android" ? "Replace the Private DNS host name with the one below." : "Install the profile again — it replaces the old one."}</div>` : ""}<h3 style="margin:16px 0 6px">${r.update ? "Install the update" : "Set up this device"}</h3>
-      <p class="muted">So HomeOwl and NextDNS recognise it by name at home, on mobile data and on other Wi-Fi. Nothing else changes, there are no passwords in it, and you can remove it any time.</p>
-      ${how[pf] || `<p>iPhone, iPad or Mac: open this page on it. Android: Private DNS host name:</p>${copyRow(nd.android, "host name")}<p>Anything else: DNS-over-HTTPS address:</p>${copyRow(nd.doh, "address")}`}
+      ${extra ? `<p class="muted">It sets up:</p>${holds}<p class="fine">You can remove it any time.${pf === "android" || pf === "windows" ? " Wi-Fi and VPN install on iPhone, iPad and Mac; here you get the NextDNS part." : ""}</p>`
+        : `<p class="muted">So HomeOwl and NextDNS recognise it by name at home, on mobile data and on other Wi-Fi. Nothing else changes, there are no passwords in it, and you can remove it any time.</p>`}
+      ${!nd ? (pf === "ios" || pf === "mac" ? how[pf] : `<p>Open this page on the iPhone, iPad or Mac to install it.</p>`)
+        : how[pf] || `<p>iPhone, iPad or Mac: open this page on it. Android: Private DNS host name:</p>${copyRow(nd.android, "host name")}<p>Anything else: DNS-over-HTTPS address:</p>${copyRow(nd.doh, "address")}`}
       ${r.profile_at && (pf === "ios" || pf === "mac") ? `<p class="fine">Downloaded before on ${esc(new Date(r.profile_at * 1000).toLocaleDateString())}. Installing again replaces it.</p>` : ""}
       ${pf === "ios" || pf === "mac" ? `<p class="fine">If iCloud Private Relay is on, Safari's visits go through Apple instead and aren't seen by NextDNS.</p>` : ""}`;
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>

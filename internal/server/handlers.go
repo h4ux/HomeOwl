@@ -323,6 +323,16 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		if err = a.cliTypes.Set(s(body, "mac"), s(body, "kind"), false); err == nil {
 			res = map[string]any{"types": a.cliTypes.All()}
 		}
+	case p == "devtypes":
+		res, err = a.devTypesView()
+	case p == "devtypes/save":
+		if res, err = a.saveDevType(body); err == nil {
+			res, err = a.devTypesView()
+		}
+	case p == "devtypes/delete":
+		if err = a.deleteDevType(s(body, "id")); err == nil {
+			res, err = a.devTypesView()
+		}
 	case p == "checkins/coverage":
 		res = a.setupCoverage()
 	case p == "checkins/setup":
