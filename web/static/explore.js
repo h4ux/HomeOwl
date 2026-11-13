@@ -250,6 +250,12 @@ const ppAvatar = p => `<span class="pp-av${isGroup(p) ? " grp" : ""}" style="bac
 function peopleBody() {
   return `${isAdmin() ? `<div class="btnrow" style="margin-bottom:12px"><button class="btn primary" id="pp-add">+ Person</button><button class="btn" id="pp-addg">+ Group</button></div>` : ""}<div id="pp-list"><div class="empty">Loading…</div></div>`;
 }
+// the apps a person used most (internal/apps), each a link to Explore for that person and app
+function ppApps(p, list) {
+  list = arr(list); if (!list.length) return "";
+  list.forEach(x => { if (x.name && S.apps) S.apps.names[x.key] = x.name; });
+  return `<div class="pp-apps"><span class="fine muted">Top apps</span>${list.slice(0, 8).map(x => `<a href="#" class="pp-app" data-exgo="person|${esc(p.id)};;app|${esc(x.key)}" title="${esc(x.category || "")} · ${fmtNum(x.total)} lookups on ${x.days} day${x.days === 1 ? "" : "s"}${x.blocked ? ` · ${pct(x.blocked, x.total)} blocked` : ""}">${esc(x.name || x.key)}${x.blocked && x.blocked >= x.total / 2 ? ` <span class="tag bad">blocked</span>` : ""}</a>`).join("")}</div>`;
+}
 async function loadPeople() {
   let meta; try { meta = await exMeta(true); } catch (e) { return fill("pp-list", `<div class="empty bad-t">${esc(e.message)}</div>`); }
   const ppl = meta.people.filter(p => !isGroup(p)), grps = meta.people.filter(isGroup);
@@ -268,12 +274,13 @@ async function loadPeople() {
   meta.people.forEach(async p => {
     const el = $(`#pp-${CSS.escape(p.id)} .pp-body`);
     try {
-      const r = await explore(["summary", "by_category", "heatmap", "by_device", "traffic"], { person: p.id });
+      const r = await explore(["summary", "by_category", "heatmap", "by_device", "traffic", "by_app"], { person: p.id });
       const s = r.summary || {}, days = s.active_days || 1, tr = r.traffic?.summary || {};
       if (!s.total && !tr.rx && !tr.tx) { el.innerHTML = `<p class="fine muted">${p.devices.length ? "No activity from these devices in this period." : "No devices yet."}</p>`; return; }
       el.innerHTML = `<div class="pp-kpis"><div><b>${fmtNum(Math.round((s.total || 0) / days))}</b><span>queries a day</span></div>
           <div><b>${s.active_min ? fmtMin(s.active_min / days) : "–"}</b><span>active a day ≈</span></div><div><b>${pct(s.blocked, s.total)}</b><span>blocked</span></div>
           <div><b>${tr.rx || tr.tx ? fmtBytes((tr.rx + tr.tx) / days) : "–"}</b><span>data a day</span></div></div>
+        ${ppApps(p, r.by_app)}
         ${insights(`pp-${p.id}`, `<h3>Top categories</h3>${blist((r.by_category || []).slice(0, 6), "category", { color: i => catColor(i.key), sub: subActive })}
           <h3>When</h3>${heatmap(r.heatmap, { metric: "n", fmt: v => fmtNum(Math.round(v)), clickable: false, color: p.color || "var(--c4)" })}
           <p class="fine">${(r.by_device || []).map(d => `<a href="#" data-exgo="device|${esc(d.key)}">${esc(d.key)}</a>`).join(" · ")}</p>`, "Categories and hours")}`;

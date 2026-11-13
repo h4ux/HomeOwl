@@ -11,7 +11,8 @@ const REPORTS = [
   { id: "inventory", title: "Device inventory", icon: "laptop", text: "Every device UniFi knows: name, owner, network, address and maker. Also as CSV.", noPeriod: true },
   { id: "categories", title: "Categories", icon: "tv", an: true, text: "What the internet was used for: each category's share, its top sites, who used it and on which devices. Click a category to drill down." },
   { id: "blocked", title: "Blocked sites", icon: "unknown", an: true, text: "What NextDNS blocked and why (ads, trackers, parental control, security), for whom, the top blocked sites and anything unusual." },
-  { id: "family", title: "Family & usage", icon: "phone", text: "Per person and group: time online, top categories, blocked queries, data used and time at home." },
+  { id: "apps", title: "Apps", icon: "tablet", an: true, text: "Which apps were used, by whom, on which devices and on how many days; what stands out, and the apps you block. Click an app to drill down." },
+  { id: "family", title: "Family & usage", icon: "phone", text: "Per person and group: time online, top categories and apps, blocked queries, data used and time at home." },
   { id: "security", title: "Security", icon: "camera", text: "Exposure findings, threats the gateway stopped, firewall blocks and the most blocked domains." },
   { id: "changes", title: "Changes & alerts", icon: "iot", text: "What HomeOwl changed on the console, and every alert, in the period." },
 ];
@@ -100,6 +101,38 @@ const RP_BUILD = {
       + rpSec("Categories", `<p class="fine muted no-print">Click a category for its top sites, who used it and on which devices.</p><div class="rp-ddl">${list}</div>${cats.length > top.length ? `<p class="fine muted">${cats.length - top.length} smaller categories not shown.</p>` : ""}`)
       + rpSec("Each person's top categories", mix)
       + rpSec("Over time", tl.length > 1 ? lineChart([{ name: "Queries", color: "var(--c1)", fill: true, points: tl.map(r => ({ t: Date.parse(r.k.replace(" ", "T")), v: r.total })) }], { fmt: v => fmtNum(Math.round(v)), height: 160, legend: false }) : "");
+  },
+  async apps() {
+    if (!(await rpAnalyticsOn())) return rpNeedsAn();
+    const [base, blocks] = await Promise.all([rpEx(["by_app", "summary"]), isAdmin() ? rpTry(() => api("/api/appblocks"), null) : Promise.resolve(null)]);
+    const list = arr(base.by_app), s = base.summary || {}, days = s.active_days || 1;
+    if (!list.length) return rpSec("Nothing in this period", `<p>No known apps${rpWho()} in this period. HomeOwl recognises about 50 popular apps from NextDNS logs.</p>`);
+    const top = list.slice(0, 20), mx = Math.max(...top.map(a => a.total || 0), 1);
+    const drill = await Promise.all(top.map(a => rpTry(() => rpEx(["by_person", "by_device", "heatmap"], { app: a.key }, { device_limit: 6, person_id_limit: 6 }), {})));
+    const cats = {}; list.forEach(a => { cats[a.category || "Other"] = (cats[a.category || "Other"] || 0) + a.total; });
+    const catList = Object.entries(cats).sort((x, y) => y[1] - x[1]);
+    // what stands out
+    const notes = [], name = a => esc(a.name || a.key);
+    list.filter(a => a.category === "Dating").forEach(a => notes.push(["warn", `<b>${name(a)}</b> was used on ${a.days} day${a.days === 1 ? "" : "s"} (${fmtNum(a.devices)} device${a.devices === 1 ? "" : "s"}).`]));
+    list.filter(a => a.blocked >= 50 && a.blocked / a.total >= 0.3).slice(0, 5).forEach(a => notes.push(["", `<b>${name(a)}</b>: ${rpShareOf(a.blocked, a.total)} of its lookups were blocked. If you block it, the app keeps trying; if you don't, a NextDNS list is catching it.`]));
+    top.forEach((a, i) => { const late = arr(drill[i]?.heatmap?.cells).filter(c => c.hour < 5).reduce((t, c) => t + (c.n || 0), 0);
+      if (late >= 30 && late / a.total >= 0.1) notes.push(["warn", `<b>${name(a)}</b> was used late at night: ${rpShareOf(late, a.total)} of its lookups were between midnight and 5 am.`]); });
+    const rows = top.map((a, i) => {
+      const d = drill[i] || {};
+      const head = rpRowHead(name(a) + ` <span class="fine muted">${esc(a.category || "")}</span>`, "var(--c2)", 100 * a.total / mx,
+        [`${a.days} day${a.days === 1 ? "" : "s"}`, a.active_min ? fmtMin(a.active_min / days) + "/day" : `${fmtNum(a.total)} lookups`, a.blocked ? `${rpShareOf(a.blocked, a.total)} blocked` : ""]);
+      return rpDrill(head, `<div class="rp-ddg">${S.rp.person ? "" : rpMini("Who", arr(d.by_person), rpPersonName)}${rpMini("Devices", arr(d.by_device), x => esc(x.key))}</div>
+        <p class="fine muted">Last seen ${a.last ? esc(rpWhen(Date.parse(a.last) || a.last)) : "–"} ${rpExLink(`app|${a.key}${S.rp.person ? `;;person|${S.rp.person}` : ""}`)}</p>`);
+    }).join("");
+    const bl = arr(blocks?.blocks);
+    return rpSec("At a glance", rpKpis([["Apps seen", fmtNum(list.length)], ["Most used", name(list[0]), `${list[0].days} day${list[0].days === 1 ? "" : "s"}`],
+        ["Top kind", esc(catList[0][0]), rpShareOf(catList[0][1], list.reduce((t, a) => t + a.total, 0))], ["Blocked apps", blocks ? fmtNum(bl.length) : "–"]]))
+      + rpSec("What stands out", notes.length ? `<ul class="rp-notes">${notes.map(([c, t]) => `<li class="${c}">${t}</li>`).join("")}</ul>` : "")
+      + rpSec("Apps", `<p class="fine muted no-print">Click an app for who used it and on which devices. Apps show up when they're used or update themselves, not when they're only installed.</p><div class="rp-ddl">${rows}</div>${list.length > top.length ? `<p class="fine muted">${list.length - top.length} less used apps not shown.</p>` : ""}`)
+      + rpSec("By kind", rpShare(catList.map(([k, v]) => ({ key: k, total: v })), list.reduce((t, a) => t + a.total, 0), c => catColor(c.key)))
+      + rpSec("Apps you block", bl.length ? rpTable([{ label: "App", k: "name" }, { label: "When", fmt: b => esc(b.mode === "schedule" ? b.when : "Always") },
+          { label: "For", fmt: b => esc(b.profiles.map(id => { const p = arr(blocks.profiles).find(x => x.id === id); return p ? (p.people.length ? p.people.join(", ") : p.name) : id; }).join(" · ")) },
+          { label: "Now", fmt: b => b.error ? `<span class="tag bad">needs attention</span>` : b.blocked_now ? "blocked" : "allowed" }], bl) : "");
   },
   async blocked() {
     if (!(await rpAnalyticsOn())) return rpNeedsAn();
@@ -195,14 +228,15 @@ const RP_BUILD = {
     if (!(await rpAnalyticsOn())) return rpSec("Not available", `<p>This report needs Analytics with NextDNS or UniFi data.</p>`);
     const meta = await api("/api/analytics/meta", {}), pr = await rpPresence();
     const parts = await Promise.all(meta.people.map(async p => {
-      const r = await rpTry(() => api("/api/analytics/explore", { range: rpRange(), filters: { person: p.id }, views: ["summary", "by_category", "traffic"], raw: S.ex.raw }), {});
+      const r = await rpTry(() => api("/api/analytics/explore", { range: rpRange(), filters: { person: p.id }, views: ["summary", "by_category", "traffic", "by_app"], raw: S.ex.raw }), {});
       const s = r.summary || {}, days = s.active_days || 1, tr = r.traffic?.summary || {};
       const home = pr && arr(pr.people).find(x => x.id === p.id);
       const homeMs = home ? prSpans(home, arr(pr.events), Math.max(rpSince(), Math.min(...arr(pr.events).map(e => e.t), Date.now())), Date.now()).reduce((a, [x, y]) => a + y - x, 0) : 0;
       return `<div class="rp-person"><h3><i style="background:${esc(p.color || "var(--c4)")}"></i>${esc(p.name)}${p.kind === "group" ? ` <span class="fine muted">group</span>` : ""}</h3>
         ${rpKpis([["Queries a day", fmtNum(Math.round((s.total || 0) / days))], ["Active a day ≈", s.active_min ? fmtMin(s.active_min / days) : "–"], ["Blocked", pct(s.blocked, s.total)],
           ["Data a day", tr.rx || tr.tx ? fmtBytes((tr.rx + tr.tx) / days) : "–"], p.kind !== "group" && pr?.history ? ["At home", prDur(homeMs)] : null])}
-        ${(r.by_category || []).length ? `<p class="fine">Top: ${r.by_category.slice(0, 6).map(c => `${esc(c.key)} (${fmtNum(c.total)})`).join(" · ")}</p>` : ""}</div>`;
+        ${(r.by_category || []).length ? `<p class="fine">Top: ${r.by_category.slice(0, 6).map(c => `${esc(c.key)} (${fmtNum(c.total)})`).join(" · ")}</p>` : ""}
+        ${arr(r.by_app).length ? `<p class="fine">Apps: ${r.by_app.slice(0, 8).map(x => `${esc(x.name || x.key)} (${x.days} day${x.days === 1 ? "" : "s"}${x.blocked ? `, ${rpShareOf(x.blocked, x.total)} blocked` : ""})`).join(" · ")}</p>` : ""}</div>`;
     }));
     return rpSec("People and groups", parts.join("") || `<p>No people or groups yet.</p>`);
   },

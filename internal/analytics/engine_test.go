@@ -259,6 +259,19 @@ func TestAppsSeen(t *testing.T) {
 	if !ok || len(byApp) != 2 || byApp[0]["key"] != "tiktok" || toInt(byApp[0]["total"]) != 2 || toInt(byApp[0]["blocked"]) != 1 || byApp[1]["key"] != "roblox" {
 		t.Fatalf("by_app: %#v", r["by_app"])
 	}
+	if byApp[0]["name"] != "TikTok" || byApp[0]["category"] != "Social" {
+		t.Fatalf("by_app names: %#v", byApp[0])
+	}
+	// the heatmap follows the app filter (its hourly summary has no domains, so it reads the queries)
+	e.ApplyLocalTime(true)
+	r, _ = e.Explore(ExploreRequest{Range: "30d", Views: []string{"heatmap"}, Filters: map[string]any{"app": "roblox"}})
+	n := int64(0)
+	for _, c := range r["heatmap"].(map[string]any)["cells"].([]map[string]any) {
+		n += toInt(c["n"])
+	}
+	if n != 1 {
+		t.Fatalf("heatmap with an app filter counted %d queries", n)
+	}
 	// filtering by app narrows the other views to its domains
 	r, _ = e.Explore(ExploreRequest{Range: "7d", Views: []string{"by_device"}, Filters: map[string]any{"app": "tiktok"}})
 	if d := r["by_device"].([]map[string]any); len(d) != 1 || d[0]["key"] != "Sam's Phone" {

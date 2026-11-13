@@ -358,7 +358,8 @@ func (x *xctx) span(q string, args []any) (time.Time, time.Time) {
 func vHeatmap(x *xctx) (any, error) {
 	_, hasCat := x.f["category"]
 	_, hasRoot := x.f["root"]
-	if x.useRaw || hasCat || hasRoot {
+	_, hasApp := x.f["app"]
+	if x.useRaw || hasCat || hasRoot || hasApp { // the hourly summary has no domains
 		w := x.rawWhere("hour", "dow")
 		cells, err := x.e.Rows(`SELECT isodow(lts) AS dow, hour(lts) AS hour, count(*) AS n, count(DISTINCT `+slot+`) * 5 AS active_min
 			FROM dnsq WHERE `+w.sql()+` AND lts IS NOT NULL GROUP BY 1, 2`, w.a...)

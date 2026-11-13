@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.38] — 2026-11-13
+
+### Added
+- **Top apps on each person's card** (Family › People & groups). Each app links to Explore for that person and app; an app NextDNS mostly blocks is marked.
+- **Apps report** (Records › Reports). It shows which apps were used, on how many days and for how long. Click an app to see who used it and on which devices. It also covers what stands out (dating apps, apps used between midnight and 5 am, apps NextDNS keeps blocking), the share of each kind of app, and the apps you block with their schedules.
+- The Family & usage report lists each person's apps.
+
+### Fixed
+- Explore's day-and-hour heatmap ignored the app filter and showed everything.
+
+
 ## [0.1.37] — 2026-11-13
 
 ### Security
