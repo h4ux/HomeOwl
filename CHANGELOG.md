@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.28] — 2026-11-13
+
+### Fixed
+- **Let's Encrypt failed with "the check record didn't show up on the domain's name servers in time"** on networks that block, redirect or filter direct DNS queries (NextDNS, a router that intercepts port 53, a broken IPv6 route). The check no longer depends on that:
+  - It asks the domain's name servers over IPv4 first, then IPv6.
+  - It also asks public DNS over HTTPS (Cloudflare, Google).
+  - If nothing can confirm the record within 90 seconds, it carries on and lets Let's Encrypt check with its own resolvers. Cloudflare has already confirmed the record exists.
+  - The progress shows what each check saw.
+
 ## [0.1.27] — 2026-11-13
 
 ### Fixed

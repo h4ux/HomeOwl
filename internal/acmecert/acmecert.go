@@ -12,10 +12,15 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -156,46 +161,51 @@ func Obtain(ctx context.Context, accountPEM, name string, p Prover, step func(st
 	return chainPEM, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: kb}), nil
 }
 
-// WaitTXT polls the domain's own name servers until each of them answers the TXT record (they are what
-// Let's Encrypt ends up asking, and asking them directly skips any cached "not there yet"). seen (may be nil)
-// hears how many of them see it so far.
-func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string, seen func(n, of int)) error {
-	if seen == nil {
-		seen = func(int, int) {}
+// DoH are public DNS-over-HTTPS resolvers used as a second opinion (tests replace them).
+var DoH = []string{"https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"}
+
+// WaitTXT waits until the check record can be seen, so Let's Encrypt doesn't look too early. It asks the
+// domain's own name servers directly and, as a second opinion, public DNS over HTTPS. Home networks often block,
+// redirect or filter direct DNS (NextDNS, a router that intercepts port 53, broken IPv6), so not being able to
+// confirm is not an error: Cloudflare already said the record exists, and Let's Encrypt checks with its own
+// resolvers. After maxWait it carries on. report (may be nil) hears what the checks see.
+func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string, report func(detail string)) error {
+	if report == nil {
+		report = func(string) {}
 	}
-	if len(nameservers) == 0 {
-		select { // nothing to ask: give the record a moment
-		case <-time.After(20 * time.Second):
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-	deadline := time.Now().Add(3 * time.Minute)
+	start := time.Now()
 	for {
-		seenN := 0
+		seen, reached := 0, 0
+		var problems []string
 		for _, ns := range nameservers {
-			ns := strings.TrimSuffix(ns, ".")
-			r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				d := net.Dialer{Timeout: 5 * time.Second}
-				return d.DialContext(ctx, network, net.JoinHostPort(ns, "53"))
-			}}
-			c, cancel := context.WithTimeout(ctx, 8*time.Second)
-			txts, _ := r.LookupTXT(c, fqdn)
-			cancel()
-			for _, t := range txts {
-				if t == value {
-					seenN++
-					break
-				}
+			found, err := askNS(ctx, strings.TrimSuffix(ns, "."), fqdn, value)
+			if err != nil {
+				problems = append(problems, err.Error())
+				continue
+			}
+			reached++
+			if found {
+				seen++
 			}
 		}
-		seen(seenN, len(nameservers))
-		if seenN == len(nameservers) {
+		if reached > 0 && seen == reached {
+			report(fmt.Sprintf("%d of %d name servers show it", seen, len(nameservers)))
 			return nil
 		}
-		if time.Now().After(deadline) {
-			return errors.New("the check record didn't show up on the domain's name servers in time — try again in a few minutes")
+		if dohSees(ctx, fqdn, value) {
+			report("public DNS shows it")
+			return nil
+		}
+		waited := time.Since(start)
+		switch {
+		case reached == 0 && len(nameservers) > 0:
+			report(fmt.Sprintf("can't ask the name servers from here (%s) — %ds", firstOf(problems), int(waited.Seconds())))
+		default:
+			report(fmt.Sprintf("%d of %d name servers show it — %ds", seen, len(nameservers), int(waited.Seconds())))
+		}
+		if waited > maxWait {
+			report("couldn't confirm it from this network; Let's Encrypt checks for itself")
+			return nil
 		}
 		select {
 		case <-time.After(4 * time.Second):
@@ -203,4 +213,85 @@ func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string, seen
 			return ctx.Err()
 		}
 	}
+}
+
+// maxWait is how long WaitTXT waits for a confirmation before carrying on.
+var maxWait = 90 * time.Second
+
+func firstOf(l []string) string {
+	if len(l) == 0 {
+		return "no answer"
+	}
+	return l[0]
+}
+
+// askNS asks one name server (by IPv4 first, then IPv6) for the TXT record. An error means it couldn't be
+// asked at all; (false, nil) means it answered without the record.
+func askNS(ctx context.Context, ns, fqdn, value string) (bool, error) {
+	c, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ips, err := net.DefaultResolver.LookupIPAddr(c, ns)
+	cancel()
+	if err != nil {
+		return false, fmt.Errorf("%s: can't find its address", ns)
+	}
+	sort.SliceStable(ips, func(i, j int) bool { return ips[i].IP.To4() != nil && ips[j].IP.To4() == nil })
+	var last error
+	for _, ip := range ips {
+		addr := net.JoinHostPort(ip.IP.String(), "53")
+		r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+			d := net.Dialer{Timeout: 4 * time.Second}
+			return d.DialContext(ctx, network, addr)
+		}}
+		c, cancel := context.WithTimeout(ctx, 6*time.Second)
+		txts, err := r.LookupTXT(c, fqdn+".")
+		cancel()
+		var de *net.DNSError
+		if err != nil && !(errors.As(err, &de) && de.IsNotFound) {
+			last = err
+			continue
+		}
+		for _, t := range txts {
+			if t == value {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	if last == nil {
+		last = errors.New("no address")
+	}
+	var de *net.DNSError
+	if errors.As(last, &de) && de.IsTimeout {
+		return false, fmt.Errorf("%s: no answer on port 53", ns)
+	}
+	return false, fmt.Errorf("%s: %v", ns, last)
+}
+
+// dohSees asks the public DNS-over-HTTPS resolvers.
+func dohSees(ctx context.Context, fqdn, value string) bool {
+	hc := &http.Client{Timeout: 8 * time.Second}
+	for _, u := range DoH {
+		req, err := http.NewRequestWithContext(ctx, "GET", u+"?name="+url.QueryEscape(fqdn)+"&type=TXT", nil)
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Accept", "application/dns-json")
+		resp, err := hc.Do(req)
+		if err != nil {
+			continue
+		}
+		var out struct {
+			Answer []struct {
+				Data string `json:"data"`
+			} `json:"Answer"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&out)
+		resp.Body.Close()
+		for _, a := range out.Answer {
+			if strings.ReplaceAll(strings.Trim(a.Data, `"`), `" "`, "") == value {
+				return true
+			}
+		}
+	}
+	return false
 }

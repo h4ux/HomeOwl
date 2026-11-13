@@ -215,7 +215,7 @@ func (a *App) issueCert(by string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	p := &cfProver{cl: cl, zone: zone, seen: func(n, of int) { a.certStep(acmecert.StepWait, fmt.Sprintf("%d of %d", n, of)) }}
+	p := &cfProver{cl: cl, zone: zone, seen: func(d string) { a.certStep(acmecert.StepWait, d) }}
 	chain, key, err := leObtain(ctx, acct, name, p, a.certStep)
 	if err != nil {
 		return fail(err)
@@ -249,7 +249,7 @@ func (a *App) issueCert(by string) error {
 type cfProver struct {
 	cl   *cloudflare.Client
 	zone cloudflare.Zone
-	seen func(n, of int)
+	seen func(detail string)
 }
 
 func (p *cfProver) Present(_ context.Context, fqdn, value string) (func(), error) {
