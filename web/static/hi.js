@@ -59,7 +59,7 @@ function registered(st) {
       <li>For each, set <b>DNS over HTTPS</b> to <b>On (manual template)</b> and paste:</li></ol>${copyRow(nd.doh, "template")}`,
   };
   const setup = !nd ? `<p class="fine">An admin can also choose a NextDNS profile for this device; then this page offers to set it up.</p>`
-    : `<h3 style="margin:16px 0 6px">Set up this device</h3>
+    : `${r.update ? `<div class="msg warn hi-update"><b>Update ready.</b> This device's settings changed. ${pf === "android" ? "Replace the Private DNS host name with the one below." : "Install the profile again — it replaces the old one."}</div>` : ""}<h3 style="margin:16px 0 6px">${r.update ? "Install the update" : "Set up this device"}</h3>
       <p class="muted">So HomeOwl and NextDNS recognise it by name at home, on mobile data and on other Wi-Fi. Nothing else changes, there are no passwords in it, and you can remove it any time.</p>
       ${how[pf] || `<p>iPhone, iPad or Mac: open this page on it. Android: Private DNS host name:</p>${copyRow(nd.android, "host name")}<p>Anything else: DNS-over-HTTPS address:</p>${copyRow(nd.doh, "address")}`}
       ${r.profile_at && (pf === "ios" || pf === "mac") ? `<p class="fine">Downloaded before on ${esc(new Date(r.profile_at * 1000).toLocaleDateString())}. Installing again replaces it.</p>` : ""}

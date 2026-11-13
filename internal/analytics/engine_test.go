@@ -193,3 +193,40 @@ func TestGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A set-up device is found in the NextDNS logs by profile and name: when, from where, how much today.
+func TestNDDeviceSeen(t *testing.T) {
+	e := openTestEngine(t)
+	now := utcnow()
+	q := `INSERT INTO dns_queries(ts, profile_id, domain, root, status, device_name, client_ip) VALUES (?,?,?,?,?,?,?)`
+	for _, r := range [][]any{
+		{now.Add(-3 * time.Hour), "abc123", "a.example", "example", "default", "Alex's iPad", "203.0.113.7"},
+		{now.Add(-1 * time.Hour), "abc123", "b.example", "example", "default", "Alex's iPad", "198.51.100.4"},
+		{now.Add(-48 * time.Hour), "abc123", "c.example", "example", "default", "Alex's iPad", "203.0.113.7"},
+		{now.Add(-1 * time.Hour), "def456", "d.example", "example", "default", "Alex's iPad", "203.0.113.7"}, // other profile
+	} {
+		if _, err := e.db.Exec(q, r...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := e.NDDeviceSeen("abc123", "Alex's iPad")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Last.IsZero() || now.Sub(s.Last) > 2*time.Hour || s.ClientIP != "198.51.100.4" || s.Day != 2 {
+		t.Fatalf("seen: %+v", s)
+	}
+	if s, _ := e.NDDeviceSeen("abc123", "Sam's Phone"); !s.Last.IsZero() || s.Day != 0 {
+		t.Fatalf("unknown device: %+v", s)
+	}
+	id, _ := e.SavePerson(Person{Name: "Alex"})
+	_ = e.AssignDevice(id, "ndev", "abc123/Alex's iPad")
+	if err := e.UnassignDevice("ndev", "abc123/Alex's iPad"); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range e.People() {
+		if len(p.Devices) != 0 {
+			t.Fatalf("still assigned: %+v", p.Devices)
+		}
+	}
+}

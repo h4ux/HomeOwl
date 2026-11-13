@@ -490,3 +490,45 @@ func (e *Engine) RefreshDevPerson() {
 		return insert(tx, "dev_person", []string{"label", "person_id"}, rows)
 	})
 }
+
+// UnassignDevice takes one device link away from whoever had it.
+func (e *Engine) UnassignDevice(kind, key string) error {
+	if e.db == nil {
+		return errors.New("analytics isn't running")
+	}
+	if _, err := e.db.Exec("DELETE FROM person_devices WHERE kind=? AND key=?", kind, key); err != nil {
+		return err
+	}
+	e.RefreshDevPerson()
+	return nil
+}
+
+// NDSeen is what the NextDNS logs say about one named device in one profile.
+type NDSeen struct {
+	Last     time.Time // zero = not in the logs (last 30 days)
+	ClientIP string    // the public address of its last query
+	Day      int       // queries in the last 24 hours
+}
+
+// NDDeviceSeen looks a device up in the imported NextDNS logs by profile and device name (the setup profiles
+// name the device, so this shows whether one is installed and in use).
+func (e *Engine) NDDeviceSeen(profile, name string) (NDSeen, error) {
+	var s NDSeen
+	if e.db == nil {
+		return s, errors.New("analytics isn't running")
+	}
+	var last sql.NullTime
+	var ip sql.NullString
+	var day sql.NullInt64
+	err := e.db.QueryRow(`SELECT max(ts), arg_max(client_ip, ts), count(*) FILTER (WHERE ts >= ?)
+		FROM dns_queries WHERE profile_id = ? AND device_name = ? AND ts >= ?`,
+		utcnow().Add(-24*time.Hour), profile, name, utcnow().Add(-30*24*time.Hour)).Scan(&last, &ip, &day)
+	if err != nil {
+		return s, err
+	}
+	if last.Valid {
+		s.Last = last.Time
+	}
+	s.ClientIP, s.Day = ip.String, int(day.Int64)
+	return s, nil
+}

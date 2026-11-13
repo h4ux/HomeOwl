@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.31] — 2026-11-13
+
+### Added
+- **Is the device's setup working?** Family › Check-ins has a new "Devices set up" card. It shows each approved device, its NextDNS profile and whether the setup is in use, read from the NextDNS logs under the device's name:
+  - **active** (queries in the last day), **quiet**, **not seen** (downloaded but no queries, so probably not installed) or **not set up**;
+  - when it was last seen, whether that was at home or away, and how many queries it made today.
+- **Change a device's NextDNS profile after approval:** use the card's Change… button. The device's NextDNS name moves to the new profile in People, and the device's check-in page says **Update ready** until the new setup is installed.
+
+### Fixed
+- Dialog titles showed names with an apostrophe as `&#39;`.
+
 ## [0.1.30] — 2026-11-13
 
 ### Added

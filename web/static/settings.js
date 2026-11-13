@@ -268,7 +268,7 @@ document.addEventListener("click", async e => {
   if (id === "ct-save") { const r = await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked, port443: $("#ct-443").checked }, "Saved"); if (r) { loadSettings(); if (r.busy) toast("Asking Let's Encrypt…", "ok"); } }
   if (id === "ct-replace") {
     const c = (S.settings?.names || {}).cert || {}, recs = arr(c.state?.conflict);
-    openModal({ title: `Replace ${esc(c.name)}?`, body: `<p>Cloudflare already has ${recs.map(x => `<span class="mono">${esc(c.name)} ${esc(x)}</span>`).join(", ")}, which HomeOwl didn't make.</p>
+    openModal({ title: `Replace ${c.name}?`, body: `<p>Cloudflare already has ${recs.map(x => `<span class="mono">${esc(c.name)} ${esc(x)}</span>`).join(", ")}, which HomeOwl didn't make.</p>
       <p>HomeOwl deletes ${recs.length === 1 ? "it" : "them"} and adds <span class="mono">${esc(c.name)} A → ${esc(c.address || "")}</span> instead. Anything that used the old address stops reaching it. Other kinds of records with that name (TXT, MX…) are kept. The change is logged on the Changes page.</p>`,
       buttons: [{ label: "Cancel" }, { label: "Replace", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cert/replace-record", {}, "Replaced")) loadSettings(); } }] });
   }

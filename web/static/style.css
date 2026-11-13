@@ -730,3 +730,4 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .ct-steps li .ic{display:inline-block;width:16px;text-align:center}
 .ct-steps li.done{color:var(--text)}.ct-steps li.done .ic{color:var(--ok)}.ct-steps li.now{color:var(--accent);font-weight:600}
 .ct-status .cmd{margin:8px 0 0}.ct-status a.btn{text-decoration:none}
+.hi-update{padding:10px 12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}

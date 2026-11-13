@@ -40,6 +40,7 @@ type CheckIn struct {
 	By         string `json:"by,omitempty"`
 	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
 	ProfileAt  int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
+	ProfileND  string `json:"profile_nd,omitempty"` // the NextDNS profile in that download (≠ NDProfile: an update is ready)
 }
 
 var checkinKinds = map[string]bool{"phone": true, "tablet": true, "laptop": true, "computer": true, "tv": true, "console": true,
@@ -172,18 +173,24 @@ func (c *checkins) Registered(mac string) (CheckIn, bool) {
 	return best, best.ID != ""
 }
 
-// Touch records that the device fetched its setup profile.
-func (c *checkins) Touch(id string) {
+// Touch records that the device fetched its setup profile (and which NextDNS profile was in it).
+func (c *checkins) Touch(id, nd string) {
+	c.Edit(id, func(x *CheckIn) { x.ProfileAt, x.ProfileND = time.Now().Unix(), nd })
+}
+
+// Edit changes a check-in in place.
+func (c *checkins) Edit(id string, fn func(*CheckIn)) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	l := c.load()
 	for i := range l {
 		if l[i].ID == id {
-			l[i].ProfileAt = time.Now().Unix()
+			fn(&l[i])
 			_ = c.save(l)
-			return
+			return true
 		}
 	}
+	return false
 }
 
 func (c *checkins) Pending() int {
@@ -401,7 +408,7 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 			return nil, err
 		}
 	}
-	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile = x.Name, nd }); err != nil {
+	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile, c.PersonID = x.Name, nd, pid }); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true, "person_id": pid, "checkins": a.checkinView()}, nil
@@ -422,7 +429,14 @@ func (a *App) checkinView() map[string]any {
 	if u, ok := a.namesView()["checkin_url"].(string); ok && c.LAN.Enabled {
 		links = append([]string{u}, links...)
 	}
-	return map[string]any{"items": a.checkins.List(), "links": links, "lan": c.LAN.Enabled}
+	items := a.checkins.List()
+	setup := map[string]any{}
+	for _, x := range items {
+		if x.Status == "approved" && x.NDProfile != "" {
+			setup[x.ID] = a.setupStatus(x)
+		}
+	}
+	return map[string]any{"items": items, "links": links, "lan": c.LAN.Enabled, "setup": setup}
 }
 
 func (a *App) pendingFor(who *Who) int {

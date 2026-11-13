@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/sha256"
 	"crypto/tls"
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -121,7 +123,8 @@ func ndDeviceLabel(name string) string {
 
 // deviceSetup is what the device's own check-in page shows once it is approved.
 func (a *App) deviceSetup(x CheckIn) map[string]any {
-	res := map[string]any{"name": x.Name, "kind": x.Kind, "person": x.PersonName, "profile_at": x.ProfileAt}
+	res := map[string]any{"name": x.Name, "kind": x.Kind, "person": x.PersonName, "profile_at": x.ProfileAt,
+		"update": x.ProfileAt > 0 && x.ProfileND != "" && x.ProfileND != x.NDProfile} // settings changed since the last install
 	if x.PersonID != "" && a.An.Open() {
 		for _, p := range a.An.People() {
 			if p.ID == x.PersonID {
@@ -160,7 +163,7 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "An admin hasn't chosen a NextDNS profile for this device yet.")
 		return
 	}
-	a.checkins.Touch(x.ID)
+	a.checkins.Touch(x.ID, x.NDProfile)
 	body := mobileConfig(x)
 	if sc := a.signer(); sc != nil { // signed with the Let's Encrypt certificate: iOS shows it as "Verified"
 		if signed, err := signProfile(body, sc); err == nil {
@@ -245,4 +248,117 @@ func stableUUID(s string) string {
 	h[6] = h[6]&0x0f | 0x50 // name-based
 	h[8] = h[8]&0x3f | 0x80
 	return strings.ToUpper(fmt.Sprintf("%x-%x-%x-%x-%x", h[0:4], h[4:6], h[6:8], h[8:10], h[10:16]))
+}
+
+// setupStatus: is the device's setup in use? The setup names the device in NextDNS, so its queries in the
+// imported NextDNS logs show it working — and from where.
+func (a *App) setupStatus(x CheckIn) map[string]any {
+	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileAt > 0 && x.ProfileND != "" && x.ProfileND != x.NDProfile}
+	if !a.An.Open() || len(a.An.NDSlots()) == 0 {
+		st["state"] = "unknown" // no NextDNS logs to look in
+		return st
+	}
+	seen, err := a.An.NDDeviceSeen(x.NDProfile, x.Name)
+	if err != nil {
+		st["state"] = "unknown"
+		return st
+	}
+	switch {
+	case seen.Last.IsZero() && x.ProfileAt > 0:
+		st["state"] = "not_seen" // downloaded, but no query under its name: probably not installed (or not yet imported)
+	case seen.Last.IsZero():
+		st["state"] = "offered"
+	case time.Since(seen.Last) < 24*time.Hour:
+		st["state"] = "active"
+	default:
+		st["state"] = "quiet"
+	}
+	if !seen.Last.IsZero() {
+		st["last_seen"] = seen.Last.Unix()
+		st["day"] = seen.Day
+		st["where"] = a.whereFrom(seen.ClientIP)
+	}
+	return st
+}
+
+// whereFrom: "home" when the address is one of this home's public addresses, "away" otherwise, "" when unknown.
+func (a *App) whereFrom(ip string) string {
+	pip := net.ParseIP(ip)
+	home := a.homePublic()
+	if pip == nil || len(home) == 0 {
+		return ""
+	}
+	for _, h := range home {
+		if _, n, err := net.ParseCIDR(h); err == nil && n.Contains(pip) {
+			return "home"
+		}
+		if hip := net.ParseIP(h); hip != nil && hip.Equal(pip) {
+			return "home"
+		}
+	}
+	return "away"
+}
+
+// homePublic is this home's public addresses, cached (finding them takes a few seconds, so a stale list is
+// refreshed in the background).
+func (a *App) homePublic() []string {
+	homePubCache.Lock()
+	defer homePubCache.Unlock()
+	if time.Since(homePubCache.at) > 30*time.Minute && !homePubCache.busy {
+		homePubCache.busy = true
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			var l []string
+			if cfHome != nil {
+				l = cfHome(ctx)
+			} else {
+				l = a.homeAddresses(ctx)
+			}
+			homePubCache.Lock()
+			homePubCache.list, homePubCache.at, homePubCache.busy = l, time.Now(), false
+			homePubCache.Unlock()
+		}()
+	}
+	return homePubCache.list
+}
+
+var homePubCache struct {
+	sync.Mutex
+	list []string
+	at   time.Time
+	busy bool
+}
+
+// changeSetup gives an approved device another NextDNS profile (or none). Its check-in page then offers the
+// new setup ("update ready"), and its NextDNS name moves to the new profile in People.
+func (a *App) changeSetup(body map[string]any) (any, error) {
+	id, nd := s(body, "id"), s(body, "nd_profile")
+	if nd != "" && !ndProfileRE.MatchString(nd) {
+		return nil, errors.New("that isn't a NextDNS profile ID")
+	}
+	x, ok := a.checkins.Get(id)
+	if !ok || x.Status != "approved" {
+		return nil, errors.New("that device isn't approved")
+	}
+	pid := x.PersonID
+	if pid == "" && a.An.Open() { // older check-ins: whoever has the device now
+		for _, p := range a.An.People() {
+			for _, d := range p.Devices {
+				if d.Kind == "mac" && d.Key == x.MAC {
+					pid = p.ID
+				}
+			}
+		}
+	}
+	if x.NDProfile != "" && a.An.Open() {
+		_ = a.An.UnassignDevice("ndev", x.NDProfile+"/"+x.Name)
+	}
+	if nd != "" && pid != "" && a.An.Open() {
+		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+x.Name); err != nil {
+			return nil, err
+		}
+	}
+	a.checkins.Edit(id, func(c *CheckIn) { c.NDProfile = nd })
+	return a.checkinView(), nil
 }

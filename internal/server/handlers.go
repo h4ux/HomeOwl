@@ -323,6 +323,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		if err = a.cliTypes.Set(s(body, "mac"), s(body, "kind"), false); err == nil {
 			res = map[string]any{"types": a.cliTypes.All()}
 		}
+	case p == "checkins/setup":
+		res, err = a.changeSetup(body)
 	case p == "checkins/ndprofiles":
 		res = a.ndProfileChoices()
 	case p == "checkins/approve":

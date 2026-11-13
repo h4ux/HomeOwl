@@ -10,8 +10,9 @@ const CI_KIND = { phone: "📱", tablet: "📱", laptop: "💻", computer: "🖥
 async function loadCheckins() {
   if (S.source !== "live") { $("#ci-body").innerHTML = `<div class="empty">Device check-in needs a live HomeOwl (not the demo).</div>`; return; }
   try {
-    const [ci, meta] = await Promise.all([api("/api/checkins"), api("/api/analytics/meta", {}).catch(() => ({}))]);
-    S.checkins = ci; S.ciPeople = meta.people || [];
+    const [ci, meta, nd] = await Promise.all([api("/api/checkins"), api("/api/analytics/meta", {}).catch(() => ({})),
+      S.ciND ? Promise.resolve(S.ciND) : api("/api/checkins/ndprofiles").catch(() => ({ profiles: [], by_person: {} }))]);
+    S.checkins = ci; S.ciPeople = meta.people || []; S.ciND = nd;
   } catch (err) { $("#ci-body").innerHTML = `<div class="empty bad-t">${esc(err.message)}</div>`; return; }
   renderCheckinBadge(S.checkins.items.filter(x => x.status === "pending").length);
   if ($("#ci-body")) $("#ci-body").innerHTML = checkinsBody(S.checkins);
@@ -39,13 +40,53 @@ function checkinsBody(c) {
         <div class="fine">Now called <b>${esc(x.seen || "unnamed")}</b>${x.vendor ? ` · ${esc(x.vendor)}` : ""} · <span class="mono">${esc(x.mac)}</span> · ${esc(x.ip)}${x.network ? ` · ${esc(x.network)}` : ""} · ${ago(x.time * 1000)}</div></div>
       <div class="btnrow"><button class="btn sm primary" data-ciok="${esc(x.id)}">Approve…</button><button class="btn sm" data-cino="${esc(x.id)}">Reject</button></div></div>`).join("");
   return `${pend.length ? rows : `<div class="card"><p class="muted" style="margin:0">Nothing waiting. New check-ins show up here (and as a number in the menu).</p></div>`}
+    ${setupCard(c)}
     ${how}
     ${past.length ? `<div class="card section"><h2>Recently decided</h2>${table("ci-past", [
       { k: "name", label: "Device", fmt: x => `${CI_KIND[x.kind] || ""} ${esc(x.name)}` }, { k: "mac", label: "MAC", fmt: x => `<span class="mono">${esc(x.mac)}</span>` },
       { k: "status", label: "Decision", fmt: x => `<span class="tag ${x.status === "approved" ? "good" : ""}">${esc(x.status)}</span> <span class="fine">${esc(x.by || "")}</span>` },
-      { k: "profile_at", label: "Setup", fmt: x => !x.nd_profile ? "–" : x.profile_at ? `<span class="tag good" title="NextDNS profile ${esc(x.nd_profile)}">profile downloaded</span> <span class="fine">${ago(x.profile_at * 1000)}</span>` : `<span class="fine" title="NextDNS profile ${esc(x.nd_profile)}">offered</span>` },
       { k: "time", label: "Asked", fmt: x => fmtTime(x.time * 1000) }], past)}</div>` : ""}`;
 }
+
+// approved devices and their setup (encrypted DNS through NextDNS under the device's name, devprofile.go):
+// is it in use, from where, and which NextDNS profile it gets
+const ndName = id => S.ciND?.profiles?.find(p => p.id === id)?.name || id;
+function setupState(x, st) {
+  if (!x.nd_profile) return `<span class="fine muted">no setup</span>`;
+  st = st || {};
+  const seen = st.last_seen ? `last seen ${ago(st.last_seen * 1000)}${st.where === "home" ? " · at home" : st.where === "away" ? " · away from home" : ""}${st.day ? ` · ${st.day} today` : ""}` : "";
+  const tag = {
+    active: `<span class="tag good">active</span>`, quiet: `<span class="tag">quiet</span>`,
+    not_seen: `<span class="tag warn" title="It was downloaded, but NextDNS hasn't logged any query under this device's name. It's probably not installed (NextDNS logs reach HomeOwl every few minutes).">not seen</span>`,
+    offered: `<span class="tag" title="The device's check-in page offers it; nobody has set it up yet">not set up</span>`,
+    unknown: `<span class="tag" title="Connect NextDNS logs in Settings › Analytics so HomeOwl can see whether it's in use">can't check</span>`,
+  }[st.state] || "";
+  const upd = st.update ? ` <span class="tag warn" title="The NextDNS profile changed after it was installed. Open the check-in page on the device to install the new one.">update ready</span>` : "";
+  const note = st.state === "not_seen" ? `downloaded ${ago(st.downloaded * 1000)}, no queries under its name yet` : st.state === "offered" ? "open the check-in page on the device" : seen;
+  return `${tag}${upd}${note ? `<div class="fine muted">${esc(note)}</div>` : ""}`;
+}
+function setupCard(c) {
+  const done = c.items.filter(x => x.status === "approved").sort((a, b) => b.time - a.time);
+  if (!done.length) return "";
+  return `<div class="card section"><h2>Devices set up ${hint("After approval, a device's check-in page offers encrypted DNS through the NextDNS profile you chose, under the device's name. NextDNS then recognises it at home, on mobile data and on other Wi-Fi, and HomeOwl sees whether it's in use.")}</h2>${table("ci-setup", [
+    { k: "name", label: "Device", fmt: x => `${CI_KIND[x.kind] || ""} ${esc(x.name)}<div class="fine muted">${personLabel(x)}</div>` },
+    { k: "nd_profile", label: "NextDNS profile", fmt: x => x.nd_profile ? esc(ndName(x.nd_profile)) : "–" },
+    { k: "status", label: "Setup", sort: x => ({ active: 0, quiet: 1, not_seen: 2, offered: 3, unknown: 4 })[c.setup?.[x.id]?.state] ?? 5, fmt: x => setupState(x, c.setup?.[x.id]) },
+    { k: "id", label: "", fmt: x => `<button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile ? "Change…" : "Set up…"}</button>` }], done)}</div>`;
+}
+function changeSetup(id) {
+  const x = S.checkins.items.find(x => x.id === id); if (!x) return;
+  const nd = S.ciND || { profiles: [] };
+  if (!nd.profiles.length) return toast("HomeOwl can't list your NextDNS profiles — add a NextDNS API key in Settings › Analytics", "err");
+  openModal({ title: `NextDNS profile for ${x.name}`, body: `
+    <label>NextDNS profile<select id="cis-nd"><option value="">None — no setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === x.nd_profile ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
+    <p class="fine">The device keeps its current settings until it installs the new ones: its check-in page will say <b>Update ready</b> (iPhone, iPad, Mac: install the profile again; Android: paste the new Private DNS host name). The device's NextDNS name moves to the new profile in People.</p>`,
+    buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
+      try { S.checkins = await api("/api/checkins/setup", { id, nd_profile: $("#cis-nd").value }); closeModal(); toast("Saved — open the check-in page on the device to install it", "ok"); $("#ci-body").innerHTML = checkinsBody(S.checkins); }
+      catch (err) { toast(err.message, "err"); }
+    } }] });
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-cisetup]"); if (b) changeSetup(b.dataset.cisetup); });
 
 async function approveCheckin(id) {
   const x = S.checkins.items.find(x => x.id === id); if (!x) return;

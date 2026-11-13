@@ -94,6 +94,35 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if a.checkins.List()[0].ProfileAt == 0 {
 		t.Error("the download should be recorded")
 	}
+	// an admin moves the device to another NextDNS profile: its page says an update is ready, People follow
+	view, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st := view.(map[string]any)["setup"].(map[string]any)[id].(map[string]any); st["update"] != true || st["state"] != "unknown" {
+		t.Fatalf("status after the change: %v", st)
+	}
+	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["update"] != true {
+		t.Fatalf("the device's page should offer the update: %v", out["registered"])
+	}
+	links := map[string]bool{}
+	for _, p := range a.An.People() {
+		for _, d := range p.Devices {
+			links[d.Kind+" "+d.Key] = true
+		}
+	}
+	if links["ndev abc123/Alex's iPad"] || !links["ndev def456/Alex's iPad"] {
+		t.Fatalf("the NextDNS name should move: %v", links)
+	}
+	if code, _, body := get("192.168.1.40"); code != 200 || !strings.Contains(body, "dns.nextdns.io/def456/") {
+		t.Fatalf("new profile download: %d", code)
+	}
+	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["update"] != false {
+		t.Fatal("after installing the new one there's nothing to update")
+	}
+	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "../x"}); err == nil {
+		t.Fatal("bad profile accepted")
+	}
 	if !regexp.MustCompile(`^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$`).MatchString(stableUUID("x")) || stableUUID("x") != stableUUID("x") {
 		t.Errorf("uuid %s", stableUUID("x"))
 	}
