@@ -130,12 +130,12 @@ func TestLetsEncryptCertificate(t *testing.T) {
 		t.Fatalf("home DNS names: %v", n)
 	}
 	// the public name follows HomeOwl's address
-	a.syncCertRecord("alex")
+	a.syncCertRecord("alex", false)
 	if s := f.summary(); !strings.Contains(s, "dns homeowl.example.com") || a.certLoad().RecordIP != ip {
 		t.Fatalf("public record: %s %+v", s, a.certLoad())
 	}
 	ip = "192.168.1.11"
-	a.syncCertRecord("alex")
+	a.syncCertRecord("alex", false)
 	if a.certLoad().RecordIP != "192.168.1.11" || f.recs[0]["content"] != "192.168.1.11" {
 		t.Fatalf("address change: %+v %v", a.certLoad(), f.recs)
 	}
@@ -165,12 +165,33 @@ func TestLetsEncryptCertificate(t *testing.T) {
 	if f.summary() != "" || a.le.Load() != nil || a.Sec.Get(leKeySlot) != "" {
 		t.Fatalf("after remove: %q", f.summary())
 	}
-	// someone else's record of that name is left alone
-	f.recs = []map[string]any{{"id": "theirs", "name": "homeowl.example.com", "type": "A", "content": "203.0.113.9"}}
+	// someone else's record of that name is left alone and reported, until the admin says to replace it
+	f.recs = []map[string]any{{"id": "theirs", "name": "homeowl.example.com", "type": "A", "content": "203.0.113.9"},
+		{"id": "txt", "name": "homeowl.example.com", "type": "TXT", "content": "keep me"}}
 	_ = a.Cfg.Update(func(c *config.Config) { c.Cert = config.Cert{Label: "homeowl", Public: true} })
-	a.syncCertRecord("alex")
-	if st := a.certLoad(); st.Record != "" || !strings.Contains(st.RecordErr, "didn't make it") || len(f.recs) != 1 {
+	a.syncCertRecord("alex", false)
+	if st := a.certLoad(); st.Record != "" || !strings.Contains(st.RecordErr, "didn't make it") || len(f.recs) != 2 ||
+		len(st.Conflict) != 1 || st.Conflict[0] != "A → 203.0.113.9" {
 		t.Fatalf("foreign record: %+v %v", st, f.recs)
+	}
+	if _, err := a.certAPI("cert/replace-record", "alex", nil); err != nil {
+		t.Fatal(err)
+	}
+	if st := a.certLoad(); st.Record == "" || st.RecordErr != "" || len(st.Conflict) != 0 || len(f.recs) != 2 ||
+		f.recs[0]["content"] != "keep me" || f.recs[1]["content"] != "192.168.1.11" {
+		t.Fatalf("after replacing: %+v %v", st, f.recs)
+	}
+	// HomeOwl's own record whose ID was forgotten (the bug that caused "An identical record already exists") is
+	// taken over, not added a second time
+	a.certUpdate(func(st *certState) { st.Record, st.RecordZone, st.RecordIP = "", "", "" })
+	a.syncCertRecord("alex", false)
+	if st := a.certLoad(); st.Record == "" || st.RecordErr != "" || len(f.recs) != 2 {
+		t.Fatalf("take-over: %+v %v", st, f.recs)
+	}
+	// and a request finishing later doesn't erase the record ID
+	a.certUpdate(func(st *certState) { st.Error = "x" })
+	if a.certLoad().Record == "" {
+		t.Fatal("a state change lost the record")
 	}
 }
 

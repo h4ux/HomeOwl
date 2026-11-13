@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.29] — 2026-11-13
+
+### Fixed
+- **"Public name: Cloudflare 400: An identical record already exists"**: the certificate request and the public-name sync ran at the same time. When the request finished, it saved an older copy of the state, erasing the ID of the record HomeOwl had just added, so HomeOwl tried to add it again.
+  - Each job now changes only its own part of the state.
+  - A record HomeOwl made earlier is taken over instead of added twice. This fixes existing setups on the next sync.
+  - A record HomeOwl's state still points at but that was deleted on Cloudflare is looked up and added again.
+
+### Added
+- **Asks before replacing someone else's record:** when the certificate's name already has a record HomeOwl didn't make (A, AAAA or CNAME), the card shows it and offers **Replace…**.
+  - After you confirm, HomeOwl deletes those records and adds its own.
+  - Other kinds of records with that name (TXT, MX…) are kept, and the change is logged on the Changes page.
+
 ## [0.1.28] — 2026-11-13
 
 ### Fixed

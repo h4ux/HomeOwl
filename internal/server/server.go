@@ -73,6 +73,7 @@ type App struct {
 	le           atomic.Pointer[tls.Certificate]
 	certBusy     atomic.Bool
 	certPMu      sync.Mutex
+	certSMu      sync.Mutex   // cert.json: one change at a time (cert.go)
 	certProg     certProgress // what the running request is doing (cert.go)
 	Alerts       *alerts.Store
 	alertErr     string

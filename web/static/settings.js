@@ -240,7 +240,10 @@ function certBlock(c) {
     <p class="fine muted">Without that, the name works on devices that use your NextDNS profiles (HomeOwl adds it there, like the names above). Certificates are public record: the name, not your address, shows up in certificate-transparency logs.</p>
     ${!c.https ? `<div class="msg warn">HTTPS for the home network is off (Settings › Access), so the certificate won't be used for browsing — it still signs device profiles.</div>` : ""}
     <div id="ct-status">${certStatus(c)}</div>
-    ${st.record_error ? `<div class="msg warn">Public name: ${esc(st.record_error)}</div>` : ""}
+    ${arr(st.conflict).length ? `<div class="ct-status bad"><div class="ct-head"><span class="tag warn">already taken</span> <b>${esc(c.name)} already exists on Cloudflare</b></div>
+        <p class="fine">HomeOwl didn't make ${arr(st.conflict).length === 1 ? "this record" : "these records"}: ${arr(st.conflict).map(x => `<span class="mono">${esc(x)}</span>`).join(", ")}. Replace ${arr(st.conflict).length === 1 ? "it" : "them"} with HomeOwl's record (pointing to <span class="mono">${esc(c.address || "HomeOwl")}</span>), or pick another name.</p>
+        <div class="btnrow"><button class="btn sm primary" id="ct-replace">Replace…</button></div></div>`
+      : st.record_error ? `<div class="msg warn">Public name: ${esc(st.record_error)}</div>` : ""}
     <div class="btnrow"><button class="btn sm primary" id="ct-save">Save</button>
       ${c.name ? `<button class="btn sm" id="ct-issue" ${c.busy ? "disabled" : ""}>${c.valid ? "Renew now" : st.error ? "Try again" : "Get the certificate"}</button>` : ""}
       ${c.name ? `<button class="btn sm" id="ct-remove" ${c.busy ? "disabled" : ""}>Remove</button>` : ""}</div></div>`;
@@ -261,6 +264,12 @@ document.addEventListener("click", async e => {
   const id = e.target.id; if (!id.startsWith("ct-")) return;
   const go = async (path, body, msg) => { e.target.disabled = true; try { const r = await api(path, body); if (msg) toast(msg, "ok"); return r; } catch (err) { toast(err.message, "err"); } finally { e.target.disabled = false; } };
   if (id === "ct-save") { const r = await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked }, "Saved"); if (r) { loadSettings(); if (r.busy) toast("Asking Let's Encrypt…", "ok"); } }
+  if (id === "ct-replace") {
+    const c = (S.settings?.names || {}).cert || {}, recs = arr(c.state?.conflict);
+    openModal({ title: `Replace ${esc(c.name)}?`, body: `<p>Cloudflare already has ${recs.map(x => `<span class="mono">${esc(c.name)} ${esc(x)}</span>`).join(", ")}, which HomeOwl didn't make.</p>
+      <p>HomeOwl deletes ${recs.length === 1 ? "it" : "them"} and adds <span class="mono">${esc(c.name)} A → ${esc(c.address || "")}</span> instead. Anything that used the old address stops reaching it. Other kinds of records with that name (TXT, MX…) are kept. The change is logged on the Changes page.</p>`,
+      buttons: [{ label: "Cancel" }, { label: "Replace", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cert/replace-record", {}, "Replaced")) loadSettings(); } }] });
+  }
   if (id === "ct-issue") { if (await go("/api/cert/issue", {}, "Asking Let's Encrypt…")) loadSettings(); }
   if (id === "ct-remove") openModal({ title: "Remove the certificate?", body: "<p>HomeOwl stops using it, forgets its key and removes the public name it added on Cloudflare (if any). Your browser goes back to the self-signed certificate; device profiles are sent unsigned.</p>",
     buttons: [{ label: "Cancel" }, { label: "Remove", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cert/remove", {}, "Certificate removed")) loadSettings(); } }] });

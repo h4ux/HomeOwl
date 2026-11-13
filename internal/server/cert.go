@@ -87,6 +87,8 @@ type certState struct {
 	RecordZone string `json:"record_zone,omitempty"`
 	RecordIP   string `json:"record_ip,omitempty"`
 	RecordErr  string `json:"record_error,omitempty"`
+	// records of that name HomeOwl didn't make ("A → 203.0.113.9"): replaced only when the admin says so
+	Conflict []string `json:"conflict,omitempty"`
 }
 
 // certName is the full name, or "" when the certificate is off or Cloudflare has no domain picked.
@@ -112,6 +114,17 @@ func (a *App) certSave(st certState) {
 	if b, err := json.Marshal(st); err == nil {
 		_ = config.WriteFileAtomic(a.certPath(), b, 0o600)
 	}
+}
+
+// certUpdate changes the saved state in one go. The certificate request and the public-name sync run at the
+// same time and each change only their own fields: saving a whole copy loaded minutes earlier would undo the
+// other's work (that once made HomeOwl forget the record it had just added).
+func (a *App) certUpdate(fn func(*certState)) {
+	a.certSMu.Lock()
+	defer a.certSMu.Unlock()
+	st := a.certLoad()
+	fn(&st)
+	a.certSave(st)
 }
 
 // loadLE puts the saved certificate in use (when it is for the configured name and not expired).
@@ -175,11 +188,9 @@ func (a *App) issueCert(by string) error {
 	defer a.certMu.Unlock()
 	c := a.Cfg.Get()
 	name := certName(c)
-	st := a.certLoad()
-	st.Try = time.Now().Unix()
+	try := time.Now().Unix()
 	fail := func(err error) error {
-		st.Error = err.Error()
-		a.certSave(st)
+		a.certUpdate(func(st *certState) { st.Try, st.Error = try, err.Error() })
 		log.Printf("certificate for %s: %v", name, err)
 		return err
 	}
@@ -236,8 +247,9 @@ func (a *App) issueCert(by string) error {
 	if err := config.WriteFileAtomic(a.chainPath(), chain, 0o644); err != nil {
 		return fail(err)
 	}
-	st.Name, st.NotAfter, st.Issued, st.Error = name, leaf.NotAfter.Unix(), time.Now().Unix(), ""
-	a.certSave(st)
+	a.certUpdate(func(st *certState) {
+		st.Name, st.NotAfter, st.Issued, st.Error, st.Try = name, leaf.NotAfter.Unix(), time.Now().Unix(), "", try
+	})
 	a.loadLE()
 	pub := unifi.Preview{Method: "POST", Path: "/acme/new-order", Target: name, Description: "Let's Encrypt certificate for " + name,
 		Before: map[string]any{}, After: map[string]any{"name": name, "expires": leaf.NotAfter.Format("2006-01-02")}}
@@ -265,65 +277,108 @@ func (p *cfProver) Wait(ctx context.Context, fqdn, value string) error {
 }
 
 // syncCertRecord keeps the optional public name → HomeOwl's home address record in line (and removes it when
-// it's turned off). It refuses to touch a record HomeOwl didn't make.
-func (a *App) syncCertRecord(by string) {
+// it's turned off). A record of that name HomeOwl made earlier is taken over; one it didn't make is left alone
+// and reported as a conflict, unless replace is set (the admin confirmed replacing it).
+func (a *App) syncCertRecord(by string, replace bool) {
 	a.cfMu.Lock()
 	defer a.cfMu.Unlock()
 	c, st := a.Cfg.Get(), a.certLoad()
 	name, ip := certName(c), a.certAddress(c)
 	want := c.Cert.Public && name != "" && ip != ""
 	tok := a.Sec.Get(cfSlot)
-	if tok == "" || (!want && st.Record == "") || (want && st.Record != "" && st.RecordIP == ip && st.RecordZone == c.Cloudflare.ZoneID && st.RecordErr == "") {
+	settled := want && st.Record != "" && st.RecordIP == ip && st.RecordZone == c.Cloudflare.ZoneID && st.RecordErr == ""
+	if tok == "" || settled || (!want && st.Record == "" && st.RecordErr == "" && len(st.Conflict) == 0) {
 		return
 	}
 	cl := cloudflare.New(tok)
-	var did string
-	st.RecordErr = ""
-	if st.Record != "" && (!want || st.RecordZone != c.Cloudflare.ZoneID) {
-		if err := cl.DeleteRecord(st.RecordZone, st.Record); err != nil {
-			st.RecordErr = err.Error()
-			a.certSave(st)
+	rec, zone, recIP := st.Record, st.RecordZone, st.RecordIP
+	var did []string
+	var problem string
+	var conflict []string
+	defer func() {
+		a.certUpdate(func(s *certState) {
+			s.Record, s.RecordZone, s.RecordIP, s.RecordErr, s.Conflict = rec, zone, recIP, problem, conflict
+		})
+		if len(did) > 0 {
+			pub := unifi.Preview{Method: "PUT", Path: "/zones/*/dns_records", Target: name, Description: "Cloudflare: " + strings.Join(did, "; "),
+				Before: map[string]any{}, After: map[string]any{"changes": did}}
+			_, _ = a.Changes.External("api.cloudflare.com", by, pub, false, func() (int, any) { return 200, nil })
+		}
+	}()
+	if rec != "" && (!want || zone != c.Cloudflare.ZoneID) {
+		if err := cl.DeleteRecord(zone, rec); err != nil {
+			problem = err.Error()
 			return
 		}
-		did = "removed the public name"
-		st.Record, st.RecordZone, st.RecordIP = "", "", ""
+		did = append(did, "removed the public name")
+		rec, zone, recIP = "", "", ""
 	}
-	if want {
-		switch {
-		case st.Record != "":
-			if err := cl.UpdateRecordContent(st.RecordZone, st.Record, ip); err != nil {
-				st.RecordErr = err.Error()
-				break
+	if !want {
+		return
+	}
+	if rec != "" { // ours already: point it at the current address
+		err := cl.UpdateRecordContent(zone, rec, ip)
+		if err == nil {
+			if recIP != ip {
+				did = append(did, "pointed "+name+" at "+ip)
 			}
-			st.RecordIP, did = ip, "pointed "+name+" at "+ip
-		default:
-			recs, err := cl.Records(c.Cloudflare.ZoneID, name)
-			if err != nil {
-				st.RecordErr = err.Error()
-				break
-			}
-			for _, r := range recs {
-				if r.Comment != leComment {
-					st.RecordErr = name + " already exists on Cloudflare and HomeOwl didn't make it, so it's left alone — pick another name"
-				}
-			}
-			if st.RecordErr != "" {
-				break
-			}
-			id, err := cl.CreateRecord(c.Cloudflare.ZoneID, "A", name, ip, leComment)
-			if err != nil {
-				st.RecordErr = err.Error()
-				break
-			}
-			st.Record, st.RecordZone, st.RecordIP, did = id, c.Cloudflare.ZoneID, ip, "added "+name+" → "+ip
+			recIP = ip
+			return
 		}
+		if !cloudflare.IsNotFound(err) {
+			problem = err.Error()
+			return
+		}
+		rec, zone, recIP = "", "", "" // removed on Cloudflare meanwhile: look again below
 	}
-	a.certSave(st)
-	if did != "" {
-		pub := unifi.Preview{Method: "PUT", Path: "/zones/*/dns_records", Target: name, Description: "Cloudflare: " + did,
-			Before: map[string]any{}, After: map[string]any{"change": did}}
-		_, _ = a.Changes.External("api.cloudflare.com", by, pub, false, func() (int, any) { return 200, nil })
+	recs, err := cl.Records(c.Cloudflare.ZoneID, name)
+	if err != nil {
+		problem = err.Error()
+		return
 	}
+	var others []cloudflare.Record
+	for _, r := range recs {
+		if r.Type != "A" && r.Type != "AAAA" && r.Type != "CNAME" {
+			continue // other kinds (TXT, MX…) don't get in the way
+		}
+		if r.Comment == leComment && rec == "" && r.Type == "A" {
+			rec, zone, recIP = r.ID, c.Cloudflare.ZoneID, r.Content // made by HomeOwl earlier: take it over
+			continue
+		}
+		others = append(others, r)
+	}
+	if len(others) > 0 && !replace {
+		for _, r := range others {
+			conflict = append(conflict, r.Type+" → "+r.Content)
+		}
+		problem = name + " already exists on Cloudflare and HomeOwl didn't make it"
+		return
+	}
+	for _, r := range others {
+		if err := cl.DeleteRecord(c.Cloudflare.ZoneID, r.ID); err != nil {
+			problem = "couldn't replace the old record: " + err.Error()
+			return
+		}
+		did = append(did, "replaced "+name+" ("+r.Type+" → "+r.Content+")")
+	}
+	if rec != "" {
+		if recIP != ip {
+			if err := cl.UpdateRecordContent(zone, rec, ip); err != nil {
+				problem = err.Error()
+				return
+			}
+			did = append(did, "pointed "+name+" at "+ip)
+			recIP = ip
+		}
+		return
+	}
+	id, err := cl.CreateRecord(c.Cloudflare.ZoneID, "A", name, ip, leComment)
+	if err != nil {
+		problem = err.Error()
+		return
+	}
+	rec, zone, recIP = id, c.Cloudflare.ZoneID, ip
+	did = append(did, "added "+name+" → "+ip)
 }
 
 // certAddress: HomeOwl's address at home (the one set for the Cloudflare links, else found automatically).
@@ -351,7 +406,7 @@ func (a *App) certLoop(ctx context.Context) {
 			_ = a.issueCert("HomeOwl")
 			a.certBusy.Store(false)
 		}
-		a.syncCertRecord("HomeOwl")
+		a.syncCertRecord("HomeOwl", false)
 		select {
 		case <-ctx.Done():
 			return
@@ -400,7 +455,7 @@ func (a *App) certAPI(p, by string, body map[string]any) (any, error) {
 			return nil, err
 		}
 		a.loadLE()
-		go a.syncCertRecord(by)
+		go a.syncCertRecord(by, false)
 		go a.syncHomeDNS(by)
 		if changed && label != "" {
 			_ = a.startCert(by)
@@ -413,11 +468,20 @@ func (a *App) certAPI(p, by string, body map[string]any) (any, error) {
 		return a.certView(), nil
 	case "cert/view":
 		return a.certView(), nil
+	case "cert/replace-record": // the admin confirmed replacing the records of that name HomeOwl didn't make
+		if !a.Cfg.Get().Cert.Public {
+			return nil, errors.New("turn on “Also publish it in public DNS” first")
+		}
+		a.syncCertRecord(by, true)
+		if st := a.certLoad(); st.RecordErr != "" {
+			return nil, errors.New(st.RecordErr)
+		}
+		return a.certView(), nil
 	case "cert/remove":
 		if err := a.Cfg.Update(func(c *config.Config) { c.Cert = config.Cert{} }); err != nil {
 			return nil, err
 		}
-		a.syncCertRecord(by)
+		a.syncCertRecord(by, false)
 		if st := a.certLoad(); st.Record != "" {
 			return nil, fmt.Errorf("couldn't remove the public name from Cloudflare yet: %s", st.RecordErr)
 		}
