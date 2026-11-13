@@ -88,7 +88,7 @@ async function loadSettings() {
   <div class="spane" data-spane="analytics"><div id="an-settings"></div></div>
 
   <div class="spane" data-spane="alerts"><div class="card" id="st-alerts"><div class="empty">Loading…</div></div></div>
-  <div class="spane" data-spane="devices"><div class="card" id="st-devtypes"><div class="empty">Loading…</div></div></div>
+  <div class="spane" data-spane="devices"><div class="card" id="st-devtypes"><div class="empty">Loading…</div></div><div class="card section" id="st-mdm"></div></div>
   <div class="spane" data-spane="home"><div class="card" id="st-guestrot"></div><div class="card section" id="st-cameras"></div>
     <div class="card section"><h2>Doors, UPS and guest Wi-Fi</h2><p class="fine">These are set up on their own pages.</p>
       <div class="btnrow"><a class="btn sm" href="#" data-goto="doors">Doors</a><a class="btn sm" href="#" data-goto="ups">UPS</a><a class="btn sm" href="#" data-goto="guest">Guest Wi-Fi</a><a class="btn sm" href="#" data-goto="checkins">Device check-in</a></div></div></div>
@@ -108,6 +108,7 @@ async function loadSettings() {
   if (typeof renderCameraSettings === "function") renderCameraSettings();
   if (typeof renderAlertSettings === "function") renderAlertSettings();
   if (typeof renderDevTypes === "function") renderDevTypes();
+  if (typeof renderMdm === "function") renderMdm();
   if (typeof renderGuestRotation === "function") renderGuestRotation();
 }
 

@@ -245,6 +245,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var res any = map[string]any{"ok": true}
 	switch {
+	case r.Method != http.MethodPost && postOnly[p]:
+		err = errors.New("use POST")
 	case p == "connect":
 		res, err = a.connect(body)
 	case p == "disconnect":
@@ -323,6 +325,24 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		if err = a.cliTypes.Set(s(body, "mac"), s(body, "kind"), false); err == nil {
 			res = map[string]any{"types": a.cliTypes.All()}
 		}
+	case p == "mdm":
+		res = a.mdmView()
+	case p == "mdm/request":
+		res, err = a.mdmRequest(r.Context(), body)
+	case p == "mdm/decrypt":
+		res, err = a.mdmDecrypt(body)
+	case p == "mdm/push-request":
+		if q := a.mdmPushLoad().Request; q != "" {
+			res = map[string]any{"request": q}
+		} else {
+			err = errors.New("there's no decrypted request yet")
+		}
+	case p == "mdm/pushcert":
+		res, err = a.mdmPushCert(body)
+	case p == "mdm/restart":
+		res = a.mdmRestart(body)
+	case p == "mdm/reset":
+		res = a.mdmReset(b(body, "all"))
 	case p == "devtypes":
 		res, err = a.devTypesView()
 	case p == "devtypes/save":
@@ -1062,3 +1082,7 @@ func orStr(v ...string) string {
 	}
 	return ""
 }
+
+// postOnly: admin routes that change something and must not run from a GET (a link, an <img>)
+var postOnly = map[string]bool{"mdm/request": true, "mdm/decrypt": true, "mdm/pushcert": true, "mdm/reset": true, "mdm/restart": true,
+	"devtypes/save": true, "devtypes/delete": true, "checkins/setup": true, "client-types/set": true}

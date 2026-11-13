@@ -159,6 +159,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.connectProtectSaved(ctx)
 	go a.presenceLoop(ctx)
 	go a.setupWatchLoop(ctx)
+	go a.mdmLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
 	go a.cloudflareLoop(ctx)

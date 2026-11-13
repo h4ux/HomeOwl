@@ -4,6 +4,21 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.35] — 2026-11-13
+
+### Added
+- **MDM, step 1: the push certificate (Settings › Device profiles › Device management).** Apple needs it before HomeOwl can manage iPhones, iPads and Macs. It comes from mdmcert.download, which signs for organizations only. The card walks through it:
+  1. HomeOwl makes the push key (it stays in the secret store) and sends a signing request with your organization's email.
+  2. You upload the encrypted file mdmcert.download emails you, and HomeOwl decrypts it.
+  3. You download the signed request and upload it at identity.apple.com.
+  4. You upload Apple's certificate. HomeOwl checks it matches the key and is an MDM certificate, and shows its topic and expiry.
+- **Renewal** keeps the current certificate working until the renewed one is uploaded. Uploading a certificate with a different topic (created instead of renewed) needs confirming, because enrolled devices would have to enrol again.
+- **Alerts 30, 7 and 1 days before the certificate expires.**
+- Enrolling devices comes in the next release.
+
+### Security
+- New admin routes that change something (device profiles, check-in setup, client types, MDM) only run from a POST with the session token, never from a plain GET.
+
 ## [0.1.34] — 2026-11-13
 
 ### Added
