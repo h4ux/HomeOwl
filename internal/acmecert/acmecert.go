@@ -53,9 +53,24 @@ func parseAccountKey(p string) (crypto.Signer, error) {
 	return x509.ParseECPrivateKey(blk.Bytes)
 }
 
+// Steps, in order, as reported to the step callback.
+const (
+	StepAccount  = "account"  // signing in to Let's Encrypt
+	StepOrder    = "order"    // asking for the certificate
+	StepRecord   = "record"   // adding the check record
+	StepWait     = "wait"     // waiting until the domain's name servers show it
+	StepValidate = "validate" // Let's Encrypt checks it
+	StepIssue    = "issue"    // making and downloading the certificate
+)
+
 // Obtain gets a certificate for name. It returns the chain (leaf first) and the new private key, both PEM.
-// The key is RSA so the certificate can also sign Apple configuration profiles.
-func Obtain(ctx context.Context, accountPEM, name string, p Prover) (chainPEM, keyPEM []byte, err error) {
+// The key is RSA so the certificate can also sign Apple configuration profiles. step (may be nil) hears about
+// each step as it starts, with an optional detail.
+func Obtain(ctx context.Context, accountPEM, name string, p Prover, step func(step, detail string)) (chainPEM, keyPEM []byte, err error) {
+	if step == nil {
+		step = func(string, string) {}
+	}
+	step(StepAccount, "")
 	ak, err := parseAccountKey(accountPEM)
 	if err != nil {
 		return nil, nil, err
@@ -64,6 +79,7 @@ func Obtain(ctx context.Context, accountPEM, name string, p Prover) (chainPEM, k
 	if _, err := cl.Register(ctx, &acme.Account{}, acme.AcceptTOS); err != nil && !errors.Is(err, acme.ErrAccountAlreadyExists) {
 		return nil, nil, fmt.Errorf("Let's Encrypt account: %w", err)
 	}
+	step(StepOrder, "")
 	order, err := cl.AuthorizeOrder(ctx, acme.DomainIDs(name))
 	if err != nil {
 		return nil, nil, fmt.Errorf("Let's Encrypt order: %w", err)
@@ -90,15 +106,18 @@ func Obtain(ctx context.Context, accountPEM, name string, p Prover) (chainPEM, k
 			return nil, nil, err
 		}
 		fqdn := "_acme-challenge." + z.Identifier.Value
+		step(StepRecord, fqdn)
 		cleanup, err := p.Present(ctx, fqdn, val)
 		if err != nil {
 			return nil, nil, fmt.Errorf("couldn't add the check record: %w", err)
 		}
 		err = func() error {
 			defer cleanup()
+			step(StepWait, "")
 			if err := p.Wait(ctx, fqdn, val); err != nil {
 				return err
 			}
+			step(StepValidate, "")
 			if _, err := cl.Accept(ctx, ch); err != nil {
 				return fmt.Errorf("Let's Encrypt: %w", err)
 			}
@@ -111,6 +130,7 @@ func Obtain(ctx context.Context, accountPEM, name string, p Prover) (chainPEM, k
 			return nil, nil, err
 		}
 	}
+	step(StepIssue, "")
 	if order, err = cl.WaitOrder(ctx, order.URI); err != nil {
 		return nil, nil, fmt.Errorf("Let's Encrypt order: %w", err)
 	}
@@ -137,8 +157,12 @@ func Obtain(ctx context.Context, accountPEM, name string, p Prover) (chainPEM, k
 }
 
 // WaitTXT polls the domain's own name servers until each of them answers the TXT record (they are what
-// Let's Encrypt ends up asking, and asking them directly skips any cached "not there yet").
-func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string) error {
+// Let's Encrypt ends up asking, and asking them directly skips any cached "not there yet"). seen (may be nil)
+// hears how many of them see it so far.
+func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string, seen func(n, of int)) error {
+	if seen == nil {
+		seen = func(int, int) {}
+	}
 	if len(nameservers) == 0 {
 		select { // nothing to ask: give the record a moment
 		case <-time.After(20 * time.Second):
@@ -149,7 +173,7 @@ func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string) erro
 	}
 	deadline := time.Now().Add(3 * time.Minute)
 	for {
-		seen := 0
+		seenN := 0
 		for _, ns := range nameservers {
 			ns := strings.TrimSuffix(ns, ".")
 			r := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -161,12 +185,13 @@ func WaitTXT(ctx context.Context, nameservers []string, fqdn, value string) erro
 			cancel()
 			for _, t := range txts {
 				if t == value {
-					seen++
+					seenN++
 					break
 				}
 			}
 		}
-		if seen == len(nameservers) {
+		seen(seenN, len(nameservers))
+		if seenN == len(nameservers) {
 			return nil
 		}
 		if time.Now().After(deadline) {

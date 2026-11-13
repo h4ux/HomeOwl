@@ -40,6 +40,42 @@ const (
 // leObtain gets the certificate (tests replace it).
 var leObtain = acmecert.Obtain
 
+// the steps of a request, in order, for the progress shown in Settings
+var certSteps = []string{"start", acmecert.StepAccount, acmecert.StepOrder, acmecert.StepRecord, acmecert.StepWait, acmecert.StepValidate, acmecert.StepIssue, "save"}
+
+type certProgress struct {
+	Step    string `json:"step"`
+	Detail  string `json:"detail,omitempty"`
+	Started int64  `json:"started"` // ms
+	StepAt  int64  `json:"step_at"` // ms
+}
+
+func (a *App) certStep(step, detail string) {
+	a.certPMu.Lock()
+	defer a.certPMu.Unlock()
+	a.certProg.Step, a.certProg.Detail, a.certProg.StepAt = step, detail, time.Now().UnixMilli()
+}
+
+// startCert begins a request in the background. It is marked busy before this returns, so the page that asked
+// sees it working straight away.
+func (a *App) startCert(by string) error {
+	if certName(a.Cfg.Get()) == "" {
+		return errors.New("choose the name first")
+	}
+	if !a.certBusy.CompareAndSwap(false, true) {
+		return errors.New("HomeOwl is already getting the certificate")
+	}
+	now := time.Now().UnixMilli()
+	a.certPMu.Lock()
+	a.certProg = certProgress{Step: "start", Started: now, StepAt: now}
+	a.certPMu.Unlock()
+	go func() {
+		defer a.certBusy.Store(false)
+		_ = a.issueCert(by)
+	}()
+	return nil
+}
+
 type certState struct {
 	Name     string `json:"name,omitempty"`
 	NotAfter int64  `json:"not_after,omitempty"`
@@ -137,8 +173,6 @@ func (a *App) issueCert(by string) error {
 		return errors.New("HomeOwl is already getting the certificate")
 	}
 	defer a.certMu.Unlock()
-	a.certBusy.Store(true)
-	defer a.certBusy.Store(false)
 	c := a.Cfg.Get()
 	name := certName(c)
 	st := a.certLoad()
@@ -181,7 +215,8 @@ func (a *App) issueCert(by string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 	defer cancel()
-	chain, key, err := leObtain(ctx, acct, name, &cfProver{cl: cl, zone: zone})
+	p := &cfProver{cl: cl, zone: zone, seen: func(n, of int) { a.certStep(acmecert.StepWait, fmt.Sprintf("%d of %d", n, of)) }}
+	chain, key, err := leObtain(ctx, acct, name, p, a.certStep)
 	if err != nil {
 		return fail(err)
 	}
@@ -193,6 +228,7 @@ func (a *App) issueCert(by string) error {
 	if err != nil {
 		return fail(err)
 	}
+	a.certStep("save", "")
 	if err := a.Sec.Set(leKeySlot, string(key)); err != nil {
 		return fail(err)
 	}
@@ -213,6 +249,7 @@ func (a *App) issueCert(by string) error {
 type cfProver struct {
 	cl   *cloudflare.Client
 	zone cloudflare.Zone
+	seen func(n, of int)
 }
 
 func (p *cfProver) Present(_ context.Context, fqdn, value string) (func(), error) {
@@ -224,7 +261,7 @@ func (p *cfProver) Present(_ context.Context, fqdn, value string) (func(), error
 }
 
 func (p *cfProver) Wait(ctx context.Context, fqdn, value string) error {
-	return acmecert.WaitTXT(ctx, p.zone.NameServers, fqdn, value)
+	return acmecert.WaitTXT(ctx, p.zone.NameServers, fqdn, value, p.seen)
 }
 
 // syncCertRecord keeps the optional public name → HomeOwl's home address record in line (and removes it when
@@ -306,8 +343,13 @@ func (a *App) certLoop(ctx context.Context) {
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	for {
-		if a.certDue() {
+		if a.certDue() && a.certBusy.CompareAndSwap(false, true) {
+			now := time.Now().UnixMilli()
+			a.certPMu.Lock()
+			a.certProg = certProgress{Step: "start", Started: now, StepAt: now}
+			a.certPMu.Unlock()
 			_ = a.issueCert("HomeOwl")
+			a.certBusy.Store(false)
 		}
 		a.syncCertRecord("HomeOwl")
 		select {
@@ -323,6 +365,13 @@ func (a *App) certView() map[string]any {
 	name := certName(c)
 	res := map[string]any{"label": c.Cert.Label, "zone": c.Cloudflare.Zone, "name": name, "public": c.Cert.Public, "busy": a.certBusy.Load(),
 		"cloudflare": a.Sec.Get(cfSlot) != "", "https": c.LAN.TLS && c.LAN.Enabled, "address": a.certAddress(c), "state": st}
+	if res["busy"] == true {
+		a.certPMu.Lock()
+		res["progress"] = a.certProg
+		a.certPMu.Unlock()
+	}
+	res["steps"] = certSteps
+	res["now"] = time.Now().UnixMilli()
 	if le := a.le.Load(); le != nil {
 		res["valid"] = true
 		res["expires"] = le.Leaf.NotAfter.Unix()
@@ -354,18 +403,13 @@ func (a *App) certAPI(p, by string, body map[string]any) (any, error) {
 		go a.syncCertRecord(by)
 		go a.syncHomeDNS(by)
 		if changed && label != "" {
-			go func() { _ = a.issueCert(by) }()
+			_ = a.startCert(by)
 		}
 		return a.certView(), nil
 	case "cert/issue":
-		if certName(a.Cfg.Get()) == "" {
-			return nil, errors.New("choose the name first")
+		if err := a.startCert(by); err != nil {
+			return nil, err
 		}
-		if a.certBusy.Load() {
-			return nil, errors.New("HomeOwl is already getting the certificate")
-		}
-		go func() { _ = a.issueCert(by) }()
-		time.Sleep(200 * time.Millisecond) // so the view shows it working
 		return a.certView(), nil
 	case "cert/view":
 		return a.certView(), nil

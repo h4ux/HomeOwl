@@ -719,3 +719,14 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .type-opt:hover{background:var(--panel2)}.type-opt.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}.type-opt.on svg{color:var(--accent)}
 .type-opt:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .cl-note{margin:2px 0 0 26px;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Let's Encrypt progress (Settings › Access) */
+.ct-status{margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.ct-status.ok{border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}.ct-status.bad{border-color:color-mix(in srgb,var(--crit) 40%,var(--line))}
+.ct-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ct-bar{height:6px;border-radius:99px;background:var(--line);margin:10px 0 8px;overflow:hidden}
+.ct-bar span{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .4s}
+.ct-steps{list-style:none;margin:0;padding:0;font-size:13px}.ct-steps li{padding:2px 0;color:var(--muted)}
+.ct-steps li .ic{display:inline-block;width:16px;text-align:center}
+.ct-steps li.done{color:var(--text)}.ct-steps li.done .ic{color:var(--ok)}.ct-steps li.now{color:var(--accent);font-weight:600}
+.ct-status .cmd{margin:8px 0 0}.ct-status a.btn{text-decoration:none}

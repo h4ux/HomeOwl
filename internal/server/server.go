@@ -72,6 +72,8 @@ type App struct {
 	certMu       sync.Mutex // one Let's Encrypt request at a time (cert.go)
 	le           atomic.Pointer[tls.Certificate]
 	certBusy     atomic.Bool
+	certPMu      sync.Mutex
+	certProg     certProgress // what the running request is doing (cert.go)
 	Alerts       *alerts.Store
 	alertErr     string
 	seen         *seenClients

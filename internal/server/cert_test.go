@@ -23,13 +23,14 @@ import (
 
 // fakeLE stands in for Let's Encrypt: it checks that the TXT record is published, then issues a certificate
 // from a throwaway CA.
-func fakeLE(t *testing.T, f *fakeCF) func(context.Context, string, string, acmecert.Prover) ([]byte, []byte, error) {
+func fakeLE(t *testing.T, f *fakeCF) func(context.Context, string, string, acmecert.Prover, func(string, string)) ([]byte, []byte, error) {
 	caKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	caT := &x509.Certificate{SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "Test CA"}, IsCA: true, BasicConstraintsValid: true,
 		KeyUsage: x509.KeyUsageCertSign, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour)}
 	caDER, _ := x509.CreateCertificate(rand.Reader, caT, caT, &caKey.PublicKey, caKey)
 	ca, _ := x509.ParseCertificate(caDER)
-	return func(_ context.Context, acct, name string, p acmecert.Prover) ([]byte, []byte, error) {
+	return func(_ context.Context, acct, name string, p acmecert.Prover, step func(string, string)) ([]byte, []byte, error) {
+		step(acmecert.StepRecord, "_acme-challenge."+name)
 		if !strings.Contains(acct, "PRIVATE KEY") {
 			t.Errorf("account key: %q", acct)
 		}
@@ -82,8 +83,24 @@ func TestLetsEncryptCertificate(t *testing.T) {
 	if !a.certDue() {
 		t.Fatal("a certificate should be due")
 	}
-	if err := a.issueCert("alex"); err != nil {
+	// the page that asks must see it working straight away (it used to reload before the request had started)
+	if err := a.startCert("alex"); err != nil {
 		t.Fatal(err)
+	}
+	if v := a.certView(); v["busy"] != true || v["progress"] == nil {
+		t.Fatalf("not busy right after starting: %v", v)
+	}
+	if err := a.startCert("alex"); err == nil {
+		t.Fatal("a second request must wait for the first")
+	}
+	for i := 0; a.certBusy.Load(); i++ {
+		if i > 200 {
+			t.Fatal("the request never finished")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if st := a.certLoad(); st.Error != "" || st.Issued == 0 {
+		t.Fatalf("after the request: %+v", st)
 	}
 	if a.certDue() {
 		t.Fatal("nothing due right after issuing")

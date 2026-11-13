@@ -210,36 +210,58 @@ document.addEventListener("click", async e => {
 
 // A trusted certificate from Let's Encrypt for a name on the admin's domain (cert.go): HTTPS without warnings
 // and signed ("Verified") device setup profiles.
+const CERT_STEPS = { start: "Starting", account: "Signing in to Let's Encrypt", order: "Asking for the certificate", record: "Adding the check record on Cloudflare",
+  wait: "Waiting for your domain's name servers to show it", validate: "Let's Encrypt is checking your domain", issue: "Making and downloading the certificate", save: "Saving it and switching HTTPS over" };
+function certStatus(c) {
+  const st = c.state || {}, steps = arr(c.steps), pr = c.progress;
+  if (c.busy && pr) {
+    const at = Math.max(0, steps.indexOf(pr.step)), pct = Math.round((at + 0.5) / steps.length * 100), secs = Math.round((c.now - pr.started) / 1000);
+    return `<div class="ct-status" role="status" aria-live="polite"><div class="ct-head"><span class="tag">working</span> <b>Getting the certificate…</b> <span class="fine muted">${secs}s — usually 30–90 seconds</span></div>
+      <div class="ct-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
+      <ol class="ct-steps">${steps.slice(1).map((k, i) => { const n = i + 1, state = n < at ? "done" : n === at ? "now" : ""; return `<li class="${state}"><span class="ic" aria-hidden="true">${state === "done" ? "✓" : state === "now" ? "●" : "○"}</span> ${esc(CERT_STEPS[k] || k)}${state === "now" && pr.detail ? ` <span class="fine muted">(${esc(pr.detail)})</span>` : ""}</li>`; }).join("")}</ol></div>`;
+  }
+  if (c.busy) return `<div class="ct-status" role="status"><span class="tag">working</span> <b>Getting the certificate…</b></div>`;
+  if (c.valid) return `<div class="ct-status ok" role="status"><div class="ct-head"><span class="tag good">trusted</span> <b>Working.</b> Valid until ${esc(new Date(c.expires * 1000).toLocaleDateString())}${st.issued ? `, got it ${esc(ago(st.issued * 1000))}` : ""}. Renewed automatically.</div>
+      <div class="cmd"><code>${esc(c.url)}</code><button class="btn sm" data-copy="${esc(c.url)}">Copy</button><a class="btn sm" href="${esc(c.url)}" target="_blank" rel="noopener">Open</a></div>
+      ${st.error ? `<div class="msg warn">The last renewal try failed (${esc(ago(st.try * 1000))}): ${esc(st.error)}. The current certificate keeps working; HomeOwl tries again later.</div>` : ""}</div>`;
+  if (st.error) return `<div class="ct-status bad" role="status"><div class="ct-head"><span class="tag bad">failed</span> <b>Didn't work</b> <span class="fine muted">${esc(ago(st.try * 1000))}</span></div><div class="msg err">${esc(st.error)}</div>
+      <p class="fine muted">HomeOwl tries again by itself in a few hours, or press <b>Try again</b>.</p></div>`;
+  return c.name ? `<div class="ct-status" role="status"><span class="tag">not yet</span> No certificate yet — press <b>Get the certificate</b>.</div>` : "";
+}
 function certBlock(c) {
   if (S.role !== "admin") return "";
   const head = `<b>Trusted certificate (Let's Encrypt) ${hint("HomeOwl gets a free certificate for a name on your domain, like homeowl.your-domain. Your browser then opens HomeOwl over HTTPS with no warning, and iPhones show device setup profiles as Verified. HomeOwl proves the domain through Cloudflare, so nothing has to be open to the internet, and it renews the certificate by itself.")}</b>`;
-  if (!c.cloudflare || !c.zone) return `<div class="ez-dns">${head}<p class="fine muted">Connect Cloudflare and pick your domain just above first.</p></div>`;
+  if (!c.cloudflare || !c.zone) return `<div class="ez-dns" id="ct-card">${head}<p class="fine muted">Connect Cloudflare and pick your domain just above first.</p></div>`;
   const st = c.state || {};
-  if (c.busy) setTimeout(certPoll, 4000);
-  const status = c.busy ? `<div class="msg">Getting the certificate from Let's Encrypt… this takes a minute or two.</div>`
-    : c.valid ? `<p><span class="tag good">trusted</span> Valid until ${esc(new Date(c.expires * 1000).toLocaleDateString())}, renewed automatically. Open HomeOwl at <a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url.replace("https://", ""))}</a> <button class="btn sm" data-copy="${esc(c.url)}">Copy</button></p>`
-    : c.name ? `<p class="fine muted">No certificate yet.</p>` : "";
-  return `<div class="ez-dns">${head}
+  if (c.busy) setTimeout(certPoll, 2000);
+  return `<div class="ez-dns" id="ct-card">${head}
     <div class="ez-dns-row"><label>Name<span class="name-in"><input id="ct-label" value="${esc(c.label ?? "")}" placeholder="homeowl" maxlength="40"><span class="fine">.${esc(c.zone)}</span></span></label></div>
     <label class="check"><input type="checkbox" id="ct-public" ${c.public ? "checked" : ""}> <span>Also publish it in public DNS, pointing to ${c.address ? `<span class="mono">${esc(c.address)}</span>` : "HomeOwl's home address"} (works on every device, even without NextDNS; anyone can see that address, but it only works inside your home)</span></label>
     <p class="fine muted">Without that, the name works on devices that use your NextDNS profiles (HomeOwl adds it there, like the names above). Certificates are public record: the name, not your address, shows up in certificate-transparency logs.</p>
     ${!c.https ? `<div class="msg warn">HTTPS for the home network is off (Settings › Access), so the certificate won't be used for browsing — it still signs device profiles.</div>` : ""}
-    ${status}
-    ${st.error && !c.busy ? `<div class="msg warn">Last try failed: ${esc(st.error)}</div>` : ""}
+    <div id="ct-status">${certStatus(c)}</div>
     ${st.record_error ? `<div class="msg warn">Public name: ${esc(st.record_error)}</div>` : ""}
     <div class="btnrow"><button class="btn sm primary" id="ct-save">Save</button>
-      ${c.name && !c.busy ? `<button class="btn sm" id="ct-issue">${c.valid ? "Renew now" : "Get the certificate"}</button>` : ""}
-      ${c.name ? `<button class="btn sm" id="ct-remove">Remove</button>` : ""}</div></div>`;
+      ${c.name ? `<button class="btn sm" id="ct-issue" ${c.busy ? "disabled" : ""}>${c.valid ? "Renew now" : st.error ? "Try again" : "Get the certificate"}</button>` : ""}
+      ${c.name ? `<button class="btn sm" id="ct-remove" ${c.busy ? "disabled" : ""}>Remove</button>` : ""}</div></div>`;
 }
+// while a request runs, refresh just the status every 2 seconds; reload the whole card when it ends
 async function certPoll() {
-  if (S.view !== "settings") return;
-  try { const v = await api("/api/cert/view", {}); if (!v.busy) loadSettings(); else setTimeout(certPoll, 4000); } catch { }
+  if (S.view !== "settings" || !$("#ct-status") || certPoll.on) return;
+  certPoll.on = true;
+  try {
+    const v = await api("/api/cert/view", {});
+    if (v.busy) { $("#ct-status").innerHTML = certStatus(v); certPoll.on = false; setTimeout(certPoll, 2000); return; }
+    certPoll.on = false;
+    loadSettings();
+    toast(v.valid ? "Got the certificate from Let's Encrypt" : "Getting the certificate didn't work — see Settings › Access", v.valid ? "ok" : "err");
+  } catch { certPoll.on = false; }
 }
 document.addEventListener("click", async e => {
   const id = e.target.id; if (!id.startsWith("ct-")) return;
   const go = async (path, body, msg) => { e.target.disabled = true; try { const r = await api(path, body); if (msg) toast(msg, "ok"); return r; } catch (err) { toast(err.message, "err"); } finally { e.target.disabled = false; } };
-  if (id === "ct-save") { if (await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked }, "Saved")) loadSettings(); }
-  if (id === "ct-issue") { if (await go("/api/cert/issue", {})) loadSettings(); }
+  if (id === "ct-save") { const r = await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked }, "Saved"); if (r) { loadSettings(); if (r.busy) toast("Asking Let's Encrypt…", "ok"); } }
+  if (id === "ct-issue") { if (await go("/api/cert/issue", {}, "Asking Let's Encrypt…")) loadSettings(); }
   if (id === "ct-remove") openModal({ title: "Remove the certificate?", body: "<p>HomeOwl stops using it, forgets its key and removes the public name it added on Cloudflare (if any). Your browser goes back to the self-signed certificate; device profiles are sent unsigned.</p>",
     buttons: [{ label: "Cancel" }, { label: "Remove", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cert/remove", {}, "Certificate removed")) loadSettings(); } }] });
 });

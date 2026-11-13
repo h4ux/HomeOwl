@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.27] — 2026-11-13
+
+### Fixed
+- **Let's Encrypt showed no progress:** after Save, the page reloaded before the request had started, so it said "No certificate yet" and never updated. The request is now marked as working before the page reloads.
+
+### Added
+- **Let's Encrypt progress and result:** the certificate card now always shows where things stand:
+  - **While working:** a progress bar and each step as it happens, for example how many of the domain's name servers already show the check record.
+  - **When done:** a message, then the result: *trusted* (with the address, expiry date and an Open button) or *failed* (with Let's Encrypt's reason and a **Try again** button).
+
 ## [0.1.26] — 2026-11-13
 
 ### Added
