@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/h4ux/homeowl/internal/apps"
 )
 
 // Explore: cross-filtered drill-down. One request carries the filters and the views the page needs; every view
@@ -16,7 +18,7 @@ import (
 //	dnsd  daily per-device per-domain summary (kept forever) — used for long ranges
 //	trafq hourly UniFi traffic per client, with person attached
 
-var filterKeys = []string{"profile", "person", "device", "category", "root", "domain", "status", "hour", "dow", "q", "lfrom", "lto"}
+var filterKeys = []string{"profile", "person", "device", "category", "root", "domain", "status", "hour", "dow", "q", "lfrom", "lto", "app"}
 var rawOnly = []string{"domain", "hour", "dow", "lfrom", "lto"}
 var sorts = map[string]string{"t": "ts", "device": "device", "domain": "domain", "status": "status", "category": "category", "person": "person_id"}
 
@@ -189,7 +191,66 @@ func (x *xctx) rawWhere(skip ...string) *where {
 		l := like(str(q))
 		w.add("(domain ILIKE ? OR device ILIKE ? OR local_ip ILIKE ?)", l, l, l)
 	}
+	appWhere(w, x.f, sk)
 	return w
+}
+
+// appWhere narrows to one app's domains (internal/apps).
+func appWhere(w *where, f map[string]any, sk map[string]bool) {
+	id, ok := f["app"]
+	if !ok || sk["app"] {
+		return
+	}
+	a, ok := apps.Get(str(id))
+	if !ok {
+		w.add("false")
+		return
+	}
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(a.Roots)), ",")
+	args := make([]any, len(a.Roots))
+	for i, r := range a.Roots {
+		args[i] = r
+	}
+	w.add("root IN ("+ph+")", args...)
+}
+
+// appsJoin maps root domains to apps, for SQL (the catalog is constants; quotes are escaped anyway).
+func appsJoin() string {
+	var b strings.Builder
+	b.WriteString("(VALUES ")
+	for i, p := range apps.Pairs() {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString("('" + strings.ReplaceAll(p[0], "'", "''") + "','" + strings.ReplaceAll(p[1], "'", "''") + "')")
+	}
+	b.WriteString(") AS apps(app_root, app)")
+	return b.String()
+}
+
+// vByApp: which apps were used (by their domains), how much, on how many devices, first and last seen.
+func vByApp(x *xctx) (any, error) {
+	rows, err := byAppRows(x)
+	for _, r := range rows {
+		if a, ok := apps.Get(str(r["key"])); ok {
+			r["name"], r["category"] = a.Name, a.Category
+		}
+	}
+	return rows, err
+}
+
+func byAppRows(x *xctx) ([]map[string]any, error) {
+	if x.useRaw {
+		w := x.rawWhere("app")
+		return x.e.Rows(fmt.Sprintf(`SELECT app AS key, count(*) AS total, count(*) FILTER (WHERE status='blocked') AS blocked,
+			count(DISTINCT %s) * 5 AS active_min, count(DISTINCT device) AS devices, count(DISTINCT person_id) AS people,
+			min(ts) AS first, max(ts) AS last, count(DISTINCT CAST(lts AS DATE)) AS days
+			FROM dnsq JOIN %s ON dnsq.root = apps.app_root WHERE %s GROUP BY 1 ORDER BY total DESC LIMIT 100`, slot, appsJoin(), w.sql()), w.a...)
+	}
+	w := x.sumWhere("app")
+	return x.e.Rows(fmt.Sprintf(`SELECT app AS key, sum(n) AS total, coalesce(sum(n) FILTER (WHERE status='blocked'),0) AS blocked,
+		NULL AS active_min, count(DISTINCT device) AS devices, count(DISTINCT person_id) AS people, min(day) AS first, max(day) AS last,
+		count(DISTINCT day) AS days FROM dnsd JOIN %s ON dnsd.root = apps.app_root WHERE %s GROUP BY 1 ORDER BY total DESC LIMIT 100`, appsJoin(), w.sql()), w.a...)
 }
 
 func (x *xctx) sumWhere(skip ...string) *where {
@@ -215,12 +276,13 @@ func (x *xctx) sumWhere(skip ...string) *where {
 		l := like(str(q))
 		w.add("(root ILIKE ? OR device ILIKE ?)", l, l)
 	}
+	appWhere(w, x.f, sk)
 	return w
 }
 
 var viewFns = map[string]func(*xctx) (any, error){
 	"summary": vSummary, "timeline": vTimeline, "heatmap": vHeatmap, "by_device": vByDevice, "by_domain": vByDomain,
-	"by_category": vByCategory, "by_person": vByPerson, "by_profile": vByProfile, "by_status": vByStatus, "raw": vRaw, "traffic": vTraffic,
+	"by_category": vByCategory, "by_person": vByPerson, "by_profile": vByProfile, "by_status": vByStatus, "raw": vRaw, "traffic": vTraffic, "by_app": vByApp,
 }
 
 func first(r []map[string]any, err error) (any, error) {
@@ -488,7 +550,7 @@ func vTraffic(x *xctx) (any, error) {
 		sum(rx) AS rx, sum(tx) AS tx, sum(rx + tx) AS total FROM trafq WHERE `+hw.sql()+` GROUP BY mac ORDER BY total DESC LIMIT 40`, hw.a...)
 	lo, hi := x.span("SELECT min(lhour), max(lhour) FROM trafq WHERE "+w.sql(), w.a)
 	var ignored []string
-	for _, k := range []string{"category", "root", "domain", "status", "profile", "q"} {
+	for _, k := range []string{"category", "root", "domain", "status", "profile", "q", "app"} {
 		if _, ok := x.f[k]; ok {
 			ignored = append(ignored, k)
 		}

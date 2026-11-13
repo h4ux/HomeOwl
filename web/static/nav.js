@@ -33,6 +33,7 @@ const NAV = [
   { id: "family", name: "Family", pages: [
     { label: "Who's home", views: [["presence", "Who's home"]] },
     { label: "People & groups", views: [["an-people", "People & groups"]] },
+    { label: "Apps", views: [["apps", "Apps"]] },
     { label: "Check-ins", views: [["checkins", "Check-ins"]], pill: "nav-checkins", hidden: true },
   ] },
   // every Analytics page is one view of analytics.js (S.an.tab follows the view; see anTabOf)

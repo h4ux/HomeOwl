@@ -236,3 +236,36 @@ func TestNDDeviceSeen(t *testing.T) {
 		}
 	}
 }
+
+func TestAppsSeen(t *testing.T) {
+	e := openTestEngine(t)
+	now := utcnow()
+	q := `INSERT INTO dns_queries(ts, profile_id, domain, root, status, device_name, client_ip) VALUES (?,?,?,?,?,?,?)`
+	for _, r := range [][]any{
+		{now.Add(-3 * time.Hour), "abc123", "v16m.tiktokcdn.com", "tiktokcdn.com", "default", "Sam's Phone", "203.0.113.7"},
+		{now.Add(-2 * time.Hour), "abc123", "www.tiktok.com", "tiktok.com", "blocked", "Sam's Phone", "203.0.113.7"},
+		{now.Add(-1 * time.Hour), "abc123", "www.roblox.com", "roblox.com", "default", "Alex's iPad", "203.0.113.7"},
+		{now.Add(-1 * time.Hour), "abc123", "www.example.com", "example.com", "default", "Alex's iPad", "203.0.113.7"},
+	} {
+		if _, err := e.db.Exec(q, r...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r, err := e.Explore(ExploreRequest{Range: "7d", Views: []string{"by_app", "by_device"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byApp, ok := r["by_app"].([]map[string]any)
+	if !ok || len(byApp) != 2 || byApp[0]["key"] != "tiktok" || toInt(byApp[0]["total"]) != 2 || toInt(byApp[0]["blocked"]) != 1 || byApp[1]["key"] != "roblox" {
+		t.Fatalf("by_app: %#v", r["by_app"])
+	}
+	// filtering by app narrows the other views to its domains
+	r, _ = e.Explore(ExploreRequest{Range: "7d", Views: []string{"by_device"}, Filters: map[string]any{"app": "tiktok"}})
+	if d := r["by_device"].([]map[string]any); len(d) != 1 || d[0]["key"] != "Sam's Phone" {
+		t.Fatalf("filtered: %#v", r["by_device"])
+	}
+	r, _ = e.Explore(ExploreRequest{Range: "7d", Views: []string{"by_device"}, Filters: map[string]any{"app": "no-such-app"}})
+	if d := r["by_device"].([]map[string]any); len(d) != 0 {
+		t.Fatalf("unknown app should match nothing: %#v", d)
+	}
+}

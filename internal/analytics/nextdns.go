@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -567,3 +568,76 @@ func maxT(a, b time.Time) time.Time {
 
 // HasLegacyKey reports whether a NextDNS key is stored in the original slot (from older versions).
 func (e *Engine) HasLegacyKey() bool { return e.sec.Get("nextdns-api-key") != "" }
+
+// ---- app blocking: a profile's denylist
+
+var ndProfileIDRE = regexp.MustCompile(`^[a-f0-9]{6}$`)
+
+// NDSlotFor is the key slot of the NextDNS account a profile belongs to (the first saved account when unknown).
+func (e *Engine) NDSlotFor(profile string) string {
+	acc := ""
+	if e.db != nil {
+		_ = e.db.QueryRow("SELECT coalesce(account,'') FROM nextdns_profiles WHERE id = ?", profile).Scan(&acc)
+	}
+	if acc != "" && e.sec.Get(acc) != "" {
+		return acc
+	}
+	if s := e.NDSlots(); len(s) > 0 {
+		return s[0]
+	}
+	return ""
+}
+
+type NDDeny struct {
+	ID     string `json:"id"`
+	Active bool   `json:"active"`
+}
+
+func ndProfileOK(p string) error {
+	if !ndProfileIDRE.MatchString(p) {
+		return errors.New("not a NextDNS profile ID")
+	}
+	return nil
+}
+
+// NDDenylist reads a profile's denylist.
+func (e *Engine) NDDenylist(profile string) ([]NDDeny, error) {
+	if err := ndProfileOK(profile); err != nil {
+		return nil, err
+	}
+	r, err := e.ndGet("/profiles/"+profile+"/denylist", nil, "", e.NDSlotFor(profile))
+	if err != nil {
+		return nil, err
+	}
+	var out []NDDeny
+	for _, x := range anyList(r["data"]) {
+		a, _ := x["active"].(bool)
+		out = append(out, NDDeny{ID: str(x["id"]), Active: a})
+	}
+	return out, nil
+}
+
+// NDDenyAdd adds a domain to a profile's denylist; NDDenySet switches one on or off; NDDenyRemove takes it out.
+func (e *Engine) NDDenyAdd(profile, domain string, active bool) error {
+	if err := ndProfileOK(profile); err != nil {
+		return err
+	}
+	_, err := e.ndSend("POST", "/profiles/"+profile+"/denylist", NDDeny{ID: domain, Active: active}, e.NDSlotFor(profile))
+	return err
+}
+
+func (e *Engine) NDDenySet(profile, domain string, active bool) error {
+	if err := ndProfileOK(profile); err != nil {
+		return err
+	}
+	_, err := e.ndSend("PATCH", "/profiles/"+profile+"/denylist/"+url.PathEscape(domain), map[string]bool{"active": active}, e.NDSlotFor(profile))
+	return err
+}
+
+func (e *Engine) NDDenyRemove(profile, domain string) error {
+	if err := ndProfileOK(profile); err != nil {
+		return err
+	}
+	_, err := e.ndSend("DELETE", "/profiles/"+profile+"/denylist/"+url.PathEscape(domain), nil, e.NDSlotFor(profile))
+	return err
+}

@@ -777,3 +777,18 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .mdm-body{margin-top:6px}
 .mdm-body .ovr input{margin:0}
 .mdm-ok .kv{margin:8px 0}
+/* Family › Apps (apps.js) */
+.ap-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.ap-bar select{width:auto;margin:0}
+.ap-cats{margin-bottom:10px;flex-wrap:wrap}
+.ap-blocks{display:flex;flex-direction:column;gap:10px}
+.ap-block{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line)}
+.ap-block:first-child{border-top:0;padding-top:0}
+.ap-pf{display:flex;flex-direction:column;gap:6px;margin:4px 0}
+.ap-pf label.check{align-items:baseline;flex-wrap:wrap}
+.ap-times{display:flex;gap:16px;flex-wrap:wrap}
+.ap-times label{display:flex;gap:6px;align-items:center}
+.ap-times input{width:auto;margin:0}
+.ap-t td:first-child{white-space:nowrap}
+#ap-sched[hidden]{display:none}
+#ap-blocks .card{margin-bottom:14px}

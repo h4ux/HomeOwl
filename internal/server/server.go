@@ -83,6 +83,7 @@ type App struct {
 	seen         *seenClients
 	online       onlineMACs // when each client was last online (setupwatch.go)
 	devTypes     *profileTypes
+	appBlocks    *appBlocks
 	cert         tls.Certificate
 	handler      http.Handler
 	started      time.Time
@@ -117,7 +118,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")},
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
-		devTypes: newProfileTypes(dataDir)}
+		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
@@ -160,6 +161,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.presenceLoop(ctx)
 	go a.setupWatchLoop(ctx)
 	go a.mdmLoop(ctx)
+	go a.appBlocksLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
 	go a.cloudflareLoop(ctx)

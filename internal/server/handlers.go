@@ -343,6 +343,14 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = a.mdmRestart(body)
 	case p == "mdm/reset":
 		res = a.mdmReset(b(body, "all"))
+	case p == "appblocks":
+		res = a.appBlocksView()
+	case p == "appblocks/save":
+		res, err = a.saveAppBlock(body, by)
+	case p == "appblocks/delete":
+		if err = a.deleteAppBlock(s(body, "id"), by); err == nil {
+			res = a.appBlocksView()
+		}
 	case p == "devtypes":
 		res, err = a.devTypesView()
 	case p == "devtypes/save":
@@ -1085,4 +1093,5 @@ func orStr(v ...string) string {
 
 // postOnly: admin routes that change something and must not run from a GET (a link, an <img>)
 var postOnly = map[string]bool{"mdm/request": true, "mdm/decrypt": true, "mdm/pushcert": true, "mdm/reset": true, "mdm/restart": true,
-	"devtypes/save": true, "devtypes/delete": true, "checkins/setup": true, "client-types/set": true}
+	"devtypes/save": true, "devtypes/delete": true, "checkins/setup": true, "client-types/set": true,
+	"appblocks/save": true, "appblocks/delete": true}

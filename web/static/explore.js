@@ -30,6 +30,7 @@ function chipLabel(k, v) {
   if (k === "person") return `👤 ${personName(v)}`;
   if (k === "device") return `📱 ${v}`;
   if (k === "category") return `🏷 ${v}`;
+  if (k === "app") return `📦 ${S.apps?.names?.[v] || v}`;
   if (k === "root") return `🌐 ${v}`;
   if (k === "domain") return `🔗 ${v}`;
   if (k === "status") return `status: ${v}`;

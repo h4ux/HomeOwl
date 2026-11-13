@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.36] — 2026-11-13
+
+### Added
+- **Family › Apps: which apps are used on the network.** HomeOwl recognises about 50 popular apps (social, messaging, video, games, AI, dating, shopping and more) from the domains devices look up in NextDNS. For each app it shows how many people and devices use it, on how many days, how often it was blocked, and when it was last seen. Filter by person, period (24 hours, 7 or 30 days) and category. Click an app to explore who used it, when and on which devices.
+- **Blocking an app, always or on a schedule.** Pick the app and the NextDNS profiles it applies to (each profile shows the people on it). The block can be always on, or on a schedule such as 21:00–07:00 on school nights. HomeOwl adds the app's own domains to each profile's denylist and switches them on and off to follow the schedule, because NextDNS has no schedule for the denylist. It checks every few hours that the entries are still there and retries when NextDNS can't be reached. Unblocking removes only the entries HomeOwl added. Every change is in Records › Changes.
+- Explore has an **app** filter.
+
+
 ## [0.1.35] — 2026-11-13
 
 ### Added
