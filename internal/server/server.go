@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/h4ux/homeowl/internal/access"
@@ -68,6 +69,9 @@ type App struct {
 	port80Err    string
 	hdMu         sync.Mutex // one home-DNS sync at a time (homedns.go)
 	cfMu         sync.Mutex // one Cloudflare sync at a time (cloudflare.go)
+	certMu       sync.Mutex // one Let's Encrypt request at a time (cert.go)
+	le           atomic.Pointer[tls.Certificate]
+	certBusy     atomic.Bool
 	Alerts       *alerts.Store
 	alertErr     string
 	seen         *seenClients
@@ -147,6 +151,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
 	go a.cloudflareLoop(ctx)
+	go a.certLoop(ctx)
 	a.An.Start()
 	go a.backgroundRefresh(ctx)
 	go a.updateLoop(ctx)
@@ -203,8 +208,8 @@ func (a *App) StartLAN() error {
 			}
 		}
 		if a.cert.Certificate != nil {
-			cert := a.cert
-			tcfg = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+			// the Let's Encrypt certificate for its name (cert.go), the self-signed one for addresses and other names
+			tcfg = &tls.Config{GetCertificate: a.pickCert, MinVersion: tls.VersionTLS12}
 		}
 	}
 	if a.lan != nil {
@@ -325,6 +330,9 @@ func (a *App) hostAllowed(r *http.Request) bool {
 		return true
 	}
 	if d := a.Cfg.Get().Names.Domain; d != "" && strings.HasSuffix(h, "."+d) {
+		return true
+	}
+	if n := certName(a.Cfg.Get()); n != "" && h == n {
 		return true
 	}
 	names, _ := localNames()

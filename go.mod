@@ -5,7 +5,9 @@ go 1.24.0
 require (
 	github.com/duckdb/duckdb-go/v2 v2.20000.0
 	github.com/kardianos/service v1.3.0
+	github.com/smallstep/pkcs7 v0.2.1
 	github.com/zalando/go-keyring v0.2.8
+	golang.org/x/crypto v0.46.0
 )
 
 require (

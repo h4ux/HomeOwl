@@ -57,6 +57,15 @@ func (f *fakeCF) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body["id"] = id
 		f.recs = append(f.recs, body)
 		ok(body)
+	case strings.HasPrefix(p, "/zones/z1/dns_records/") && r.Method == "PATCH":
+		for _, x := range f.recs {
+			if x["id"] == strings.TrimPrefix(p, "/zones/z1/dns_records/") {
+				for k, v := range body {
+					x[k] = v
+				}
+			}
+		}
+		ok(map[string]any{"id": id})
 	case strings.HasPrefix(p, "/zones/z1/dns_records/") && r.Method == "DELETE":
 		l := f.recs[:0]
 		for _, x := range f.recs {

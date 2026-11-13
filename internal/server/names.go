@@ -239,7 +239,7 @@ func (a *App) namesView() map[string]any {
 	return map[string]any{"checkin": c.Names.Checkin, "guest": c.Names.Guest, "port80": c.Names.Short != "off",
 		"checkin_url": link(c.Names.Checkin), "guest_url": link(c.Names.Guest), "lan": c.LAN.Enabled,
 		"interfaces": ifaces, "error": nilIfEmpty(err), "port80_error": nilIfEmpty(p80err), "port80_on": p80, "stats": st,
-		"fallback": a.fallbackLinks(), "home_dns": a.homeDNSView(), "cloudflare": a.cloudflareView()}
+		"fallback": a.fallbackLinks(), "home_dns": a.homeDNSView(), "cloudflare": a.cloudflareView(), "cert": a.certView()}
 }
 
 var homeDomainRE = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z][a-z0-9-]{0,62}$`)

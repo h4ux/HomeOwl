@@ -2,9 +2,14 @@ package server
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -14,6 +19,7 @@ import (
 	"time"
 
 	"github.com/h4ux/homeowl/internal/analytics"
+	"github.com/smallstep/pkcs7"
 )
 
 // Device setup after check-in: once an admin approves a device, its "Hi HomeOwl" page offers to set it up so it
@@ -155,10 +161,42 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.checkins.Touch(x.ID)
+	body := mobileConfig(x)
+	if sc := a.signer(); sc != nil { // signed with the Let's Encrypt certificate: iOS shows it as "Verified"
+		if signed, err := signProfile(body, sc); err == nil {
+			body = signed
+		} else {
+			log.Printf("device profile: couldn't sign it (%v); sending it unsigned", err)
+		}
+	}
 	w.Header().Set("Content-Type", "application/x-apple-aspen-config")
 	w.Header().Set("Content-Disposition", `attachment; filename="HomeOwl.mobileconfig"`)
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(mobileConfig(x))
+	_, _ = w.Write(body)
+}
+
+// signProfile wraps the profile in a CMS (PKCS #7) signature with the certificate and its chain.
+func signProfile(body []byte, c *tls.Certificate) ([]byte, error) {
+	sd, err := pkcs7.NewSignedData(body)
+	if err != nil {
+		return nil, err
+	}
+	sd.SetDigestAlgorithm(pkcs7.OIDDigestAlgorithmSHA256)
+	key, ok := c.PrivateKey.(crypto.Signer)
+	if !ok {
+		return nil, errors.New("the certificate's key can't sign")
+	}
+	if err := sd.AddSigner(c.Leaf, key, pkcs7.SignerInfoConfig{}); err != nil {
+		return nil, err
+	}
+	for _, der := range c.Certificate[1:] {
+		ic, err := x509.ParseCertificate(der)
+		if err != nil {
+			return nil, err
+		}
+		sd.AddCertificate(ic)
+	}
+	return sd.Finish()
 }
 
 // mobileConfig builds the profile. Its identifiers come from the device's MAC address, so installing a newer one

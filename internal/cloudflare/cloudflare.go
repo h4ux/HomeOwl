@@ -34,8 +34,9 @@ func New(token string) *Client {
 }
 
 type Zone struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	NameServers []string `json:"name_servers,omitempty"`
 }
 
 type Record struct {
@@ -152,6 +153,20 @@ func (c *Client) CreateRedirectRecord(zone, name string) (string, error) {
 	err := c.do("POST", "/zones/"+url.PathEscape(zone)+"/dns_records", map[string]any{"type": "AAAA", "name": name,
 		"content": "100::", "proxied": true, "ttl": 1, "comment": "HomeOwl: redirects to the home network"}, &r)
 	return r.ID, err
+}
+
+// CreateRecord adds a DNS record (not proxied) and returns its ID: the TXT record that proves the domain to
+// Let's Encrypt, or the optional public name for HomeOwl's address at home.
+func (c *Client) CreateRecord(zone, typ, name, content, comment string) (string, error) {
+	var r Record
+	err := c.do("POST", "/zones/"+url.PathEscape(zone)+"/dns_records", map[string]any{"type": typ, "name": name,
+		"content": content, "proxied": false, "ttl": 60, "comment": comment}, &r)
+	return r.ID, err
+}
+
+// UpdateRecordContent changes what a record points to.
+func (c *Client) UpdateRecordContent(zone, id, content string) error {
+	return c.do("PATCH", "/zones/"+url.PathEscape(zone)+"/dns_records/"+url.PathEscape(id), map[string]any{"content": content}, nil)
 }
 
 func (c *Client) DeleteRecord(zone, id string) error {

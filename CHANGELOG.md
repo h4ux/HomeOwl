@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.25] — 2026-11-13
+
+### Added
+- **Trusted certificate from Let's Encrypt** (Settings › Access, under the Cloudflare links): choose a name on your domain, like `homeowl.example.com`.
+  - **How HomeOwl gets it:** it proves the domain with a short-lived TXT record through the Cloudflare token you already connected, so nothing is opened to the internet. It renews the certificate by itself 30 days before it expires.
+  - **HTTPS without warnings:** HomeOwl serves that certificate for its name, and keeps the self-signed one for visits by IP address.
+  - **Finding HomeOwl by that name:** HomeOwl adds the name to your NextDNS profiles, like the other home names.
+    - You can optionally also publish it in public DNS, pointing to HomeOwl's home address.
+    - HomeOwl never touches a record of that name it didn't create.
+  - **Signed device setup profiles:** profiles are now signed with the certificate, so iPhones show them as **Verified**.
+  - **Where the keys live:** the account key and the certificate's private key are kept with the other secrets, in the keychain or `<data>/secrets`.
+  - **Logging:** requests and DNS changes appear on the Changes page.
+
 ## [0.1.24] — 2026-11-13
 
 ### Fixed

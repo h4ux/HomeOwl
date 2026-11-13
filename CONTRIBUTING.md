@@ -36,6 +36,8 @@ No UniFi console at hand? Click **Preview with demo data** on the sign-in page.
 | `internal/tsnetx` | built-in Tailscale node (`-tags notsnet` leaves it out) |
 | `internal/categories` | domain → subject categories |
 | `internal/mdns` | answers mDNS for the easy names (hi.local, wifi.local) |
+| `internal/cloudflare` | Cloudflare API: the links on your own domain, DNS records |
+| `internal/acmecert` | Let's Encrypt certificate via DNS-01 (HTTPS and signed device profiles) |
 | `internal/alerts` | the alert list and delivery (macOS, ntfy, webhook) |
 | `web/static` | the web UI (plain HTML/CSS/JS, no build step) |
 | `scripts` | install scripts |

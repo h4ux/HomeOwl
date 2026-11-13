@@ -127,6 +127,7 @@ function easyLinks(nm, lan) {
     <label class="check"><input type="checkbox" id="st-nm-guestcard" ${nm.guest ? "checked" : ""}> <span>Show the guest Wi-Fi card (name and password) to anyone on your home network</span></label>
     ${homeDNSBlock(hd, fb.ip)}
     ${cfBlock(nm.cloudflare || {}, nm.guest)}
+    ${certBlock(nm.cert || {})}
     ${keep}${nm.port80_error ? `<div class="msg warn">${esc(nm.port80_error)}</div>` : ""}
     <details class="ez-more"><summary>Names and options</summary>
       <div class="grid g2" style="margin-top:8px">
@@ -205,6 +206,42 @@ document.addEventListener("click", async e => {
   if (id === "cf-sync") { e.preventDefault(); if (await go("/api/cloudflare/sync", {})) loadSettings(); }
   if (id === "cf-disconnect") openModal({ title: "Disconnect Cloudflare?", body: "<p>HomeOwl removes the links and redirect rules it added to your domain, then forgets the token. Nothing else on Cloudflare is touched.</p>",
     buttons: [{ label: "Cancel" }, { label: "Disconnect", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cloudflare/disconnect", {}, "Cloudflare disconnected")) { S.cfZones = null; loadSettings(); } } }] });
+});
+
+// A trusted certificate from Let's Encrypt for a name on the admin's domain (cert.go): HTTPS without warnings
+// and signed ("Verified") device setup profiles.
+function certBlock(c) {
+  if (S.role !== "admin") return "";
+  const head = `<b>Trusted certificate (Let's Encrypt) ${hint("HomeOwl gets a free certificate for a name on your domain, like homeowl.your-domain. Your browser then opens HomeOwl over HTTPS with no warning, and iPhones show device setup profiles as Verified. HomeOwl proves the domain through Cloudflare, so nothing has to be open to the internet, and it renews the certificate by itself.")}</b>`;
+  if (!c.cloudflare || !c.zone) return `<div class="ez-dns">${head}<p class="fine muted">Connect Cloudflare and pick your domain just above first.</p></div>`;
+  const st = c.state || {};
+  if (c.busy) setTimeout(certPoll, 4000);
+  const status = c.busy ? `<div class="msg">Getting the certificate from Let's Encrypt… this takes a minute or two.</div>`
+    : c.valid ? `<p><span class="tag good">trusted</span> Valid until ${esc(new Date(c.expires * 1000).toLocaleDateString())}, renewed automatically. Open HomeOwl at <a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url.replace("https://", ""))}</a> <button class="btn sm" data-copy="${esc(c.url)}">Copy</button></p>`
+    : c.name ? `<p class="fine muted">No certificate yet.</p>` : "";
+  return `<div class="ez-dns">${head}
+    <div class="ez-dns-row"><label>Name<span class="name-in"><input id="ct-label" value="${esc(c.label ?? "")}" placeholder="homeowl" maxlength="40"><span class="fine">.${esc(c.zone)}</span></span></label></div>
+    <label class="check"><input type="checkbox" id="ct-public" ${c.public ? "checked" : ""}> <span>Also publish it in public DNS, pointing to ${c.address ? `<span class="mono">${esc(c.address)}</span>` : "HomeOwl's home address"} (works on every device, even without NextDNS; anyone can see that address, but it only works inside your home)</span></label>
+    <p class="fine muted">Without that, the name works on devices that use your NextDNS profiles (HomeOwl adds it there, like the names above). Certificates are public record: the name, not your address, shows up in certificate-transparency logs.</p>
+    ${!c.https ? `<div class="msg warn">HTTPS for the home network is off (Settings › Access), so the certificate won't be used for browsing — it still signs device profiles.</div>` : ""}
+    ${status}
+    ${st.error && !c.busy ? `<div class="msg warn">Last try failed: ${esc(st.error)}</div>` : ""}
+    ${st.record_error ? `<div class="msg warn">Public name: ${esc(st.record_error)}</div>` : ""}
+    <div class="btnrow"><button class="btn sm primary" id="ct-save">Save</button>
+      ${c.name && !c.busy ? `<button class="btn sm" id="ct-issue">${c.valid ? "Renew now" : "Get the certificate"}</button>` : ""}
+      ${c.name ? `<button class="btn sm" id="ct-remove">Remove</button>` : ""}</div></div>`;
+}
+async function certPoll() {
+  if (S.view !== "settings") return;
+  try { const v = await api("/api/cert/view", {}); if (!v.busy) loadSettings(); else setTimeout(certPoll, 4000); } catch { }
+}
+document.addEventListener("click", async e => {
+  const id = e.target.id; if (!id.startsWith("ct-")) return;
+  const go = async (path, body, msg) => { e.target.disabled = true; try { const r = await api(path, body); if (msg) toast(msg, "ok"); return r; } catch (err) { toast(err.message, "err"); } finally { e.target.disabled = false; } };
+  if (id === "ct-save") { if (await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked }, "Saved")) loadSettings(); }
+  if (id === "ct-issue") { if (await go("/api/cert/issue", {})) loadSettings(); }
+  if (id === "ct-remove") openModal({ title: "Remove the certificate?", body: "<p>HomeOwl stops using it, forgets its key and removes the public name it added on Cloudflare (if any). Your browser goes back to the self-signed certificate; device profiles are sent unsigned.</p>",
+    buttons: [{ label: "Cancel" }, { label: "Remove", cls: "primary", onClick: async () => { closeModal(); if (await go("/api/cert/remove", {}, "Certificate removed")) loadSettings(); } }] });
 });
 
 // the guest card switch saves at once (no "Save" to forget)

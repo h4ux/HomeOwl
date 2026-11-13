@@ -378,6 +378,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		}
 	case strings.HasPrefix(p, "cloudflare/"):
 		res, err = a.cloudflareAPI(p, by, body)
+	case strings.HasPrefix(p, "cert/"):
+		res, err = a.certAPI(p, by, body)
 	case p == "names/sync":
 		a.syncHomeDNS(by)
 		res = a.homeDNSView()

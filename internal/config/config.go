@@ -61,6 +61,13 @@ type Names struct {
 	Domain string `json:"domain,omitempty"`
 }
 
+// Cert: a Let's Encrypt certificate for <Label>.<Cloudflare zone>, proved through the Cloudflare token. It gives
+// HomeOwl trusted HTTPS on the home network and signs the device setup profiles.
+type Cert struct {
+	Label  string `json:"label,omitempty"`  // "" = off
+	Public bool   `json:"public,omitempty"` // also publish <name> → HomeOwl's home address in public DNS
+}
+
 // Cloudflare: short links on the user's own domain (wifi.example.com) that redirect to HomeOwl at home.
 // The API token is a secret (slot "cloudflare-token").
 type Cloudflare struct {
@@ -173,6 +180,7 @@ type Config struct {
 	Names          Names      `json:"names"`
 	Alerts         Alerts     `json:"alerts"`
 	Cloudflare     Cloudflare `json:"cloudflare"`
+	Cert           Cert       `json:"cert"`
 	Tailscale      Tailscale  `json:"tailscale"`
 	MCP            MCP        `json:"mcp"`
 	Analytics      Analytics  `json:"analytics"`

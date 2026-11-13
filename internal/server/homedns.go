@@ -42,11 +42,18 @@ type homeDNSState struct {
 }
 
 func homeDNSNames(c config.Config) []string {
-	d := strings.Trim(strings.ToLower(c.Names.Domain), ".")
-	if d == "" || !c.LAN.Enabled {
+	if !c.LAN.Enabled {
 		return nil
 	}
 	var out []string
+	if n := certName(c); n != "" { // HomeOwl's own HTTPS name (cert.go) leads home too
+		out = append(out, n)
+	}
+	d := strings.Trim(strings.ToLower(c.Names.Domain), ".")
+	if d == "" {
+		sort.Strings(out)
+		return out
+	}
 	for _, l := range []string{c.Names.Checkin, c.Names.Guest} {
 		if l != "" {
 			out = append(out, l+"."+d)
@@ -208,6 +215,9 @@ func (a *App) homeDNSView() map[string]any {
 	a.mu.Unlock()
 	var links []string
 	for _, n := range homeDNSNames(c) {
+		if n == certName(c) { // shown with the certificate, as https://
+			continue
+		}
 		u := "http://" + n
 		if !p80 {
 			u += fmt.Sprintf(":%d", c.LAN.Port)
