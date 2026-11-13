@@ -245,7 +245,7 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 	var err error
 	var res any = map[string]any{"ok": true}
 	switch {
-	case r.Method != http.MethodPost && postOnly[p]:
+	case r.Method != http.MethodPost && !getOK[p]:
 		err = errors.New("use POST")
 	case p == "connect":
 		res, err = a.connect(body)
@@ -1091,7 +1091,8 @@ func orStr(v ...string) string {
 	return ""
 }
 
-// postOnly: admin routes that change something and must not run from a GET (a link, an <img>)
-var postOnly = map[string]bool{"mdm/request": true, "mdm/decrypt": true, "mdm/pushcert": true, "mdm/reset": true, "mdm/restart": true,
-	"devtypes/save": true, "devtypes/delete": true, "checkins/setup": true, "client-types/set": true,
-	"appblocks/save": true, "appblocks/delete": true}
+// getOK: the admin routes that only read, so a GET may run them. Every other admin route changes something and
+// needs a POST, which carries the session token (X-Audit-Token) and passes the same-origin check: a link, an
+// <img> or a page on another site can't make HomeOwl act.
+var getOK = map[string]bool{"appblocks": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
+	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "cameras/discover": true}

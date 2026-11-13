@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.37] — 2026-11-13
+
+### Security
+- **Every admin action now needs a POST with the session token.** Before, older admin routes (changes mode, disconnecting, users, MCP tokens, updates, undo, guest Wi-Fi rotation, door unlocks, alerts, analytics settings and others) also ran from a plain GET. A GET skips the token check, so a link or an image on another page, opened by a signed-in admin, could have made HomeOwl act. The rule is now the other way round: an admin route needs a POST unless it's on a short list of routes that only read (check-ins, device profiles, MDM status, app blocks, doors, the guest Wi-Fi schedule, camera discovery). A test checks both lists.
+
+
 ## [0.1.36] — 2026-11-13
 
 ### Added
