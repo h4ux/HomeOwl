@@ -4,6 +4,21 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.33] — 2026-11-13
+
+### Added
+- **Reports › Categories:** what the internet was used for.
+  - Each category's share of queries, its time a day and how much of it was blocked.
+  - Click a category to drill down to its top sites, who used it and on which devices, with a link into Explore.
+  - Also: each person's own top categories, and queries over time.
+- **Reports › Blocked sites:** what NextDNS blocked, as a share of all queries.
+  - Why it was blocked: each blocklist, tagged as ads and trackers, parental control, security, or your own denylist.
+  - Blocks by category, and who gets blocked most, as a share of their own queries.
+  - Top blocked sites, each opening to the devices and people that asked for it.
+  - The devices with the most blocks, and blocks over time.
+  - "What stands out": security blocks, a device with an unusually high share of blocked queries (a misbehaving app or worse), and unusual spikes.
+- Both new reports can be filtered to one person and cover 24 hours, 7, 30 or 90 days. "Expand all" opens every drill-down, and printing, PDF and downloads show them open.
+
 ## [0.1.32] — 2026-11-13
 
 ### Added
