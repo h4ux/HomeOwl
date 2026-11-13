@@ -254,7 +254,7 @@ function peopleBody() {
 function ppApps(p, list) {
   list = arr(list); if (!list.length) return "";
   list.forEach(x => { if (x.name && S.apps) S.apps.names[x.key] = x.name; });
-  return `<div class="pp-apps"><span class="fine muted">Top apps</span>${list.slice(0, 8).map(x => `<a href="#" class="pp-app" data-exgo="person|${esc(p.id)};;app|${esc(x.key)}" title="${esc(x.category || "")} · ${fmtNum(x.total)} lookups on ${x.days} day${x.days === 1 ? "" : "s"}${x.blocked ? ` · ${pct(x.blocked, x.total)} blocked` : ""}">${esc(x.name || x.key)}${x.blocked && x.blocked >= x.total / 2 ? ` <span class="tag bad">blocked</span>` : ""}</a>`).join("")}</div>`;
+  return `<div class="pp-apps"><span class="fine muted">Top apps</span>${list.slice(0, 8).map(x => `<a href="#" class="pp-app" data-exgo="person|${esc(p.id)};;app|${esc(x.key)}" title="${esc(x.category || "")} · ${fmtNum(x.total)} lookups on ${x.days} day${x.days === 1 ? "" : "s"}${x.blocked ? ` · ${pct(x.blocked, x.total)} blocked` : ""}">${apLogo(x.key, x.name)}${esc(x.name || x.key)}${x.blocked && x.blocked >= x.total / 2 ? ` <span class="tag bad">blocked</span>` : ""}</a>`).join("")}</div>`;
 }
 async function loadPeople() {
   let meta; try { meta = await exMeta(true); } catch (e) { return fill("pp-list", `<div class="empty bad-t">${esc(e.message)}</div>`); }

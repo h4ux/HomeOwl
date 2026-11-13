@@ -119,7 +119,7 @@ const RP_BUILD = {
       if (late >= 30 && late / a.total >= 0.1) notes.push(["warn", `<b>${name(a)}</b> was used late at night: ${rpShareOf(late, a.total)} of its lookups were between midnight and 5 am.`]); });
     const rows = top.map((a, i) => {
       const d = drill[i] || {};
-      const head = rpRowHead(name(a) + ` <span class="fine muted">${esc(a.category || "")}</span>`, "var(--c2)", 100 * a.total / mx,
+      const head = rpRowHead(apLogo(a.key, a.name) + name(a) + ` <span class="fine muted">${esc(a.category || "")}</span>`, "var(--c2)", 100 * a.total / mx,
         [`${a.days} day${a.days === 1 ? "" : "s"}`, a.active_min ? fmtMin(a.active_min / days) + "/day" : `${fmtNum(a.total)} lookups`, a.blocked ? `${rpShareOf(a.blocked, a.total)} blocked` : ""]);
       return rpDrill(head, `<div class="rp-ddg">${S.rp.person ? "" : rpMini("Who", arr(d.by_person), rpPersonName)}${rpMini("Devices", arr(d.by_device), x => esc(x.key))}</div>
         <p class="fine muted">Last seen ${a.last ? esc(rpWhen(Date.parse(a.last) || a.last)) : "–"} ${rpExLink(`app|${a.key}${S.rp.person ? `;;person|${S.rp.person}` : ""}`)}</p>`);

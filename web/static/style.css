@@ -793,6 +793,9 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .ap-t td:first-child{white-space:nowrap}
 #ap-sched[hidden]{display:none}
 #ap-blocks .card{margin-bottom:14px}
+.ap-logo{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;margin-right:7px;border-radius:5px;overflow:hidden;vertical-align:-5px;background:var(--panel2);color:var(--muted);font-size:11px;font-weight:600;line-height:1}
+.ap-logo img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff}
+.pp-app .ap-logo{width:16px;height:16px;margin-right:5px;border-radius:4px;font-size:10px;vertical-align:-3px}
 .pp-apps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 2px}
 .pp-app{font-size:12px;padding:3px 9px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);color:var(--text);text-decoration:none}
 .pp-app:hover{border-color:var(--accent);color:var(--accent)}

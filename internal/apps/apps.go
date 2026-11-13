@@ -115,3 +115,17 @@ func Pairs() [][2]string {
 	}
 	return out
 }
+
+// sites are the home pages whose icons stand for an app, where its first root domain isn't one.
+var sites = map[string]string{"x": "x.com", "nintendo": "nintendo.com", "pokemongo": "pokemongolive.com", "steam": "store.steampowered.com"}
+
+// Site is the web site whose icon stands for the app.
+func Site(id string) string {
+	if s, ok := sites[id]; ok {
+		return s
+	}
+	if a, ok := byID[id]; ok && len(a.Roots) > 0 {
+		return a.Roots[0]
+	}
+	return ""
+}

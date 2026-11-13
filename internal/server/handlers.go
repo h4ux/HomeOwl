@@ -224,6 +224,20 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write(img)
 			return
 		}
+	case "app-logo":
+		if r.Method == http.MethodGet {
+			img, typ, ok := a.appLogos.Get(r.Context(), r.URL.Query().Get("app"))
+			if !ok {
+				w.Header().Set("Cache-Control", "private, max-age=3600")
+				fail(w, 404, "no logo")
+				return
+			}
+			w.Header().Set("Content-Type", typ)
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Cache-Control", "private, max-age=604800")
+			_, _ = w.Write(img)
+			return
+		}
 	case "analytics/meta":
 		res, err := a.An.Meta()
 		if err != nil {

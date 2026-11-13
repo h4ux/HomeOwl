@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.40] — 2026-11-13
+
+### Added
+- **App logos** next to apps on the Apps page, on People cards and in the Apps report. The first time a logo is needed, HomeOwl fetches the icons of every app in its list at once through DuckDuckGo's icon service and keeps them in `<data>/app-logos/`. This avoids looking up the apps' own sites (which would show in NextDNS as if HomeOwl's computer used them) and tells nobody which apps the family uses. An app without an icon shows its first letter; failed icons are tried again a day later.
+
 ## [0.1.39] — 2026-11-13
 
 ### Added

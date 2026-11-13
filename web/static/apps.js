@@ -37,11 +37,18 @@ function renderAppBlocks() {
   if (b.error) { el.innerHTML = `<div class="banner warn">${esc(b.error)}</div>`; return; }
   if (!b.blocks.length) { el.innerHTML = ""; return; }
   el.innerHTML = `<div class="card"><h2>Blocked apps</h2><div class="ap-blocks">${b.blocks.map(x => `<div class="ap-block">
-      <div><b>${esc(x.name)}</b> <span class="tag ${x.error ? "bad" : x.blocked_now ? "warn" : "good"}">${x.error ? "needs attention" : x.blocked_now ? "blocked now" : "allowed now"}</span>
+      <div>${apLogo(x.app, x.name)}<b>${esc(x.name)}</b> <span class="tag ${x.error ? "bad" : x.blocked_now ? "warn" : "good"}">${x.error ? "needs attention" : x.blocked_now ? "blocked now" : "allowed now"}</span>
         <div class="fine muted">${esc(x.mode === "schedule" ? "Blocked " + x.when : "Always blocked")} · ${esc(apPeople(x.profiles))}</div>
         ${x.error ? `<div class="fine bad-t">${esc(x.error)}</div>` : ""}</div>
       <div class="btnrow"><button class="btn sm" data-apedit="${esc(x.id)}">Change</button><button class="btn sm danger" data-apdel="${esc(x.id)}">Unblock</button></div></div>`).join("")}</div></div>`;
 }
+
+// an app's logo (applogos.go), with its first letter until it loads or if there's none
+function apLogo(id, name) {
+  const k = String(id || ""); if (!/^[a-z0-9]+$/.test(k)) return "";
+  return `<span class="ap-logo" aria-hidden="true">${esc((name || k).charAt(0).toUpperCase())}<img src="/api/app-logo?app=${k}" alt="" loading="lazy" decoding="async"></span>`;
+}
+document.addEventListener("error", e => { if (e.target.matches?.(".ap-logo img")) e.target.remove(); }, true);
 
 function renderAppsSeen() {
   const el = $("#ap-seen"); if (!el) return;
@@ -52,7 +59,7 @@ function renderAppsSeen() {
   const day = S.apps.range === "24h" ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short" };
   el.innerHTML = `${cats.length > 1 ? `<div class="seg ap-cats"><button data-apcat="" class="${S.apps.cat ? "" : "on"}">All</button>${cats.sort().map(c => `<button data-apcat="${esc(c)}" class="${S.apps.cat === c ? "on" : ""}">${esc(c)}</button>`).join("")}</div>` : ""}
     <div class="tbl-wrap"><table class="ap-t"><thead><tr><th>App</th><th>Category</th><th class="num">People</th><th class="num">Devices</th><th class="num">Days used</th><th class="num">Lookups</th><th class="num">Blocked</th><th>Last seen</th><th></th></tr></thead>
-    <tbody>${shown.map(r => `<tr><td><a href="#" data-exgo="app|${esc(r.key)}${S.apps.person ? ";;person|" + esc(S.apps.person) : ""}" title="Explore: who, when, which devices">${esc(r.name || r.key)}</a>${blocked.has(r.key) ? ` <span class="tag warn">blocked</span>` : ""}</td>
+    <tbody>${shown.map(r => `<tr><td><a href="#" data-exgo="app|${esc(r.key)}${S.apps.person ? ";;person|" + esc(S.apps.person) : ""}" title="Explore: who, when, which devices">${apLogo(r.key, r.name)}${esc(r.name || r.key)}</a>${blocked.has(r.key) ? ` <span class="tag warn">blocked</span>` : ""}</td>
       <td>${esc(r.category || "")}</td><td class="num">${r.people ?? "–"}</td><td class="num">${r.devices}</td><td class="num">${r.days}</td>
       <td class="num">${fmtN(r.total)}</td><td class="num">${r.blocked ? Math.round(100 * r.blocked / r.total) + "%" : "–"}</td>
       <td>${r.last ? esc(new Date(r.last).toLocaleString([], day)) : ""}</td>

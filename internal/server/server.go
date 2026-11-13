@@ -89,6 +89,7 @@ type App struct {
 	started      time.Time
 	tsErr        string
 	logos        *ispLogos
+	appLogos     *appLogos
 	checkins     *checkins
 	cliTypes     *clientTypes
 	History      *history.Store
@@ -116,7 +117,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 		return nil, err
 	}
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
-		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")},
+		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}, appLogos: newAppLogos(dataDir),
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
 		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir)}
 	a.Changes.ReadOnly = readOnly
