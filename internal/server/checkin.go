@@ -38,6 +38,8 @@ type CheckIn struct {
 	PersonName string `json:"person_name"`
 	Status     string `json:"status"` // pending | approved | rejected
 	By         string `json:"by,omitempty"`
+	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
+	ProfileAt  int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
 }
 
 var checkinKinds = map[string]bool{"phone": true, "tablet": true, "laptop": true, "computer": true, "tv": true, "console": true,
@@ -139,16 +141,49 @@ func (c *checkins) Get(id string) (CheckIn, bool) {
 }
 
 func (c *checkins) Decide(id, status, by string) error {
+	return c.decide(id, status, by, nil)
+}
+
+// decide closes a pending check-in, letting the admin's choices (name, NextDNS profile) be saved with it.
+func (c *checkins) decide(id, status, by string, edit func(*CheckIn)) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	l := c.load()
 	for i := range l {
 		if l[i].ID == id && l[i].Status == "pending" {
 			l[i].Status, l[i].By = status, by
+			if edit != nil {
+				edit(&l[i])
+			}
 			return c.save(l)
 		}
 	}
 	return errors.New("that check-in isn't waiting any more")
+}
+
+// Registered is the device's latest approved check-in.
+func (c *checkins) Registered(mac string) (CheckIn, bool) {
+	var best CheckIn
+	for _, x := range c.List() {
+		if x.MAC == mac && x.Status == "approved" && x.Time >= best.Time {
+			best = x
+		}
+	}
+	return best, best.ID != ""
+}
+
+// Touch records that the device fetched its setup profile.
+func (c *checkins) Touch(id string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	l := c.load()
+	for i := range l {
+		if l[i].ID == id {
+			l[i].ProfileAt = time.Now().Unix()
+			_ = c.save(l)
+			return
+		}
+	}
 }
 
 func (c *checkins) Pending() int {
@@ -200,30 +235,39 @@ func str(m map[string]any, k string) string {
 	return v
 }
 
-func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
+// hiDevice finds the UniFi client making this request (answering the error itself when there is none).
+func (a *App) hiDevice(w http.ResponseWriter, r *http.Request) (map[string]any, string, bool) {
 	ip := remoteIP(r)
 	if pip := net.ParseIP(ip); pip == nil || pip.IsLoopback() {
 		fail(w, 400, "Open this page on the device you want to name (not on the computer running HomeOwl).")
-		return
+		return nil, "", false
 	}
 	if !net.ParseIP(ip).IsPrivate() && !net.ParseIP(ip).IsLinkLocalUnicast() {
 		fail(w, 403, "Device check-in works only on the home network.")
-		return
+		return nil, "", false
 	}
 	c, err := a.clientByIP(ip)
 	if err != nil {
 		fail(w, 503, err.Error())
-		return
+		return nil, "", false
 	}
 	if c == nil {
 		fail(w, 404, "HomeOwl can't find this device on your network. Are you on the home Wi-Fi (not mobile data or a VPN)?")
-		return
+		return nil, "", false
 	}
 	if g, _ := c["is_guest"].(bool); g {
 		fail(w, 403, "Devices on the guest network can't check in.")
+		return nil, "", false
+	}
+	return c, strings.ToLower(str(c, "mac")), true
+}
+
+func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
+	c, mac, ok := a.hiDevice(w, r)
+	if !ok {
 		return
 	}
-	mac := strings.ToLower(str(c, "mac"))
+	ip := remoteIP(r)
 	if r.Method == http.MethodGet {
 		people := []map[string]string{}
 		for _, p := range a.An.People() {
@@ -235,8 +279,12 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 				waiting = true
 			}
 		}
-		send(w, 200, map[string]any{"device": map[string]any{"mac": mac, "name": str(c, "name"), "hostname": str(c, "hostname"),
-			"vendor": str(c, "oui"), "network": str(c, "network")}, "people": people, "waiting": waiting})
+		res := map[string]any{"device": map[string]any{"mac": mac, "name": str(c, "name"), "hostname": str(c, "hostname"),
+			"vendor": str(c, "oui"), "network": str(c, "network")}, "people": people, "waiting": waiting}
+		if x, ok := a.checkins.Registered(mac); ok {
+			res["registered"] = a.deviceSetup(x)
+		}
+		send(w, 200, res)
 		return
 	}
 	if r.Method != http.MethodPost || !sameOrigin(r) || !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
@@ -333,12 +381,24 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 			pid = id
 		}
 	}
+	if name := clean(s(body, "name"), 40); name != "" {
+		x.Name = name
+	}
+	nd := s(body, "nd_profile")
+	if nd != "" && !ndProfileRE.MatchString(nd) {
+		return nil, errors.New("that isn't a NextDNS profile ID")
+	}
 	if pid != "" && x.MAC != "" {
 		if err := a.An.AssignDevice(pid, "mac", x.MAC); err != nil {
 			return nil, err
 		}
 	}
-	if err := a.checkins.Decide(x.ID, "approved", by); err != nil {
+	if pid != "" && nd != "" { // the setup profile names the device in NextDNS's logs: those are this person's too
+		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+x.Name); err != nil {
+			return nil, err
+		}
+	}
+	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile = x.Name, nd }); err != nil {
 		return nil, err
 	}
 	return map[string]any{"ok": true, "person_id": pid, "checkins": a.checkinView()}, nil

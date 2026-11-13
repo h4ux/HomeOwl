@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.23] — 2026-11-13
+
+### Added
+- **Device setup after check-in**: when approving a check-in, you can pick a NextDNS profile. It defaults to the one that person's devices already use.
+  - Once approved, the device's own "Hi HomeOwl" page offers to set it up with encrypted DNS through that profile, under the device's name:
+    - **iPhone, iPad, Mac:** a configuration profile to install.
+    - **Android:** the Private DNS host name.
+    - **Windows:** the DNS-over-HTTPS template.
+  - NextDNS then logs the device by name at home, on mobile data and on other Wi-Fi, and those logs count as that person's.
+  - The profile contains no keys or passwords, the person can remove it at any time, and only the device itself, on the home network, can download it.
+  - Installing it again replaces the old one.
+  - Check-ins › Recently decided shows which devices downloaded their profile.
+
 ## [0.1.22] — 2026-11-12
 
 ### Changed

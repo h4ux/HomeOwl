@@ -43,22 +43,29 @@ function checkinsBody(c) {
     ${past.length ? `<div class="card section"><h2>Recently decided</h2>${table("ci-past", [
       { k: "name", label: "Device", fmt: x => `${CI_KIND[x.kind] || ""} ${esc(x.name)}` }, { k: "mac", label: "MAC", fmt: x => `<span class="mono">${esc(x.mac)}</span>` },
       { k: "status", label: "Decision", fmt: x => `<span class="tag ${x.status === "approved" ? "good" : ""}">${esc(x.status)}</span> <span class="fine">${esc(x.by || "")}</span>` },
+      { k: "profile_at", label: "Setup", fmt: x => !x.nd_profile ? "–" : x.profile_at ? `<span class="tag good" title="NextDNS profile ${esc(x.nd_profile)}">profile downloaded</span> <span class="fine">${ago(x.profile_at * 1000)}</span>` : `<span class="fine" title="NextDNS profile ${esc(x.nd_profile)}">offered</span>` },
       { k: "time", label: "Asked", fmt: x => fmtTime(x.time * 1000) }], past)}</div>` : ""}`;
 }
 
-function approveCheckin(id) {
+async function approveCheckin(id) {
   const x = S.checkins.items.find(x => x.id === id); if (!x) return;
   const known = ciPerson(x);
+  if (!S.ciND) S.ciND = await api("/api/checkins/ndprofiles").catch(() => ({ profiles: [], by_person: {} }));
+  const nd = S.ciND, ndDefault = known ? nd.by_person[known.id] || "" : "";
+  const ndPick = nd.profiles.length ? `<label>NextDNS profile for the device's setup
+      <select id="ci-nd"><option value="">None — don't offer a setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === ndDefault ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
+    <p class="fine">After approval, the device's check-in page offers to set it up with encrypted DNS through this profile, under its name, so it's recognised on any network (a profile on iPhone, iPad and Mac; Private DNS on Android).</p>` : "";
   const opts = S.ciPeople.map(p => `<option value="${esc(p.id)}" ${p.id === known?.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
   openModal({ title: "Approve device check-in", body: `
     <label>UniFi name (alias)<input id="ci-alias" maxlength="40" value="${esc(x.name)}"></label>
     <label>Belongs to<select id="ci-person">${x.person_name && !known ? `<option value="" selected>${esc(x.person_name)} (new person)</option>` : ""}${opts}<option value="-">Nobody</option></select></label>
+    ${ndPick}
     ${x.user_id ? "" : `<p class="bad-t">UniFi doesn't list this device as a known client, so its name can't be set — only the person is saved.</p>`}
     <p class="fine">Next you'll see exactly what is sent to UniFi. The name change is logged and can be undone from the Changes page.</p>`,
     buttons: [{ label: "Cancel" }, { label: x.user_id ? "Preview" : "Approve", cls: "primary", onClick: () => previewCheckin(x) }] });
 }
 async function previewCheckin(x) {
-  const alias = $("#ci-alias").value.trim(), person = $("#ci-person").value;
+  const alias = $("#ci-alias").value.trim(), person = $("#ci-person").value, ndp = $("#ci-nd")?.value || "";
   if (!alias) return toast("Give the device a name", "err");
   const act = x.user_id ? { kind: "rest", resource: "user", id: x.user_id, fields: { name: alias }, description: `Check-in: name ${x.mac} “${alias}”` } : null;
   let pv = null;
@@ -68,17 +75,18 @@ async function previewCheckin(x) {
       <table class="pv-t"><tr><th>Setting</th><th>Now</th><th>New</th></tr><tr><td class="mono">name</td><td>${esc(fmtVal(pv.before.name))}</td><td><b>${esc(alias)}</b></td></tr></table>
       <div class="fine mono">${esc(pv.method)} ${esc(pv.path)}</div><div class="fine">↩ Can be undone from the Changes page.</div></div>` : ""}
     <p>Device <span class="mono">${esc(x.mac)}</span> → <b>${esc(who)}</b> in People.</p>
+    ${ndp ? `<p class="fine">Its check-in page will offer a setup through NextDNS profile <b>${esc(S.ciND.profiles.find(p => p.id === ndp)?.name || ndp)}</b>, named “${esc(alias)}”.</p>` : ""}
     ${act && !S.write ? `<p class="muted"><b>Change mode is locked</b> — approving unlocks it for this session.</p>` : ""}`,
-    buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person) }] });
+    buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person, alias, ndp) }] });
 }
-async function finishCheckin(x, act, person) {
+async function finishCheckin(x, act, person, alias, ndp) {
   try {
     if (act) {
       if (!S.write) await setWrite(true);
       const r = (await api("/api/action", { action: act, dry_run: false })).result;
       if (!r.ok) throw new Error(`UniFi refused the name change: ${r.error || "unknown error"}`);
     }
-    await api("/api/checkins/approve", { id: x.id, person_id: person });
+    await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp });
     closeModal(); toast("Approved", "ok"); loadCheckins();
     setTimeout(() => collectLive(true, true).catch(() => { }), 2500);
   } catch (err) { toast(err.message, "err"); }

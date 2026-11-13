@@ -39,6 +39,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiAPI(w, r)
 		return
 	}
+	if p == "hi/profile" { // the device's own setup profile (Apple), same rules as the check-in page
+		a.hiProfile(w, r)
+		return
+	}
 	// ---- the guest Wi-Fi card at http://wifi.local (no session; only on that name, only when turned on)
 	if p == "wifi" {
 		a.wifiAPI(w, r)
@@ -312,6 +316,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.upsTestScript(r.Context(), body, by)
 	case p == "checkins":
 		res = a.checkinView()
+	case p == "checkins/ndprofiles":
+		res = a.ndProfileChoices()
 	case p == "checkins/approve":
 		res, err = a.approveCheckIn(body, by)
 	case p == "checkins/reject":

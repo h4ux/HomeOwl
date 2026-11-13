@@ -331,6 +331,7 @@ table.nd-prof td{font-size:12.5px;padding:6px 8px}
 
 /* device check-in */
 .hi-card{max-width:480px}
+.hi-steps{margin:6px 0 12px;padding-left:20px}.hi-steps li{margin:4px 0}.hi-card .cmd code{white-space:normal;overflow-wrap:anywhere}.hi-card a.btn{text-decoration:none;justify-content:center}
 .hi-seen{margin:8px 0 16px;padding:8px 10px;border-radius:8px;background:var(--panel2);border:1px solid var(--line)}
 .ci-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:10px}
 .ci-ico{font-size:26px;width:40px;text-align:center}

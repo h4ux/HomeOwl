@@ -28,10 +28,46 @@ function done(again) {
     ${again ? `<p class="fine">This device is already waiting for approval — sending again replaces that request.</p><button class="btn" id="hi-again">Change my answer</button>` : ""}`;
 }
 
+function platform() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+  if (/Macintosh/.test(ua)) return "mac";
+  if (/Android/i.test(ua)) return "android";
+  if (/Windows/i.test(ua)) return "windows";
+  return "other";
+}
+
+const copyRow = (v, label) => `<div class="cmd"><code>${esc(v)}</code><button class="btn sm" type="button" data-hicopy="${esc(v)}" aria-label="Copy ${esc(label)}">Copy</button></div>`;
+
+// the device is approved: offer to set it up so it's recognised by name everywhere (devprofile.go)
+function registered(st) {
+  const r = st.registered, nd = r.nextdns, pf = platform();
+  const apple = `<a class="btn primary" href="/api/hi/profile" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
+  const how = {
+    ios: `<ol class="hi-steps"><li>Tap the button and choose <b>Allow</b>.</li><li>Open <b>Settings</b> › <b>Profile Downloaded</b> (near the top) › <b>Install</b>.</li></ol>${apple}`,
+    mac: `<ol class="hi-steps"><li>Click the button to download the profile.</li><li>Open <b>System Settings</b> › <b>General</b> › <b>Device Management</b>, double-click <b>HomeOwl</b> and choose <b>Install</b>.</li></ol>${apple}`,
+    android: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › <b>Private DNS</b>.</li><li>Choose <b>Private DNS provider hostname</b> and paste:</li></ol>${copyRow(nd.android, "host name")}`,
+    windows: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › your connection › <b>DNS server assignment</b> › <b>Edit</b> › <b>Manual</b>.</li>
+      <li>Turn on IPv4, set Preferred DNS to <code>${esc(nd.servers[0])}</code> and Alternate to <code>${esc(nd.servers[1])}</code>.</li>
+      <li>For each, set <b>DNS over HTTPS</b> to <b>On (manual template)</b> and paste:</li></ol>${copyRow(nd.doh, "template")}`,
+  };
+  const setup = !nd ? `<p class="fine">An admin can also choose a NextDNS profile for this device; then this page offers to set it up.</p>`
+    : `<h3 style="margin:16px 0 6px">Set up this device</h3>
+      <p class="muted">So HomeOwl and NextDNS recognise it by name at home, on mobile data and on other Wi-Fi. Nothing else changes, there are no passwords in it, and you can remove it any time.</p>
+      ${how[pf] || `<p>iPhone, iPad or Mac: open this page on it. Android: Private DNS host name:</p>${copyRow(nd.android, "host name")}<p>Anything else: DNS-over-HTTPS address:</p>${copyRow(nd.doh, "address")}`}
+      ${r.profile_at && (pf === "ios" || pf === "mac") ? `<p class="fine">Downloaded before on ${esc(new Date(r.profile_at * 1000).toLocaleDateString())}. Installing again replaces it.</p>` : ""}
+      ${pf === "ios" || pf === "mac" ? `<p class="fine">If iCloud Private Relay is on, Safari's visits go through Apple instead and aren't seen by NextDNS.</p>` : ""}`;
+  $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
+    <p class="muted">${r.person ? `It belongs to <b>${esc(r.person)}</b>. ` : ""}HomeOwl knows this device.</p>
+    ${setup}
+    <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
+}
+
 async function start() {
   let st;
   try { st = await call("GET"); } catch (err) { $("#hi-box").innerHTML = `<div class="msg err">${esc(err.message)}</div>`; return; }
   if (st.waiting && !start.force) return done(true);
+  if (st.registered && !start.force) return registered(st);
   const d = st.device, kind = guessKind();
   $("#hi-box").innerHTML = `<p class="muted">Tell HomeOwl what this device is and whose it is. An admin approves it, then it's named on the network.</p>
     <div class="hi-seen fine">The network sees this device as <b>${esc(d.name || d.hostname || "an unnamed device")}</b>${d.vendor ? ` (${esc(d.vendor)})` : ""}${d.network ? ` on ${esc(d.network)}` : ""}.</div>
@@ -67,7 +103,14 @@ document.addEventListener("input", e => {
   if (e.target.id === "hi-name") e.target.dataset.typed = "1";
   if (e.target.id === "hi-newname") suggestName();
 });
-document.addEventListener("click", e => { if (e.target.id === "hi-again") { start.force = true; start(); } });
+document.addEventListener("click", async e => {
+  if (e.target.id === "hi-again") { start.force = true; start(); }
+  const c = e.target.closest("[data-hicopy]");
+  if (c) {
+    try { await navigator.clipboard.writeText(c.dataset.hicopy); c.textContent = "Copied"; }
+    catch { const r = document.createRange(); r.selectNodeContents(c.previousElementSibling); getSelection().removeAllRanges(); getSelection().addRange(r); c.textContent = "Selected"; }
+  }
+});
 document.addEventListener("submit", async e => {
   if (e.target.id !== "hi-form") return;
   e.preventDefault();

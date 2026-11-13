@@ -20,12 +20,12 @@ import (
 // and a visit by that name gets only its own small page — the check-in page or the guest Wi-Fi card — over plain HTTP.
 
 // short links by IP on port 80 (http://192.168.1.10/wifi): only these pages, everything else goes to the real port
-var shortPaths = map[string]bool{"/hi": true, "/hi.js": true, "/api/hi": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
+var shortPaths = map[string]bool{"/hi": true, "/hi.js": true, "/api/hi": true, "/api/hi/profile": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
 	"/api/wifi": true, "/style.css": true, "/icon.png": true}
 
 // pages each name may serve; anything else on that name goes back to its page
 var namePaths = map[string]map[string]bool{
-	"checkin": {"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true},
+	"checkin": {"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true},
 	"guest":   {"/wifi": true, "/wifi.js": true, "/qr.js": true, "/style.css": true, "/icon.png": true, "/api/wifi": true},
 }
 var nameHome = map[string]string{"checkin": "/hi", "guest": "/wifi"}
