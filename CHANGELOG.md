@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.24] — 2026-11-13
+
+### Fixed
+- **Device setup in Chrome (and other browsers) on iPhone/iPad**: iOS installs profiles only from Safari, so these browsers just saved the file.
+  - When the check-in page is opened in Chrome, Firefox, Edge or an app's built-in browser, it now says so.
+  - It shows an **Open this page in Safari** button, and a link to copy.
+
 ## [0.1.23] — 2026-11-13
 
 ### Added
