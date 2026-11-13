@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net"
 	"net/http/httptest"
 	"os"
 	"strings"
@@ -56,8 +57,9 @@ func TestLetsEncryptCertificate(t *testing.T) {
 	f := &fakeCF{}
 	srv := httptest.NewServer(f)
 	defer srv.Close()
-	oldAPI, oldIP, oldObtain := cloudflare.API, homeIP, leObtain
-	defer func() { cloudflare.API, homeIP, leObtain = oldAPI, oldIP, oldObtain }()
+	oldAPI, oldIP, oldObtain, oldListen := cloudflare.API, homeIP, leObtain, listen443
+	defer func() { cloudflare.API, homeIP, leObtain, listen443 = oldAPI, oldIP, oldObtain, oldListen }()
+	listen443 = func() (net.Listener, error) { return net.Listen("tcp", "127.0.0.1:0") }
 	cloudflare.API = srv.URL
 	ip := "192.168.1.10"
 	homeIP = func() string { return ip }
@@ -109,7 +111,7 @@ func TestLetsEncryptCertificate(t *testing.T) {
 		t.Fatalf("the check record should be gone: %s", f.summary())
 	}
 	v := a.certView()
-	if v["valid"] != true || v["url"] != "https://homeowl.example.com:8555" {
+	if v["valid"] != true || v["url"] != "https://homeowl.example.com" || v["url_port"] != "https://homeowl.example.com:8555" {
 		t.Fatalf("view: %v", v)
 	}
 	if strings.Contains(string(mustRead(t, a.chainPath())), "PRIVATE") || a.Sec.Get(leKeySlot) == "" {
@@ -129,6 +131,35 @@ func TestLetsEncryptCertificate(t *testing.T) {
 	if n := homeDNSNames(a.Cfg.Get()); len(n) != 1 || n[0] != "homeowl.example.com" {
 		t.Fatalf("home DNS names: %v", n)
 	}
+	// HTTPS on port 443 by the name, so the address needs no port
+	if u := a.certURL(); u != "https://homeowl.example.com" {
+		t.Fatalf("with port 443 on, the address has no port: %q (%s)", u, a.port443Err)
+	}
+	a.mu.Lock()
+	addr := a.port443Addr
+	a.mu.Unlock()
+	conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: "homeowl.example.com", InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cn := conn.ConnectionState().PeerCertificates[0].Subject.CommonName; cn != "homeowl.example.com" {
+		t.Fatalf("port 443 served %q", cn)
+	}
+	conn.Close()
+	// http://<name> on port 80 goes to https://<name>
+	w := httptest.NewRecorder()
+	a.port80Handler().ServeHTTP(w, httptest.NewRequest("GET", "http://homeowl.example.com/clients?x=1", nil))
+	if loc := w.Header().Get("Location"); w.Code != 302 || loc != "https://homeowl.example.com/clients?x=1" {
+		t.Fatalf("port 80 redirect: %d %q", w.Code, loc)
+	}
+	// turned off: the address keeps the port
+	_ = a.Cfg.Update(func(c *config.Config) { c.Cert.Port443 = "off" })
+	a.applyPort443()
+	if u := a.certURL(); u != "https://homeowl.example.com:8555" {
+		t.Fatalf("port 443 off: %q", u)
+	}
+	_ = a.Cfg.Update(func(c *config.Config) { c.Cert.Port443 = "" })
+	a.applyPort443()
 	// the public name follows HomeOwl's address
 	a.syncCertRecord("alex", false)
 	if s := f.summary(); !strings.Contains(s, "dns homeowl.example.com") || a.certLoad().RecordIP != ip {

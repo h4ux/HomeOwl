@@ -67,6 +67,9 @@ type App struct {
 	names        mdns.Responder // answers for the easy .local names (Settings › Access)
 	port80       *http.Server
 	port80Err    string
+	port443      *http.Server // HTTPS on the standard port for the certificate's name (cert.go)
+	port443Err   string
+	port443Addr  string
 	hdMu         sync.Mutex // one home-DNS sync at a time (homedns.go)
 	cfMu         sync.Mutex // one Cloudflare sync at a time (cloudflare.go)
 	certMu       sync.Mutex // one Let's Encrypt request at a time (cert.go)

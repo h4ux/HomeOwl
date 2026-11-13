@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.30] — 2026-11-13
+
+### Added
+- **No port needed for the trusted name:** once the Let's Encrypt certificate is in place, HomeOwl also answers HTTPS on the standard port 443, so `https://homeowl.example.com` works without `:8555`.
+  - Visiting `http://homeowl.example.com` (port 80) is sent there too.
+  - It's on by default, and Settings › Access has a tick-box to turn it off.
+  - If port 443 can't be used (another program has it, or Linux needs permission), the card says why and the address keeps its port.
+
 ## [0.1.29] — 2026-11-13
 
 ### Fixed

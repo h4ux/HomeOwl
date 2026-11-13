@@ -66,6 +66,8 @@ type Names struct {
 type Cert struct {
 	Label  string `json:"label,omitempty"`  // "" = off
 	Public bool   `json:"public,omitempty"` // also publish <name> → HomeOwl's home address in public DNS
+	// "" = also answer HTTPS on port 443 once the certificate is there, so the link needs no :8555; "off" = don't
+	Port443 string `json:"port443,omitempty"`
 }
 
 // Cloudflare: short links on the user's own domain (wifi.example.com) that redirect to HomeOwl at home.

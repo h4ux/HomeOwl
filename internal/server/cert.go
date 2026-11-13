@@ -7,12 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/h4ux/homeowl/internal/acmecert"
@@ -251,6 +255,7 @@ func (a *App) issueCert(by string) error {
 		st.Name, st.NotAfter, st.Issued, st.Error, st.Try = name, leaf.NotAfter.Unix(), time.Now().Unix(), "", try
 	})
 	a.loadLE()
+	a.applyPort443()
 	pub := unifi.Preview{Method: "POST", Path: "/acme/new-order", Target: name, Description: "Let's Encrypt certificate for " + name,
 		Before: map[string]any{}, After: map[string]any{"name": name, "expires": leaf.NotAfter.Format("2006-01-02")}}
 	_, _ = a.Changes.External("acme-v02.api.letsencrypt.org", by, pub, false, func() (int, any) { return 200, nil })
@@ -393,8 +398,65 @@ func (a *App) certAddress(c config.Config) string {
 	return ip
 }
 
+// applyPort443 answers HTTPS on port 443 while there is a trusted certificate (and HTTPS on the home network is
+// on), so https://<name> works without a port. The certificate's name gets it; other visits get the self-signed
+// one, like on HomeOwl's own port.
+func (a *App) applyPort443() {
+	c := a.Cfg.Get()
+	want := c.LAN.Enabled && c.LAN.TLS && c.Cert.Port443 != "off" && a.le.Load() != nil
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !want {
+		if a.port443 != nil {
+			go func(s *http.Server) { _ = s.Close() }(a.port443)
+		}
+		a.port443, a.port443Err = nil, ""
+		return
+	}
+	if a.port443 != nil {
+		return
+	}
+	ln, err := listen443()
+	if err != nil {
+		a.port443Err = "Port 443 couldn't be used (" + err.Error() + "), so the address includes :" + strconv.Itoa(c.LAN.Port) + ", and it works like that."
+		if errors.Is(err, syscall.EADDRINUSE) {
+			a.port443Err += " Another program already uses port 443 on this computer."
+		} else if runtime.GOOS == "linux" {
+			a.port443Err += " To allow it on Linux, run: sudo setcap cap_net_bind_service=+ep \"$(command -v homeowl)\", then restart HomeOwl."
+		}
+		return
+	}
+	srv := &http.Server{Handler: a.handler, ReadHeaderTimeout: 15 * time.Second, IdleTimeout: 2 * time.Minute, ErrorLog: log.New(io.Discard, "", 0)}
+	a.port443, a.port443Err, a.port443Addr = srv, "", ln.Addr().String()
+	go func() {
+		if err := srv.Serve(tls.NewListener(ln, &tls.Config{GetCertificate: a.pickCert, MinVersion: tls.VersionTLS12})); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("port 443: %v", err)
+		}
+	}()
+}
+
+// listen443 opens port 443 (tests use a free port instead).
+var listen443 = func() (net.Listener, error) { return net.Listen("tcp", ":443") }
+
+// certURL is the address to open HomeOwl by its name ("" without a certificate).
+func (a *App) certURL() string {
+	c := a.Cfg.Get()
+	name := certName(c)
+	if name == "" || a.le.Load() == nil {
+		return ""
+	}
+	a.mu.Lock()
+	p443 := a.port443 != nil
+	a.mu.Unlock()
+	if p443 {
+		return "https://" + name
+	}
+	return "https://" + name + ":" + strconv.Itoa(c.LAN.Port)
+}
+
 func (a *App) certLoop(ctx context.Context) {
 	a.loadLE()
+	a.applyPort443()
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	for {
@@ -407,6 +469,7 @@ func (a *App) certLoop(ctx context.Context) {
 			a.certBusy.Store(false)
 		}
 		a.syncCertRecord("HomeOwl", false)
+		a.applyPort443()
 		select {
 		case <-ctx.Done():
 			return
@@ -418,7 +481,11 @@ func (a *App) certLoop(ctx context.Context) {
 func (a *App) certView() map[string]any {
 	c, st := a.Cfg.Get(), a.certLoad()
 	name := certName(c)
+	a.mu.Lock()
+	res443 := map[string]any{"on": a.port443 != nil, "error": a.port443Err}
+	a.mu.Unlock()
 	res := map[string]any{"label": c.Cert.Label, "zone": c.Cloudflare.Zone, "name": name, "public": c.Cert.Public, "busy": a.certBusy.Load(),
+		"port443": c.Cert.Port443 != "off", "port443_state": res443,
 		"cloudflare": a.Sec.Get(cfSlot) != "", "https": c.LAN.TLS && c.LAN.Enabled, "address": a.certAddress(c), "state": st}
 	if res["busy"] == true {
 		a.certPMu.Lock()
@@ -430,7 +497,8 @@ func (a *App) certView() map[string]any {
 	if le := a.le.Load(); le != nil {
 		res["valid"] = true
 		res["expires"] = le.Leaf.NotAfter.Unix()
-		res["url"] = "https://" + name + ":" + strconv.Itoa(c.LAN.Port)
+		res["url"] = a.certURL()
+		res["url_port"] = "https://" + name + ":" + strconv.Itoa(c.LAN.Port)
 	}
 	return res
 }
@@ -451,10 +519,15 @@ func (a *App) certAPI(p, by string, body map[string]any) (any, error) {
 			return nil, errors.New("that name is already used for a Cloudflare link — pick another one")
 		}
 		changed := label != c.Cert.Label
-		if err := a.Cfg.Update(func(c *config.Config) { c.Cert = config.Cert{Label: label, Public: b(body, "public")} }); err != nil {
+		p443 := map[bool]string{true: "", false: "off"}[b(body, "port443")]
+		if _, ok := body["port443"]; !ok {
+			p443 = c.Cert.Port443
+		}
+		if err := a.Cfg.Update(func(c *config.Config) { c.Cert = config.Cert{Label: label, Public: b(body, "public"), Port443: p443} }); err != nil {
 			return nil, err
 		}
 		a.loadLE()
+		a.applyPort443()
 		go a.syncCertRecord(by, false)
 		go a.syncHomeDNS(by)
 		if changed && label != "" {
@@ -486,6 +559,7 @@ func (a *App) certAPI(p, by string, body map[string]any) (any, error) {
 			return nil, fmt.Errorf("couldn't remove the public name from Cloudflare yet: %s", st.RecordErr)
 		}
 		a.le.Store(nil)
+		a.applyPort443()
 		a.Sec.Delete(leKeySlot)
 		_ = os.Remove(a.chainPath())
 		_ = os.Remove(a.certPath())

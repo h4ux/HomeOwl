@@ -237,7 +237,9 @@ function certBlock(c) {
   return `<div class="ez-dns" id="ct-card">${head}
     <div class="ez-dns-row"><label>Name<span class="name-in"><input id="ct-label" value="${esc(c.label ?? "")}" placeholder="homeowl" maxlength="40"><span class="fine">.${esc(c.zone)}</span></span></label></div>
     <label class="check"><input type="checkbox" id="ct-public" ${c.public ? "checked" : ""}> <span>Also publish it in public DNS, pointing to ${c.address ? `<span class="mono">${esc(c.address)}</span>` : "HomeOwl's home address"} (works on every device, even without NextDNS; anyone can see that address, but it only works inside your home)</span></label>
-    <p class="fine muted">Without that, the name works on devices that use your NextDNS profiles (HomeOwl adds it there, like the names above). Certificates are public record: the name, not your address, shows up in certificate-transparency logs.</p>
+    <label class="check"><input type="checkbox" id="ct-443" ${c.port443 !== false ? "checked" : ""}> <span>Also answer on the standard HTTPS port (443), so the address needs no <span class="mono">:${esc(String((c.url_port || "").split(":").pop() || "8555"))}</span></span></label>
+    ${c.port443 !== false && c.port443_state?.error ? `<div class="msg warn">${esc(c.port443_state.error)}</div>` : ""}
+    <p class="fine muted">Without the public DNS name, it works on devices that use your NextDNS profiles (HomeOwl adds it there, like the names above). Certificates are public record: the name, not your address, shows up in certificate-transparency logs.</p>
     ${!c.https ? `<div class="msg warn">HTTPS for the home network is off (Settings › Access), so the certificate won't be used for browsing — it still signs device profiles.</div>` : ""}
     <div id="ct-status">${certStatus(c)}</div>
     ${arr(st.conflict).length ? `<div class="ct-status bad"><div class="ct-head"><span class="tag warn">already taken</span> <b>${esc(c.name)} already exists on Cloudflare</b></div>
@@ -263,7 +265,7 @@ async function certPoll() {
 document.addEventListener("click", async e => {
   const id = e.target.id; if (!id.startsWith("ct-")) return;
   const go = async (path, body, msg) => { e.target.disabled = true; try { const r = await api(path, body); if (msg) toast(msg, "ok"); return r; } catch (err) { toast(err.message, "err"); } finally { e.target.disabled = false; } };
-  if (id === "ct-save") { const r = await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked }, "Saved"); if (r) { loadSettings(); if (r.busy) toast("Asking Let's Encrypt…", "ok"); } }
+  if (id === "ct-save") { const r = await go("/api/cert/settings", { label: $("#ct-label").value.trim(), public: $("#ct-public").checked, port443: $("#ct-443").checked }, "Saved"); if (r) { loadSettings(); if (r.busy) toast("Asking Let's Encrypt…", "ok"); } }
   if (id === "ct-replace") {
     const c = (S.settings?.names || {}).cert || {}, recs = arr(c.state?.conflict);
     openModal({ title: `Replace ${esc(c.name)}?`, body: `<p>Cloudflare already has ${recs.map(x => `<span class="mono">${esc(c.name)} ${esc(x)}</span>`).join(", ")}, which HomeOwl didn't make.</p>

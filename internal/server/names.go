@@ -99,6 +99,10 @@ func (a *App) port80Handler() http.Handler {
 			http.Error(w, "Unexpected host name.", http.StatusMisdirectedRequest)
 			return
 		}
+		if u := a.certURL(); u != "" && strings.EqualFold(host, certName(a.Cfg.Get())) { // http://owl.example.com → https
+			http.Redirect(w, r, u+r.URL.RequestURI(), http.StatusFound)
+			return
+		}
 		scheme := "http"
 		if a.Cfg.Get().LAN.TLS {
 			scheme = "https"
