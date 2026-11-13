@@ -57,6 +57,7 @@ function setupState(x, st) {
   const seen = st.last_seen ? `last seen ${ago(st.last_seen * 1000)}${st.where === "home" ? " · at home" : st.where === "away" ? " · away from home" : ""}${st.day ? ` · ${st.day} today` : ""}` : "";
   const tag = {
     active: `<span class="tag good">active</span>`, quiet: `<span class="tag">quiet</span>`,
+    stopped: `<span class="tag bad" title="It worked, then NextDNS stopped seeing it by name while the device was in use. The profile was probably removed, or Private DNS switched off. Open the check-in page on the device to set it up again.">stopped</span>`,
     not_seen: `<span class="tag warn" title="It was downloaded, but NextDNS hasn't logged any query under this device's name. It's probably not installed (NextDNS logs reach HomeOwl every few minutes).">not seen</span>`,
     offered: `<span class="tag" title="The device's check-in page offers it; nobody has set it up yet">not set up</span>`,
     unknown: `<span class="tag" title="Connect NextDNS logs in Settings › Analytics so HomeOwl can see whether it's in use">can't check</span>`,
@@ -71,7 +72,7 @@ function setupCard(c) {
   return `<div class="card section"><h2>Devices set up ${hint("After approval, a device's check-in page offers encrypted DNS through the NextDNS profile you chose, under the device's name. NextDNS then recognises it at home, on mobile data and on other Wi-Fi, and HomeOwl sees whether it's in use.")}</h2>${table("ci-setup", [
     { k: "name", label: "Device", fmt: x => `${CI_KIND[x.kind] || ""} ${esc(x.name)}<div class="fine muted">${personLabel(x)}</div>` },
     { k: "nd_profile", label: "NextDNS profile", fmt: x => x.nd_profile ? esc(ndName(x.nd_profile)) : "–" },
-    { k: "status", label: "Setup", sort: x => ({ active: 0, quiet: 1, not_seen: 2, offered: 3, unknown: 4 })[c.setup?.[x.id]?.state] ?? 5, fmt: x => setupState(x, c.setup?.[x.id]) },
+    { k: "status", label: "Setup", sort: x => ({ stopped: -1, active: 0, quiet: 1, not_seen: 2, offered: 3, unknown: 4 })[c.setup?.[x.id]?.state] ?? 5, fmt: x => setupState(x, c.setup?.[x.id]) },
     { k: "id", label: "", fmt: x => `<button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile ? "Change…" : "Set up…"}</button>` }], done)}</div>`;
 }
 function changeSetup(id) {

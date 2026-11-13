@@ -263,6 +263,7 @@ async function loadPeople() {
       ${grps.length ? `<div class="grid g2">${grps.map(card).join("")}</div>` : `<p class="fine muted">No groups yet.</p>`}
       ${isAdmin() && tpl.length ? `<div class="btnrow pp-tpl"><span class="fine muted">Quick start:</span>${tpl.map(g => `<button class="btn sm" data-pptpl="${esc(g.name)}">+ ${esc(g.name)}</button>`).join("")}</div>` : ""}</div>
     <div class="card section"><h2>Not assigned yet</h2><div id="pp-unassigned"><div class="empty">Loading…</div></div></div>`);
+  if (isAdmin() && S.source === "live") ppSetup();
   meta.people.forEach(async p => {
     const el = $(`#pp-${CSS.escape(p.id)} .pp-body`);
     try {
@@ -295,6 +296,26 @@ function ppDevChips(p) {
   if (!macs.length) return "";
   return `<div class="pp-devs">${macs.map(mac => `<span class="dp-chip">${cliIcon({ mac, name: names.get(mac) }, 16)}${esc(names.get(mac) || mac)}${canRename(mac) ? `<button type="button" class="x" data-rename="${esc(mac)}" title="Rename in UniFi" aria-label="Rename ${esc(names.get(mac) || mac)}">✎</button>` : ""}</span>`).join("")}</div>`;
 }
+// which of a person's own devices (phones, tablets, computers) have their NextDNS setup (setupwatch.go)
+const PP_SETUP_KINDS = new Set(["phone", "tablet", "laptop", "desktop", "computer"]);
+const PP_SETUP_MISS = { no_checkin: "not checked in", none: "no setup", offered: "not set up", not_seen: "not installed?", stopped: "stopped" };
+async function ppSetup() {
+  let r; try { r = await api("/api/checkins/coverage"); } catch { return; }
+  const cl = new Map(arr(S.ex.meta?.clients).map(c => [c.mac, c]));
+  Object.entries(r.people || {}).forEach(([pid, devs]) => {
+    const card = $(`#pp-${CSS.escape(pid)}`); if (!card) return;
+    const mine = devs.map(d => ({ ...d, name: d.name || cl.get(d.mac)?.name || cl.get(d.mac)?.hostname || d.mac }))
+      .filter(d => PP_SETUP_KINDS.has(d.kind || clientKind({ mac: d.mac, ...cl.get(d.mac) })));
+    if (!mine.length) return;
+    const miss = mine.filter(d => PP_SETUP_MISS[d.state]), ok = mine.length - miss.length;
+    card.querySelector(".pp-setup")?.remove();
+    card.querySelector(".pp-body").insertAdjacentHTML("beforebegin", `<div class="pp-setup fine">
+      <span class="tag ${miss.length ? (miss.some(d => d.state === "stopped") ? "bad" : "warn") : "good"}" title="Devices that use the NextDNS setup from their check-in page, so filtering and names work on any network">${ok} of ${mine.length} set up</span>
+      ${miss.map(d => `<span class="muted">${esc(d.name)}: ${PP_SETUP_MISS[d.state]}</span>`).join(" · ")}
+      ${miss.length ? `<a href="#" data-goto="checkins">Check-ins ›</a>` : ""}</div>`);
+  });
+}
+
 function ppCount(p) {
   const prof = p.devices.filter(d => d.kind === "profile").length, dev = p.devices.length - prof;
   return [prof ? plural(prof, "NextDNS profile") : "", dev || !prof ? plural(dev, "device") : ""].filter(Boolean).join(" + ");

@@ -7,9 +7,11 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -22,6 +24,8 @@ import (
 
 	"github.com/h4ux/homeowl/internal/analytics"
 	"github.com/smallstep/pkcs7"
+
+	"github.com/h4ux/homeowl/web"
 )
 
 // Device setup after check-in: once an admin approves a device, its "Hi HomeOwl" page offers to set it up so it
@@ -124,7 +128,7 @@ func ndDeviceLabel(name string) string {
 // deviceSetup is what the device's own check-in page shows once it is approved.
 func (a *App) deviceSetup(x CheckIn) map[string]any {
 	res := map[string]any{"name": x.Name, "kind": x.Kind, "person": x.PersonName, "profile_at": x.ProfileAt,
-		"update": x.ProfileAt > 0 && x.ProfileND != "" && x.ProfileND != x.NDProfile} // settings changed since the last install
+		"update": x.ProfileND != "" && x.ProfileND != x.NDProfile} // settings changed since the last install
 	if x.PersonID != "" && a.An.Open() {
 		for _, p := range a.An.People() {
 			if p.ID == x.PersonID {
@@ -163,8 +167,20 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "An admin hasn't chosen a NextDNS profile for this device yet.")
 		return
 	}
+	if x.ProfileND != "" && x.ProfileND != x.NDProfile && a.An.Open() {
+		_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+x.Name)
+	}
 	a.checkins.Touch(x.ID, x.NDProfile)
-	body := mobileConfig(x)
+	var clip *webClip
+	if r.URL.Query().Get("p") == "ios" { // iPhone and iPad: also a Home Screen icon for the device's check-in page
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		icon, _ := fs.ReadFile(web.Static, "static/icon-192.png")
+		clip = &webClip{URL: scheme + "://" + r.Host + "/hi", Icon: icon}
+	}
+	body := mobileConfig(x, clip)
 	if sc := a.signer(); sc != nil { // signed with the Let's Encrypt certificate: iOS shows it as "Verified"
 		if signed, err := signProfile(body, sc); err == nil {
 			body = signed
@@ -202,9 +218,15 @@ func signProfile(body []byte, c *tls.Certificate) ([]byte, error) {
 	return sd.Finish()
 }
 
+// webClip is a Home Screen icon (iPhone and iPad only; macOS doesn't take them in a profile).
+type webClip struct {
+	URL  string
+	Icon []byte // PNG
+}
+
 // mobileConfig builds the profile. Its identifiers come from the device's MAC address, so installing a newer one
 // replaces the old one instead of adding a second.
-func mobileConfig(x CheckIn) []byte {
+func mobileConfig(x CheckIn, clip *webClip) []byte {
 	base := "io.github.h4ux.homeowl.device." + strings.ReplaceAll(x.MAC, ":", "")
 	doh := "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
 	var b bytes.Buffer
@@ -231,7 +253,24 @@ func mobileConfig(x CheckIn) []byte {
 	str("PayloadIdentifier", base+".dns")
 	str("PayloadType", "com.apple.dnsSettings.managed")
 	str("PayloadUUID", stableUUID(base+".dns"))
-	b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n</dict>\n</array>\n")
+	b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n</dict>\n")
+	if clip != nil {
+		b.WriteString("<dict>\n<key>FullScreen</key><false/>\n")
+		if len(clip.Icon) > 0 {
+			b.WriteString("<key>Icon</key><data>" + base64.StdEncoding.EncodeToString(clip.Icon) + "</data>\n")
+		}
+		b.WriteString("<key>IgnoreManifestScope</key><true/>\n<key>IsRemovable</key><true/>\n")
+		str("Label", "HomeOwl")
+		str("PayloadDescription", "A Home Screen icon that opens this device's HomeOwl page (at home).")
+		str("PayloadDisplayName", "HomeOwl icon")
+		str("PayloadIdentifier", base+".webclip")
+		str("PayloadType", "com.apple.webClip.managed")
+		str("PayloadUUID", stableUUID(base+".webclip"))
+		b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n<key>Precomposed</key><true/>\n")
+		str("URL", clip.URL)
+		b.WriteString("</dict>\n")
+	}
+	b.WriteString("</array>\n")
 	str("PayloadDescription", "Set up by HomeOwl for "+x.Name+". It contains no passwords and can be removed at any time in Settings.")
 	str("PayloadDisplayName", "HomeOwl · "+x.Name)
 	str("PayloadIdentifier", base)
@@ -253,30 +292,32 @@ func stableUUID(s string) string {
 // setupStatus: is the device's setup in use? The setup names the device in NextDNS, so its queries in the
 // imported NextDNS logs show it working — and from where.
 func (a *App) setupStatus(x CheckIn) map[string]any {
-	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileAt > 0 && x.ProfileND != "" && x.ProfileND != x.NDProfile}
+	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileND != "" && x.ProfileND != x.NDProfile}
 	if !a.An.Open() || len(a.An.NDSlots()) == 0 {
 		st["state"] = "unknown" // no NextDNS logs to look in
 		return st
 	}
-	seen, err := a.An.NDDeviceSeen(x.NDProfile, x.Name)
+	last, _, ip, day, err := a.setupSeen(x)
 	if err != nil {
 		st["state"] = "unknown"
 		return st
 	}
 	switch {
-	case seen.Last.IsZero() && x.ProfileAt > 0:
+	case x.SetupLost > 0:
+		st["state"] = "stopped" // it worked, then stopped (setupwatch.go)
+	case last.IsZero() && x.ProfileAt > 0:
 		st["state"] = "not_seen" // downloaded, but no query under its name: probably not installed (or not yet imported)
-	case seen.Last.IsZero():
+	case last.IsZero():
 		st["state"] = "offered"
-	case time.Since(seen.Last) < 24*time.Hour:
+	case time.Since(last) < 24*time.Hour:
 		st["state"] = "active"
 	default:
 		st["state"] = "quiet"
 	}
-	if !seen.Last.IsZero() {
-		st["last_seen"] = seen.Last.Unix()
-		st["day"] = seen.Day
-		st["where"] = a.whereFrom(seen.ClientIP)
+	if !last.IsZero() {
+		st["last_seen"] = last.Unix()
+		st["day"] = day
+		st["where"] = a.whereFrom(ip)
 	}
 	return st
 }
@@ -351,7 +392,13 @@ func (a *App) changeSetup(body map[string]any) (any, error) {
 			}
 		}
 	}
-	if x.NDProfile != "" && a.An.Open() {
+	// what the device has installed now: it keeps using that (and its NextDNS name stays with the person) until
+	// it installs the new setup
+	inst := x.ProfileND
+	if inst == "" && x.SetupSeen > 0 { // Android and Windows don't download anything; seen working = installed
+		inst = x.NDProfile
+	}
+	if x.NDProfile != "" && x.NDProfile != inst && a.An.Open() { // a choice that was never installed
 		_ = a.An.UnassignDevice("ndev", x.NDProfile+"/"+x.Name)
 	}
 	if nd != "" && pid != "" && a.An.Open() {
@@ -359,6 +406,11 @@ func (a *App) changeSetup(body map[string]any) (any, error) {
 			return nil, err
 		}
 	}
-	a.checkins.Edit(id, func(c *CheckIn) { c.NDProfile = nd })
+	a.checkins.Edit(id, func(c *CheckIn) {
+		c.NDProfile, c.ProfileND, c.SetupChanged = nd, inst, time.Now().Unix()
+		if nd == "" {
+			c.SetupLost = 0
+		}
+	})
 	return a.checkinView(), nil
 }

@@ -4,6 +4,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.32] — 2026-11-13
+
+### Added
+- **Alert when a device stops using its setup:** HomeOwl notices when a device whose NextDNS setup worked goes unseen by name, for example because the profile was removed or Private DNS was switched off.
+  - It counts only when the device was on the home network for hours with no query under its name, or when nothing came for three days, so a device that's just switched off doesn't trigger it.
+  - It checks that NextDNS logs are arriving first.
+  - The alert goes wherever your alerts go. Home lists the device under "needs you" until the setup works again, and then a "working again" note follows.
+  - There's a switch in Settings › Alerts.
+- **Home Screen icon on iPhone and iPad:** the setup profile also adds a HomeOwl icon that opens the device's check-in page, so updates are one tap away. It works at home. It adds no other permissions and can be removed like any app icon.
+- **Setup coverage in People:** each person's card shows how many of their phones, tablets and computers use the NextDNS setup, and names the ones that don't (not checked in, not set up, stopped).
+
+### Changed
+- When a device's NextDNS profile changes, its old NextDNS name stays with the person in People until the device installs the new setup, so its queries stay labelled in the meantime.
+
 ## [0.1.31] — 2026-11-13
 
 ### Added

@@ -84,6 +84,7 @@ function needsYou(m) {
   const out = [];
   m.devices.filter(d => !d.online).forEach(d => out.push({ t: `${d.name} is ${d.stateLabel === "Disconnected" ? "offline" : d.stateLabel.toLowerCase()}${d.lastSeen ? " · " + ago(d.lastSeen) : ""}`, btn: `<button class="btn sm primary" data-dev="${esc(d.mac)}">Debug</button>` }));
   m.wanLinks.filter(l => l.enabled && l.status && l.status !== "ok").forEach(l => out.push({ t: `Internet via ${l.isp || l.name} is down`, btn: `<button class="btn sm" data-goto="networks">Show</button>` }));
+  arr(S.alerts?.attention).forEach(x => out.push({ t: `${x.name} stopped using its NextDNS setup${x.since ? " · last seen " + ago(x.since * 1000) : ""}`, btn: `<button class="btn sm" data-goto="checkins">Show</button>` })); // setupwatch.go
   groupFindings(S.findings.filter(f => (f.sev === "critical" || f.sev === "high") && !f.dev)).forEach(g => {
     const f = g.list[0], acts = g.list.flatMap(x => x.actions);
     out.push({ t: f.title + (g.list.length > 1 ? ` (+${g.list.length - 1})` : ""), btn: (acts.length ? actBtn(acts, "Fix", f.title, "sm primary") : "") || (AREA_VIEW[f.area] ? `<button class="btn sm" data-goto="${AREA_VIEW[f.area]}">Show</button>` : "") });

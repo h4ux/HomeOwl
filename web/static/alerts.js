@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone" };
 
 // demo: two fictional new devices
 function alFromBundle() {
@@ -24,6 +24,7 @@ async function loadAlerts(markRead) {
   if (alLive()) { try { S.alerts = await api("/api/alerts"); } catch (e) { S.alerts = S.alerts || { items: [], unread: 0 }; const el = $("#al-body"); if (el) el.innerHTML = `<div class="empty bad-t">${esc(e.message)}</div>`; return; } }
   else S.alerts = alFromBundle();
   alBadge(S.alerts.unread);
+  if (S.alerts.attention?.length && !loadAlerts.drawn && (S.view === "today" || S.view === "overview")) { loadAlerts.drawn = true; render(); }
   const el = $("#al-body"); if (!el || S.view !== "alerts") return;
   let people = [];
   if (S.source === "live" && S.role === "admin" && S.alerts.items.some(a => a.kind === "new_device" && a.data?.mac)) { try { people = (await api("/api/analytics/meta", {})).people || []; } catch { /* no analytics: no "Give to" */ } }
@@ -44,7 +45,8 @@ function alList(items, people) {
       people.length ? `<select data-algive="${esc(mac)}" aria-label="Give this device to"><option value="">Give to…</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : "",
       S.source === "live" ? actBtn({ kind: "stacmd", cmd: "block-sta", mac, label: a.data?.name || mac, description: `Block ${a.data?.name || mac}` }, "Block") : "",
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
-    ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>` : "";
+    ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
+      : a.kind === "setup_lost" && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">Check-ins</button>` : "";
     return `${head}<div class="al-row${a.read ? "" : " unread"}${a.level === "warn" ? " warn" : ""}">
       <span class="al-ic">${iconSvg(AL_ICON[a.kind] || "iot", 18)}</span>
       <div class="al-main"><b>${esc(a.title)}</b>${a.body ? `<span class="fine muted">${esc(a.body)}</span>` : ""}${mac ? `<span class="fine mono muted">${esc(mac)}</span>` : ""}</div>
@@ -58,7 +60,7 @@ document.addEventListener("click", e => {
   const sh = e.target.closest("[data-alshow]"); if (sh) { showClient(sh.dataset.alshow); return; }
   if (e.target.id === "al-test") { api("/api/alerts/test", {}).then(() => toast("Test sent", "ok")).catch(err => toast(err.message, "err")).finally(() => setTimeout(renderAlertSettings, 300)); return; }
   if (e.target.id === "al-save") {
-    const body = { new_device: $("#al-new").value, macos: !!$("#al-mac")?.checked };
+    const body = { new_device: $("#al-new").value, setup: !!$("#al-setup")?.checked, macos: !!$("#al-mac")?.checked };
     const nt = $("#al-ntfy").value.trim(), wh = $("#al-hook").value.trim(); if (nt) body.ntfy = nt; if (wh) body.webhook = wh;
     api("/api/alerts/settings", body).then(() => { toast("Alert settings saved", "ok"); renderAlertSettings(); }).catch(err => toast(err.message, "err")); return;
   }
@@ -78,6 +80,8 @@ async function renderAlertSettings() {
   el.innerHTML = `<h2>Alerts</h2>
     <label>Tell me when a new device joins<select id="al-new">${[["home", "On my own networks"], ["all", "Anywhere, guest Wi-Fi too"], ["off", "Never"]].map(([k, l]) => `<option value="${k}" ${st.new_device === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <p class="fine muted">A new device is one HomeOwl has never seen. Everything UniFi already knew when you turned this on counts as known.</p>
+    <label class="check"><input type="checkbox" id="al-setup" ${st.setup !== false ? "checked" : ""}> <span>Tell me when a device stops using its NextDNS setup</span></label>
+    <p class="fine muted">For devices set up from their check-in page: HomeOwl notices when one was on the home network for hours (or away for three days) without NextDNS seeing it by name — usually the profile was removed or Private DNS switched off.</p>
     <h3>Where alerts go</h3>
     <p class="fine">Always to <a href="#" data-goto="alerts">Records › Alerts</a>. Also:</p>
     ${st.macos_possible ? `<label class="check"><input type="checkbox" id="al-mac" ${st.macos ? "checked" : ""}> <span>A notification on this Mac</span></label>` : ""}

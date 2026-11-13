@@ -510,6 +510,18 @@ type NDSeen struct {
 	Day      int       // queries in the last 24 hours
 }
 
+// NDProfileLatest is the newest query imported for a NextDNS profile (are its logs arriving?).
+func (e *Engine) NDProfileLatest(profile string) (time.Time, error) {
+	if e.db == nil {
+		return time.Time{}, errors.New("analytics isn't running")
+	}
+	var last sql.NullTime
+	if err := e.db.QueryRow(`SELECT max(ts) FROM dns_queries WHERE profile_id = ? AND ts >= ?`, profile, utcnow().Add(-7*24*time.Hour)).Scan(&last); err != nil {
+		return time.Time{}, err
+	}
+	return last.Time, nil
+}
+
 // NDDeviceSeen looks a device up in the imported NextDNS logs by profile and device name (the setup profiles
 // name the device, so this shows whether one is installed and in use).
 func (e *Engine) NDDeviceSeen(profile, name string) (NDSeen, error) {

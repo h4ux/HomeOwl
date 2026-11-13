@@ -81,6 +81,7 @@ type App struct {
 	Alerts       *alerts.Store
 	alertErr     string
 	seen         *seenClients
+	online       onlineMACs // when each client was last online (setupwatch.go)
 	cert         tls.Certificate
 	handler      http.Handler
 	started      time.Time
@@ -155,6 +156,7 @@ func (a *App) Run(ctx context.Context) error {
 	a.configureAccess()
 	go a.connectProtectSaved(ctx)
 	go a.presenceLoop(ctx)
+	go a.setupWatchLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
 	go a.cloudflareLoop(ctx)

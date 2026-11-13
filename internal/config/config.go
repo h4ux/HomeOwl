@@ -156,6 +156,7 @@ type Guest struct {
 type Alerts struct {
 	NewDevice string `json:"new_device,omitempty"` // "" = devices joining your own networks, "all" = guest Wi-Fi too, "off"
 	MacOS     bool   `json:"macos,omitempty"`      // also show a macOS notification
+	Setup     string `json:"setup,omitempty"`      // "" = when a device stops using its NextDNS setup, "off"
 }
 
 // Presence is "who's home": the devices that say a person is home, and the history of arrivals and departures.

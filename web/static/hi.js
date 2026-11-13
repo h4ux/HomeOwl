@@ -45,13 +45,14 @@ const copyRow = (v, label) => `<div class="cmd"><code>${esc(v)}</code><button cl
 // the device is approved: offer to set it up so it's recognised by name everywhere (devprofile.go)
 function registered(st) {
   const r = st.registered, nd = r.nextdns, pf = platform();
-  const apple = `<a class="btn primary" href="/api/hi/profile" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
+  const apple = `<a class="btn primary" href="/api/hi/profile${pf === "ios" ? "?p=ios" : ""}" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
   const how = {
     ios: notSafariIOS()
       ? `<div class="msg warn">iPhone and iPad install profiles only from <b>Safari</b>. This browser would just save the file.</div>
         <a class="btn primary" href="${esc("x-safari-" + location.href)}">Open this page in Safari</a>
         <p class="fine">If nothing happens, copy the link and paste it into Safari:</p>${copyRow(location.href, "link")}`
-      : `<ol class="hi-steps"><li>Tap the button and choose <b>Allow</b>.</li><li>Open <b>Settings</b> › <b>Profile Downloaded</b> (near the top) › <b>Install</b>.</li></ol>${apple}`,
+      : `<ol class="hi-steps"><li>Tap the button and choose <b>Allow</b>.</li><li>Open <b>Settings</b> › <b>Profile Downloaded</b> (near the top) › <b>Install</b>.</li></ol>${apple}
+        <p class="fine">It also puts a <b>HomeOwl</b> icon on the Home Screen that opens this page, for updates later. It works at home.</p>`,
     mac: `<ol class="hi-steps"><li>Click the button to download the profile.</li><li>Open <b>System Settings</b> › <b>General</b> › <b>Device Management</b>, double-click <b>HomeOwl</b> and choose <b>Install</b>.</li></ol>${apple}`,
     android: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › <b>Private DNS</b>.</li><li>Choose <b>Private DNS provider hostname</b> and paste:</li></ol>${copyRow(nd.android, "host name")}`,
     windows: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › your connection › <b>DNS server assignment</b> › <b>Edit</b> › <b>Manual</b>.</li>

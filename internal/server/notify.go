@@ -57,11 +57,12 @@ func (a *App) deliverAlert(al alerts.Alert) {
 func (a *App) alertsView(admin bool) map[string]any {
 	out := map[string]any{"items": a.Alerts.List(), "unread": a.Alerts.Unread()}
 	if admin {
+		out["attention"] = a.setupAttention() // device setups that stopped: Home lists them
 		c := a.Cfg.Get()
 		a.mu.Lock()
 		e := a.alertErr
 		a.mu.Unlock()
-		out["settings"] = map[string]any{"new_device": orDefault(c.Alerts.NewDevice, "home"), "macos": c.Alerts.MacOS, "macos_possible": isMac,
+		out["settings"] = map[string]any{"new_device": orDefault(c.Alerts.NewDevice, "home"), "setup": c.Alerts.Setup != "off", "macos": c.Alerts.MacOS, "macos_possible": isMac,
 			"ntfy_set": a.Sec.Get(slotNtfy) != "", "webhook_set": a.Sec.Get(slotWebhook) != "", "error": nilIfEmpty(e)}
 	}
 	return out
@@ -92,6 +93,9 @@ func (a *App) alertsSettings(body map[string]any) error {
 			case "all", "off":
 				c.Alerts.NewDevice = v
 			}
+		}
+		if has(body, "setup") {
+			c.Alerts.Setup = map[bool]string{true: "", false: "off"}[b(body, "setup")]
 		}
 		if has(body, "macos") {
 			c.Alerts.MacOS = b(body, "macos")

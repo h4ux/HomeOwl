@@ -80,6 +80,7 @@ func (a *App) presenceTick() {
 		return // can't see the network: say nothing rather than send everyone away
 	}
 	list := unifi.List(d)
+	a.online.mark(list, time.Now())
 	a.watchNewDevices(list)
 	if len(people) == 0 {
 		return

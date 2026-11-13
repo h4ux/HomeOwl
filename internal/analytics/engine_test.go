@@ -216,6 +216,12 @@ func TestNDDeviceSeen(t *testing.T) {
 	if s.Last.IsZero() || now.Sub(s.Last) > 2*time.Hour || s.ClientIP != "198.51.100.4" || s.Day != 2 {
 		t.Fatalf("seen: %+v", s)
 	}
+	if l, err := e.NDProfileLatest("abc123"); err != nil || now.Sub(l) > 2*time.Hour {
+		t.Fatalf("profile latest: %v %v", l, err)
+	}
+	if l, _ := e.NDProfileLatest("zzz999"); !l.IsZero() {
+		t.Fatalf("unknown profile: %v", l)
+	}
 	if s, _ := e.NDDeviceSeen("abc123", "Sam's Phone"); !s.Last.IsZero() || s.Day != 0 {
 		t.Fatalf("unknown device: %+v", s)
 	}

@@ -40,7 +40,12 @@ type CheckIn struct {
 	By         string `json:"by,omitempty"`
 	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
 	ProfileAt  int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
-	ProfileND  string `json:"profile_nd,omitempty"` // the NextDNS profile in that download (≠ NDProfile: an update is ready)
+	ProfileND  string `json:"profile_nd,omitempty"` // the NextDNS profile the device has installed (≠ NDProfile: an update is ready)
+	// setupwatch.go: the last query NextDNS logged under the device's name, when the setup last changed, and when
+	// HomeOwl noticed it stopped being used (0 = it works)
+	SetupSeen    int64 `json:"setup_seen,omitempty"`
+	SetupChanged int64 `json:"setup_changed,omitempty"`
+	SetupLost    int64 `json:"setup_lost,omitempty"`
 }
 
 var checkinKinds = map[string]bool{"phone": true, "tablet": true, "laptop": true, "computer": true, "tv": true, "console": true,

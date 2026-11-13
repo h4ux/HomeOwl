@@ -17,8 +17,8 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	get := func(ip string) (int, string, string) {
-		r := httptest.NewRequest("GET", "http://homeowl.lan:8555/api/hi/profile", nil)
+	get := func(ip string, q ...string) (int, string, string) {
+		r := httptest.NewRequest("GET", "http://homeowl.lan:8555/api/hi/profile"+strings.Join(q, ""), nil)
 		r.RemoteAddr = ip + ":51234"
 		w := httptest.NewRecorder()
 		a.hiProfile(w, r)
@@ -88,6 +88,15 @@ func TestDeviceSetupProfile(t *testing.T) {
 			t.Errorf("profile lacks %q:\n%s", want, body)
 		}
 	}
+	if strings.Contains(body, "webClip") {
+		t.Error("no Home Screen icon unless it's an iPhone or iPad (macOS doesn't take one)")
+	}
+	_, _, ios := get("192.168.1.40", "?p=ios")
+	for _, want := range []string{"com.apple.webClip.managed", "<string>http://homeowl.lan:8555/hi</string>", "<key>Icon</key><data>iVBOR", "<key>IsRemovable</key><true/>"} {
+		if !strings.Contains(ios, want) {
+			t.Errorf("iOS profile lacks %q", want)
+		}
+	}
 	if regexp.MustCompile(`(?i)<key>[a-z]*(password|token|secret)`).MatchString(body) {
 		t.Error("the profile must not carry secrets")
 	}
@@ -111,11 +120,18 @@ func TestDeviceSetupProfile(t *testing.T) {
 			links[d.Kind+" "+d.Key] = true
 		}
 	}
-	if links["ndev abc123/Alex's iPad"] || !links["ndev def456/Alex's iPad"] {
-		t.Fatalf("the NextDNS name should move: %v", links)
+	if !links["ndev abc123/Alex's iPad"] || !links["ndev def456/Alex's iPad"] {
+		t.Fatalf("both NextDNS names until the device installs the new one: %v", links)
 	}
 	if code, _, body := get("192.168.1.40"); code != 200 || !strings.Contains(body, "dns.nextdns.io/def456/") {
 		t.Fatalf("new profile download: %d", code)
+	}
+	for _, p := range a.An.People() {
+		for _, d := range p.Devices {
+			if d.Key == "abc123/Alex's iPad" {
+				t.Fatal("the old NextDNS name should go with the new download")
+			}
+		}
 	}
 	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["update"] != false {
 		t.Fatal("after installing the new one there's nothing to update")
