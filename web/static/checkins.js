@@ -139,7 +139,7 @@ async function renderDevTypes() {
       <button class="btn" id="dt-onboard-save">Save</button></div>
     ${r.onboard_ssid && !r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase()) && r.wlans.length ? `<p class="fine warn-t">There's no Wi-Fi called “${esc(r.onboard_ssid)}” on the console yet.</p>` : ""}
     <h3 style="margin-top:18px">NextDNS off on these Wi-Fi networks ${hint("A plane's or hotel's sign-in page only loads with ordinary DNS, and the profile's encrypted NextDNS can't reach NextDNS before you sign in. On these networks the profile's NextDNS stands down; everywhere else it stays on. Names must match exactly (Settings › Wi-Fi on the plane shows it). Changing the list shows Update ready on the devices.")}</h3>
-    <p class="fine muted">For every device. One Wi-Fi name per line, exactly as the phone shows it.${r.skip_wifi_default ? " This is HomeOwl's starting list of in-flight networks — check it against the airlines you fly." : ""}</p>
+    <p class="fine muted">For every device. One Wi-Fi name per line, exactly as the phone shows it.${r.skip_wifi_default ? " This is HomeOwl's starting list (British Airways). Add other airlines' networks exactly as the phone shows them." : ""}</p>
     <textarea id="dt-skip" rows="5" spellcheck="false" class="mono">${esc((r.skip_wifi || []).join("\n"))}</textarea>
     <div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-skip-save">Save</button>${r.skip_wifi_default ? "" : `<button class="btn ghost" id="dt-skip-reset">Back to the starting list</button>`}</div>
     <div id="st-approval"></div>`;

@@ -16,9 +16,9 @@ import (
 // "everywhere else" (Connect). A global list (Settings › Device profiles) starts with common in-flight networks;
 // a profile type can add its own, and can also keep NextDNS to the home Wi-Fi and mobile data only.
 
-// defaultSkipWiFi: common in-flight Wi-Fi names. A starting list to check and edit — airlines change them.
-var defaultSkipWiFi = []string{"gogoinflight", "United_Wi-Fi", "DeltaWiFi.com", "DeltaWiFi", "aainflight.com",
-	"Southwest WiFi", "FlyFi", "Telekom_FlyNet", "OnAir"}
+// defaultSkipWiFi: the starting list — in-flight Wi-Fi names checked against the airline's own pages (British
+// Airways: "BAWi-Fi", britishairways.com › Onboard Wi-Fi). Add others in Settings once you've seen their exact name.
+var defaultSkipWiFi = []string{"BAWi-Fi"}
 
 const maxSkipWiFi = 100
 

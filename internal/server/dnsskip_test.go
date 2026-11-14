@@ -37,7 +37,7 @@ func TestSkipWiFi(t *testing.T) {
 	}
 	// the starting list, before anything is saved: in-flight networks first, then on everywhere else
 	d := dns(get())
-	if !strings.Contains(d, "<string>Disconnect</string>\n<key>SSIDMatch</key><array><string>gogoinflight</string>") ||
+	if !strings.Contains(d, "<string>Disconnect</string>\n<key>SSIDMatch</key><array><string>BAWi-Fi</string>") ||
 		!strings.HasSuffix(strings.TrimSpace(d[:strings.LastIndex(d, "</array>")]), "<string>Connect</string>\n</dict>") {
 		t.Fatalf("starting list rules:\n%s", d)
 	}
@@ -45,7 +45,7 @@ func TestSkipWiFi(t *testing.T) {
 	if _, err := a.saveSkipWiFi(map[string]any{"ssids": []any{" Example Air ", "Example Air", ""}}); err != nil {
 		t.Fatal(err)
 	}
-	if d := dns(get()); !strings.Contains(d, "<array><string>Example Air</string></array>") || strings.Contains(d, "gogoinflight") {
+	if d := dns(get()); !strings.Contains(d, "<array><string>Example Air</string></array>") || strings.Contains(d, "BAWi-Fi") {
 		t.Fatalf("edited list:\n%s", d)
 	}
 	if _, err := a.saveSkipWiFi(map[string]any{"ssids": []any{strings.Repeat("x", 33)}}); err == nil {
@@ -82,7 +82,7 @@ func TestSkipWiFi(t *testing.T) {
 	if _, err := a.saveSkipWiFi(map[string]any{"reset": true}); err != nil {
 		t.Fatal(err)
 	}
-	if a.setupHash(a.checkins.List()[0]) == h || !strings.Contains(dns(get()), "gogoinflight") {
+	if a.setupHash(a.checkins.List()[0]) == h || !strings.Contains(dns(get()), "BAWi-Fi") {
 		t.Fatal("reset: the starting list again, as an update")
 	}
 }

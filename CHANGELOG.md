@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.54] — 2026-11-14
+
+- The starting list of networks where NextDNS stands down is now just British Airways' in-flight Wi-Fi ("BAWi-Fi",
+  as BA's own site names it), instead of a list of unchecked names. Add others in Settings › Device profiles.
+
 ## [0.1.53] — 2026-11-14
 
 - NextDNS off on chosen Wi-Fi networks: planes' and hotels' sign-in pages need ordinary DNS, so the profile's
