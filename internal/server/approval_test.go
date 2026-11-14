@@ -108,6 +108,20 @@ func TestDeviceApproval(t *testing.T) {
 	if len(got()) != 1 {
 		t.Fatal("blocked once, not every minute")
 	}
+	// unblocked in UniFi (say, while HomeOwl was down): back online a while later, so it counts as approved
+	ast = a.approval.load()
+	sb := ast.Blocked["00:11:22:00:00:99"]
+	sb.At -= 600
+	ast.Blocked["00:11:22:00:00:99"] = sb
+	_ = a.approval.save(ast)
+	a.approvalTick([]map[string]any{stranger})
+	if len(got()) != 1 || a.approvalBlocked("00:11:22:00:00:99") || a.approval.load().Approved["00:11:22:00:00:99"] == 0 {
+		t.Fatal("unblocked in UniFi: approved, not blocked again")
+	}
+	ast = a.approval.load() // block it again for the approve step below
+	delete(ast.Approved, "00:11:22:00:00:99")
+	ast.Blocked["00:11:22:00:00:99"] = sb
+	_ = a.approval.save(ast)
 	// a registered check-in is approved without asking
 	_ = a.checkins.Add(CheckIn{MAC: "00:11:22:00:00:30", Name: "Sam's iPad"})
 	for _, y := range a.checkins.List() {

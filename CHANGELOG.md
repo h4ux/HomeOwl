@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.70] — 2026-11-14
+
+- Setup Wi-Fi: "Print these instructions" prints one page with the join QR code and password, the check-in QR code
+  and the steps, to keep wherever new devices get set up.
+- Device approval: a device unblocked in UniFi (say, while HomeOwl was down) now counts as approved instead of
+  waiting forever. Settings › Device profiles explains how to unblock a device without HomeOwl, with a page to print.
+
 ## [0.1.69] — 2026-11-14
 
 - Archive suggestions cover more: any device unseen for 180 days (not only private addresses), and devices linked

@@ -21,7 +21,8 @@ import (
 // and its profile, or it was approved before). Everything the console already knew when it was turned on counts as
 // approved, so nothing in the house is cut off. Guest networks and the setup Wi-Fi aren't gated, nor are wired
 // devices (UniFi's block is for Wi-Fi). Blocks go through the normal allow-listed action — logged, with undo — and
-// HomeOwl only ever blocks on its own: unblocking is the admin's Approve.
+// HomeOwl only ever blocks on its own: unblocking is the admin's Approve, or unblocking it in UniFi (which works
+// while HomeOwl is down, and HomeOwl then counts as an approval). A stopped HomeOwl blocks nothing new.
 
 const maxBlocksPerTick = 10 // a sudden flood (say, the list of known devices was lost) stops at this and alerts
 
@@ -116,12 +117,20 @@ func (a *App) approvalTick(online []map[string]any) {
 		st = s.load()
 	}
 	var block []map[string]any
+	var unblocked []string
 	for _, c := range online {
 		mac := strings.ToLower(str(c, "mac"))
 		if mac == "" || !a.gated(c) || st.Approved[mac] > 0 {
 			continue
 		}
-		if _, done := st.Blocked[mac]; done {
+		if d, done := st.Blocked[mac]; done {
+			// online well after the block, so someone unblocked it in UniFi (say, while HomeOwl was down): that's an
+			// approval (right after a block, the console may still list it for a moment)
+			if c["blocked"] != true && time.Now().Unix()-d.At > 300 {
+				delete(st.Blocked, mac)
+				st.Approved[mac] = time.Now().Unix()
+				unblocked = append(unblocked, orStr(d.Name, orStr(d.Hostname, mac)))
+			}
 			continue
 		}
 		if _, ok := a.checkins.Registered(mac); ok {
@@ -135,6 +144,11 @@ func (a *App) approvalTick(online []map[string]any) {
 	}
 	_ = s.save(st)
 	s.mu.Unlock()
+	for _, n := range unblocked {
+		log.Printf("device approval: %s was unblocked in UniFi, so it counts as approved", n)
+		a.Alerts.Add(alerts.Alert{Kind: "approval", Level: "info", Title: n + " was unblocked in UniFi",
+			Body: "It's connected again, so HomeOwl counts it as approved and won't block it again."})
+	}
 
 	if len(block) > maxBlocksPerTick {
 		a.Alerts.Add(alerts.Alert{Kind: "approval_flood", Level: "warn", Title: "Device approval paused",

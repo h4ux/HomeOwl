@@ -820,3 +820,15 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .arch-hint{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}.arch-list{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto}.arch-list .check span .fine{display:block}
 .dt-qrtile{display:flex;gap:12px;align-items:center;flex:1;min-width:260px}.dt-qrtile .mono{word-break:break-all}
 .pill.arch-sug{color:var(--med);border-color:currentColor}
+@media print{
+  .ps{max-width:180mm;margin:8mm auto;color:#000;font-family:-apple-system,"Segoe UI",Roboto,sans-serif;font-size:12pt}
+  .ps-title{font-size:20pt;font-weight:700}
+  .ps-sub{color:#555;margin:1mm 0 6mm}
+  .ps-step{display:flex;gap:7mm;align-items:flex-start;padding:5mm 0;border-top:1px solid #ccc;break-inside:avoid}
+  .ps-qr .qr{width:50mm;height:50mm}
+  .ps-n{font-size:14pt;font-weight:700;margin-bottom:1mm}
+  .ps p{margin:1mm 0}
+  .ps-pass{font-size:15pt;font-weight:700;margin-top:2mm}
+  .ps-link{font-size:12pt;overflow-wrap:anywhere}
+}
+#dt-setup-print{margin-top:10px}

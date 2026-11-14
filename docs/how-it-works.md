@@ -98,6 +98,11 @@ flowchart TD
 Turning it on approves the devices seen in the last day, so nothing in use is cut off. Devices not seen for longer
 wait for approval when they come back. More than ten new devices at once pauses blocking and alerts instead.
 
+**If HomeOwl is down, or blocked a device by mistake:** the block lives in UniFi, so lift it there. In the UniFi
+app (or unifi.ui.com), open Client Devices, show the Blocked ones, open the device and tap Unblock. When HomeOwl runs
+again it sees the device connected and counts it as approved. A stopped HomeOwl blocks nothing new. Settings › Device
+profiles has these steps too, with a page to print and keep by the router.
+
 ## The setup Wi-Fi's network
 
 HomeOwl can create the setup Wi-Fi for you (Settings › Device profiles): a network on its own VLAN and a Wi-Fi on it

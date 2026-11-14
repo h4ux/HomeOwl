@@ -169,7 +169,22 @@ function setupWiFiBlock(r) {
       <div class="fine"><b>1. Join ${esc(r.setup_join.ssid)}</b><br>Scan with the phone's camera.${r.setup_join.password ? `<br>Password: <span class="mono">${esc(r.setup_join.password)}</span>` : ""}</div></div>` : "";
   const open = links.length ? `<div class="dt-qrtile"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
       <div class="fine"><b>2. ${r.portal ? "The check-in page opens by itself" : "Open the check-in page"}</b><br>${r.portal ? "If it doesn't, scan this or open:" : "Scan this or open:"}${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}${!r.portal && n && !n.internet && !n.homeowl_ip ? "Phones need Mobile Data off while they're on it; the page tells them." : ""}</div></div>` : "";
-  return noMove + net + (join || open ? `<div class="dt-setuplink">${join}${open}</div>` : "");
+  S.setupPrint = { join: r.setup_join, link: links[0], portal: !!r.portal };
+  return noMove + net + (join || open ? `<div class="dt-setuplink">${join}${open}</div>
+    <button class="btn sm" id="dt-setup-print">Print these instructions</button>` : "");
+}
+// printSetupSheet: one page to leave next to whoever sets up a new device.
+function printSetupSheet() {
+  const p = S.setupPrint; if (!p) return;
+  const j = p.join, step = (n, t, body, qr) => `<div class="ps-step">${qr ? `<div class="ps-qr">${qr}</div>` : ""}<div><div class="ps-n">${n}. ${t}</div>${body}</div></div>`;
+  printSheet(`<div class="ps">
+    <div class="ps-title">Setting up a new phone, tablet or computer</div>
+    <div class="ps-sub">Do this once per device. It takes about five minutes.</div>
+    ${j ? step(1, `Join the Wi-Fi “${esc(j.ssid)}”`, `<p>Point the camera at the code and tap the Wi-Fi notice. Or open Settings › Wi-Fi, pick <b>${esc(j.ssid)}</b>${j.password ? " and type the password" : ""}.</p>${j.password ? `<div class="ps-pass">Password: <span class="mono">${esc(j.password)}</span></div>` : ""}`, QR.svg(QR.wifi(j), { size: 200, label: `Join ${j.ssid}` })) : ""}
+    ${p.link ? step(j ? 2 : 1, p.portal ? "The check-in page opens by itself" : "Open the check-in page", `<p>${p.portal ? "A HomeOwl page pops up a few seconds after joining. If it doesn't, scan this code or type the address in the browser:" : "Scan this code, or type the address in the browser:"}</p><div class="ps-link mono">${esc(p.link)}</div>`, QR.svg(p.link, { size: 200, label: "Link to the check-in page" })) : ""}
+    ${step(j && p.link ? 3 : 2, "Follow the page", `<p>Say what the device is and whose it is, then keep the page open while a grown-up approves it in HomeOwl. Then install the setup profile it offers (on iPhone and iPad: Settings › Profile Downloaded › Install).</p>`)}
+    ${step(j && p.link ? 4 : 3, "Done", `<p>The device moves to the home Wi-Fi by itself. You can forget “${esc(j?.ssid || "the setup Wi-Fi")}” afterwards.</p>`)}
+    <div class="pc-foot"><img src="icon.png" alt="" width="18" height="18"> Made with HomeOwl · github.com/h4ux/HomeOwl</div></div>`);
 }
 async function portalPreview() {
   let pv; try { pv = await api("/api/setupwifi/portal-preview", {}); } catch (err) { return toast(err.message, "err"); }
@@ -184,6 +199,7 @@ async function portalPreview() {
 }
 document.addEventListener("click", e => {
   if (e.target.id === "dt-portal") { portalPreview(); return; }
+  if (e.target.id === "dt-setup-print") { printSetupSheet(); return; }
   const b = e.target.closest("[data-setupnet]");
   if (b) {
     const n = S.devTypes?.setup_net; if (!n) return;
@@ -247,8 +263,25 @@ function renderApproval() {
     <label class="check"><input type="checkbox" id="apv-on" ${r.on ? "checked" : ""}> <span>Block first-time devices on the home Wi-Fi until I approve them</span></label>
     ${r.on ? `<p class="fine muted">${r.approved} devices approved. <button class="btn sm ghost" id="apv-trim" title="Devices approved when this was turned on, but not seen in the last ${r.recent_hours || 24} hours, wait for approval when they come back. Devices you approved and checked-in devices stay.">Re-check devices not seen lately</button></p>` : ""}
     ${r.waiting.length ? `<div class="ap-blocks">${r.waiting.map(d => row(d, false)).join("")}</div>` : r.on ? `<p class="fine muted">Nothing waiting.</p>` : ""}
-    ${r.kept.length ? `<details class="wi-more"><summary>Kept blocked (${r.kept.length})</summary><div class="ap-blocks">${r.kept.map(d => row(d, true)).join("")}</div></details>` : ""}`;
+    ${r.kept.length ? `<details class="wi-more"><summary>Kept blocked (${r.kept.length})</summary><div class="ap-blocks">${r.kept.map(d => row(d, true)).join("")}</div></details>` : ""}
+    ${r.on || r.waiting.length || r.kept.length ? `<details class="wi-more"><summary>If HomeOwl is down, or blocked a device by mistake</summary><div class="fine">
+      <p>Blocks are set in UniFi, so you can always lift one there, without HomeOwl:</p>
+      <ol><li>Open the UniFi app (or unifi.ui.com) and go to <b>Client Devices</b>.</li>
+      <li>Show <b>Blocked</b> devices (the filter at the top), and open the device.</li>
+      <li>Tap <b>Unblock</b>. It can join again straight away.</li></ol>
+      <p>When HomeOwl is running again, it sees the device is connected and counts it as approved, so it won't block it again. While HomeOwl is stopped it blocks nothing new. To stop blocking altogether, untick the box above (devices already blocked stay blocked until you approve or unblock them).</p>
+      <button class="btn sm" id="apv-print">Print these steps</button></div></details>` : ""}`;
 }
+function printApprovalHelp() {
+  printSheet(`<div class="ps"><div class="ps-title">A device can't get on the Wi-Fi?</div>
+    <div class="ps-sub">HomeOwl blocks devices it hasn't seen before until they're approved. If HomeOwl is down, or blocked one by mistake, unblock it in UniFi.</div>
+    <div class="ps-step"><div><div class="ps-n">1. Open the UniFi app</div><p>Or unifi.ui.com in a browser, signed in as the network's owner. Go to <b>Client Devices</b>.</p></div></div>
+    <div class="ps-step"><div><div class="ps-n">2. Find the device</div><p>Show <b>Blocked</b> devices with the filter at the top, and open the one that can't connect.</p></div></div>
+    <div class="ps-step"><div><div class="ps-n">3. Tap Unblock</div><p>It can join the Wi-Fi again straight away. Once HomeOwl is back, it counts the device as approved and leaves it alone.</p></div></div>
+    <div class="ps-step"><div><div class="ps-n">Still stuck?</div><p>Forget the Wi-Fi on the device and join again. A phone with “Private Wi-Fi address” on may show up as a new device: approve it in HomeOwl, or unblock it in UniFi.</p></div></div>
+    <div class="pc-foot"><img src="icon.png" alt="" width="18" height="18"> Made with HomeOwl · github.com/h4ux/HomeOwl</div></div>`);
+}
+document.addEventListener("click", e => { if (e.target.id === "apv-print") printApprovalHelp(); });
 async function approvalDo(path, body, msg) {
   try { S.approval = await api(path, body); toast(msg, "ok"); renderApproval(); } catch (err) { toast(err.message, "err"); loadApproval(); }
 }

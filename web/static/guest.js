@@ -74,13 +74,17 @@ async function suggestGuestPass() { try { const r = await api("/api/guest-wifi/s
 // printable card: only #print-card is printed (see style.css)
 function printGuestCard(id) {
   const g = S.guest.networks.find(x => x.id === id); if (!g) return;
-  let pc = $("#print-card"); if (!pc) { pc = document.createElement("div"); pc.id = "print-card"; document.body.append(pc); }
-  pc.innerHTML = `<div class="pc">
+  printSheet(`<div class="pc">
     <div class="pc-title">Wi-Fi for our guests</div>
     ${QR.themed(guestCode(g), { theme: guestTheme(), size: 260, label: `Join ${g.ssid}`, caption: g.ssid })}
     <div class="pc-hint">Scan with your phone's camera to join</div>
     <dl><dt>Network</dt><dd>${esc(g.ssid)}</dd>${g.password ? `<dt>Password</dt><dd class="mono">${esc(g.password)}</dd>` : ""}</dl>
-    <div class="pc-foot"><img src="icon.png" alt="" width="18" height="18"> Made with HomeOwl · github.com/h4ux/HomeOwl</div></div>`;
+    <div class="pc-foot"><img src="icon.png" alt="" width="18" height="18"> Made with HomeOwl · github.com/h4ux/HomeOwl</div></div>`);
+}
+// printSheet prints just this HTML (the rest of the page is hidden while printing).
+function printSheet(html) {
+  let pc = $("#print-card"); if (!pc) { pc = document.createElement("div"); pc.id = "print-card"; document.body.append(pc); }
+  pc.innerHTML = html;
   document.body.classList.add("printing-card");
   const done = () => { document.body.classList.remove("printing-card"); window.removeEventListener("afterprint", done); };
   window.addEventListener("afterprint", done);
