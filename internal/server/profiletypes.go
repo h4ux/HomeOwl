@@ -193,7 +193,16 @@ func (a *App) noJoinFor(x CheckIn, t ProfileType, all []map[string]any) []wifiNe
 	}
 	if ssid := a.Cfg.Get().Onboard.SSID; ssid != "" && (x.Onboard || t.NoOtherWiFi) && !seen[strings.ToLower(ssid)] {
 		seen[strings.ToLower(ssid)] = true
-		out = append(out, wifiNet{ID: "setup", SSID: ssid, Enc: "None", NoJoin: true})
+		// the device tells saved networks apart by name and security: match the setup Wi-Fi's (open, or with a
+		// password — which stays out of the profile)
+		n := wifiNet{ID: "setup", SSID: ssid, Enc: "None", NoJoin: true}
+		for _, w := range all {
+			if strings.EqualFold(str(w, "name"), ssid) && str(w, "security") != "open" {
+				n.Enc = "Any"
+				n.Hidden, _ = w["hide_ssid"].(bool)
+			}
+		}
+		out = append(out, n)
 	}
 	if !t.NoOtherWiFi {
 		return out
@@ -252,7 +261,7 @@ func (a *App) extrasFor(x CheckIn) (profileExtras, bool) {
 	ex.Icon = t.Icon
 	ok := true
 	var all []map[string]any
-	if len(t.WiFi) > 0 || t.NoOtherWiFi || t.OtherWiFi == "off" || t.VPN != nil && t.VPN.OnDemand {
+	if len(t.WiFi) > 0 || t.NoOtherWiFi || t.OtherWiFi == "off" || x.Onboard || t.VPN != nil && t.VPN.OnDemand {
 		var err error
 		if all, err = a.wlans(); err != nil {
 			ok = false

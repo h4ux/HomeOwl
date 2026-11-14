@@ -10,7 +10,7 @@ import (
 	"github.com/h4ux/homeowl/internal/config"
 )
 
-// The setup Wi-Fi (Settings › Device profiles): an open network whose portal opens the check-in page and that has
+// The setup Wi-Fi (Settings › Device profiles): a network (open, or with its own password) whose portal opens the check-in page and that has
 // no internet of its own. A device on it may check in (other guest networks may not), waits there for an admin's
 // approval, and gets its profile. The profile joins the home Wi-Fi by itself and lists the setup Wi-Fi as "don't
 // join by itself", so the device moves over and doesn't come back. Android and Windows get the home Wi-Fi's name

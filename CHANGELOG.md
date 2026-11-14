@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.56] — 2026-11-14
+
+- Setup Wi-Fi with a password: the profile's "don't rejoin the setup Wi-Fi" entry now matches the network's
+  security (open or with a password, which stays out of the profile), so it replaces the device's saved one.
+
 ## [0.1.55] — 2026-11-14
 
 - Setup Wi-Fi: UniFi's guest portal can point at HomeOwl ("External portal server"). Its visits

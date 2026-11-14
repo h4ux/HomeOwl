@@ -158,6 +158,14 @@ func TestOnboard(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"password":"example-pass-123"`) || !strings.Contains(body, `"leave":"Home Setup"`) || strings.Contains(body, "iot-pass") {
 		t.Fatalf("home Wi-Fi for Android: %d %s", code, body)
 	}
+	// a setup Wi-Fi with a password: the no-join entry matches its security, without the password
+	_ = a.Cfg.Update(func(c *config.Config) { c.Onboard.SSID = "Example IoT" })
+	ex, _ = a.extrasFor(x)
+	for _, w := range ex.WiFi {
+		if w.ID == "setup" && (w.SSID != "Example IoT" || w.Enc != "Any" || w.Password != "" || !w.NoJoin) {
+			t.Fatalf("setup Wi-Fi with a password: %+v", w)
+		}
+	}
 	_ = a.Cfg.Update(func(c *config.Config) { c.Onboard.SSID = "" })
 	if code, _ := hi(a, "GET", "192.168.2.20", "", nil); code != 403 {
 		t.Fatal("setup Wi-Fi off: guest networks can't check in again")
