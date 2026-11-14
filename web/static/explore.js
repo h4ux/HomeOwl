@@ -269,8 +269,9 @@ async function loadPeople() {
     <div class="section"><div class="pp-sec"><h2>Groups</h2>${hint("For things everyone uses or nobody owns: the living-room TV, servers, smart-home gear. Groups count in Analytics but never in Who's home.")}</div>
       ${grps.length ? `<div class="grid g2">${grps.map(card).join("")}</div>` : `<p class="fine muted">No groups yet.</p>`}
       ${isAdmin() && tpl.length ? `<div class="btnrow pp-tpl"><span class="fine muted">Quick start:</span>${tpl.map(g => `<button class="btn sm" data-pptpl="${esc(g.name)}">+ ${esc(g.name)}</button>`).join("")}</div>` : ""}</div>
+    ${isAdmin() && S.source === "live" ? `<div class="card section" id="pp-owners" hidden></div>` : ""}
     <div class="card section"><h2>Not assigned yet</h2><div id="pp-unassigned"><div class="empty">Loading…</div></div></div>`);
-  if (isAdmin() && S.source === "live") ppSetup();
+  if (isAdmin() && S.source === "live") { ppSetup(); loadOwners(); }
   meta.people.forEach(async p => {
     const el = $(`#pp-${CSS.escape(p.id)} .pp-body`);
     try {
@@ -478,3 +479,46 @@ document.addEventListener("change", e => {
 });
 let EX_T = null;
 document.addEventListener("input", e => { if (e.target.id === "ex-q") { clearTimeout(EX_T); const v = e.target.value.trim(); EX_T = setTimeout(() => { setFilter("q", v || null); loadExplore().then(() => { const i = $("#ex-q"); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }); }, 400); } });
+
+// ---- whose device is this? HomeOwl's guesses for UniFi clients nobody owns yet (analytics/owners.go)
+async function loadOwners() {
+  const el = $("#pp-owners"); if (!el) return;
+  try { S.owners = await api("/api/owners"); } catch (e) { el.hidden = true; return; }
+  renderOwners();
+}
+function renderOwners() {
+  const el = $("#pp-owners"); if (!el) return;
+  const list = arr(S.owners?.suggestions), all = arr(S.ex.meta?.people);
+  el.hidden = !list.length; if (!list.length) return;
+  const sure = list.filter(h => h.strength === "strong");
+  el.innerHTML = `<div class="pp-sec"><h2>Whose device is this?</h2>${hint("HomeOwl's guesses for UniFi devices nobody owns yet: the same name as someone's NextDNS device, someone's phone back with a new private Wi-Fi address, a name in the device's name, or a TV or printer for a group. Nothing is linked until you say so.")}
+      ${sure.length > 1 ? `<button class="btn sm" id="ow-all">Link the ${sure.length} sure ones</button>` : ""}</div>
+    <div class="ow-list">${list.slice(0, 15).map(h => `<div class="ow-row">
+      ${cliIcon({ name: h.device, hostname: h.hostname, oui: h.vendor }, 18)}
+      <div class="ow-main"><div><a href="#" data-exgo="device|${esc(h.device)}">${esc(h.device)}</a>${h.hostname ? ` <span class="fine muted mono">${esc(h.hostname)}</span>` : ""} <span class="muted">→</span> <b>${esc(h.person)}</b>
+        <span class="tag ${h.strength === "strong" ? "good" : ""}">${h.strength === "strong" ? "sure" : "likely"}</span></div>
+        <div class="fine muted">${esc(h.reason)}${h.vendor ? ` · ${esc(h.vendor)}` : ""}${h.last ? ` · seen ${esc(ago(h.last * 1000))}` : ""}</div></div>
+      <div class="btnrow"><button class="btn sm primary" data-owlink="${esc(h.mac)}" data-owp="${esc(h.person_id)}">Link</button>
+        <select data-owother="${esc(h.mac)}" aria-label="Someone else's"><option value="">Someone else…</option>${all.filter(p => p.id !== h.person_id).map(p => `<option value="${esc(p.id)}">${isGroup(p) ? "▣ " : ""}${esc(p.name)}</option>`).join("")}</select>
+        <button class="btn sm" data-owno="${esc(h.mac)}" data-owp="${esc(h.person_id)}" title="Don't suggest ${esc(h.person)} for this device again">Not ${esc(h.person)}'s</button></div></div>`).join("")}</div>
+    ${list.length > 15 ? `<p class="fine muted">${list.length - 15} more after these.</p>` : ""}`;
+}
+async function ownerDo(op, body, msg) {
+  try { S.owners = await api(`/api/owners/${op}`, body); if (msg) toast(msg, "ok"); renderOwners(); if (op === "link") { S.ex.meta = null; loadAnalytics(); } }
+  catch (e) { toast(e.message, "err"); }
+}
+document.addEventListener("click", async e => {
+  const l = e.target.closest("[data-owlink]");
+  if (l) { const h = arr(S.owners?.suggestions).find(x => x.mac === l.dataset.owlink); return ownerDo("link", { mac: l.dataset.owlink, person_id: l.dataset.owp }, h ? `${h.device} → ${h.person}` : "Linked"); }
+  const n = e.target.closest("[data-owno]"); if (n) return ownerDo("dismiss", { mac: n.dataset.owno, person_id: n.dataset.owp });
+  if (e.target.id === "ow-all") {
+    const sure = arr(S.owners?.suggestions).filter(h => h.strength === "strong");
+    for (const h of sure) { try { await api("/api/owners/link", { mac: h.mac, person_id: h.person_id }); } catch (err) { toast(`${h.device}: ${err.message}`, "err"); } }
+    toast(`Linked ${sure.length} devices`, "ok"); S.ex.meta = null; loadAnalytics();
+  }
+});
+document.addEventListener("change", e => {
+  const o = e.target.dataset?.owother; if (!o || !e.target.value) return;
+  const p = arr(S.ex.meta?.people).find(x => x.id === e.target.value), h = arr(S.owners?.suggestions).find(x => x.mac === o);
+  ownerDo("link", { mac: o, person_id: e.target.value }, `${h?.device || "Device"} → ${p?.name || ""}`);
+});

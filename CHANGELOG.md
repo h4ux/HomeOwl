@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.42] — 2026-11-14
+
+### Added
+- **Whose device is this?** (Family › People & groups, admins). HomeOwl suggests an owner for UniFi devices nobody owns yet, says why and how sure it is, and links nothing until you click **Link** (or **Link the sure ones**). The clues:
+  - the same name as a NextDNS device already linked to someone;
+  - someone's phone or tablet back with a new private Wi-Fi address (same host name, never online at the same time);
+  - a person's first name in the device's name or host name ("Alexs-iPhone", "alex-mbp");
+  - a TV, speaker, printer, server or smart-home device, offered to the matching group.
+- "Someone else…" links the device to another person; "Not Alex's" stops that guess coming back.
+
 ## [0.1.41] — 2026-11-14
 
 ### Fixed
