@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.64] — 2026-11-14
+
+- "Don't join our other Wi-Fi networks" no longer puts other networks' passwords in the profile (0.1.63 did, and a
+  saved password lets someone pick that network by hand). Password networks are left out instead: without the
+  password a device can't join them, and installing asks for nothing. Open networks are still listed as "don't join
+  by itself"; the setup Wi-Fi keeps its password, which its users already know.
+- Setup Wi-Fi: with internet on, Settings warns that anyone with its password (children who set up with it, too)
+  can switch to it for internet off the home Wi-Fi, and offers "Turn internet off" once HomeOwl has its own address
+  on it.
+
 ## [0.1.63] — 2026-11-14
 
 - "Don't join our other Wi-Fi networks" and the setup Wi-Fi's no-rejoin entry now carry the networks' passwords

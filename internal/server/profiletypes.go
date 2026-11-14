@@ -48,8 +48,8 @@ type ProfileType struct {
 	// PrivateMAC keeps the device's private (changing) Wi-Fi address on these networks. Off (the default), the
 	// profile tells Apple devices to use their real address there, so the device stays recognisable (fixedmac.go).
 	PrivateMAC bool `json:"private_mac,omitempty"`
-	// NoOtherWiFi lists the console's other Wi-Fi networks in the profile as "don't join by itself" (with their
-	// passwords, read from UniFi like the type's own networks, so installing doesn't ask for each one):
+	// NoOtherWiFi lists the console's other open Wi-Fi networks in the profile as "don't join by itself" (password
+	// networks stay out: without the password a device can't join them, and no password goes in the profile):
 	// the device stays on the networks its type gives it.
 	NoOtherWiFi bool `json:"no_other_wifi,omitempty"`
 	// SkipWiFi: more networks (beyond the global list) where NextDNS stands down; OtherWiFi "off": NextDNS only on
@@ -221,12 +221,13 @@ func (a *App) noJoinFor(x CheckIn, t ProfileType, all []map[string]any) []wifiNe
 			continue // enterprise networks need a login to join anyway
 		}
 		seen[strings.ToLower(name)] = true
-		enc, pw := "Any", str(w, "x_passphrase") // a password network listed without its password makes the
-		if sec == "open" {                       // device ask for it while installing
-			enc, pw = "None", ""
+		if sec != "open" {
+			// a password network: the device can't join it without the password, which stays out (in the profile
+			// it could be picked by hand; listed without it, installing stops to ask for it)
+			continue
 		}
 		h, _ := w["hide_ssid"].(bool)
-		out = append(out, wifiNet{ID: "nojoin." + str(w, "_id"), SSID: name, Enc: enc, Password: pw, Hidden: h, NoJoin: true})
+		out = append(out, wifiNet{ID: "nojoin." + str(w, "_id"), SSID: name, Enc: "None", Hidden: h, NoJoin: true})
 	}
 	return out
 }

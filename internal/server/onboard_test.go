@@ -129,8 +129,8 @@ func TestOnboard(t *testing.T) {
 		t.Fatalf("should follow it to the home Wi-Fi: %+v", x)
 	}
 
-	// "don't join our other networks": the rest go in as no-join, with their passwords (so installing asks for
-	// none); enterprise left out
+	// "don't join our other networks": open ones go in as no-join; password networks stay out (no password in the
+	// profile to pick them by hand with, and no prompt); enterprise left out
 	tid := a.devTypes.List()[0].ID
 	if _, err := a.saveDevType(map[string]any{"id": tid, "name": "Family", "wifi": []any{"w1"}, "people": []any{alex}, "no_other_wifi": true}); err != nil {
 		t.Fatal(err)
@@ -145,11 +145,11 @@ func TestOnboard(t *testing.T) {
 			names = append(names, w.SSID)
 		}
 	}
-	if strings.Join(names, ",") != "Home Setup,Example Guests,Example IoT" {
+	if strings.Join(names, ",") != "Home Setup" { // Example Guests and Example IoT have passwords: left out
 		t.Fatalf("no-join networks: %v", names)
 	}
 	inc, _ := json.Marshal(a.includes(x))
-	if !strings.Contains(string(inc), `"no_join":["Home Setup","Example Guests","Example IoT"]`) {
+	if !strings.Contains(string(inc), `"no_join":["Home Setup"]`) {
 		t.Fatalf("includes: %s", inc)
 	}
 

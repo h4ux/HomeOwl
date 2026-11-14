@@ -158,7 +158,7 @@ function setupWiFiBlock(r) {
   if (n) {
     const on = n.homeowl_ip, iso = n.isolated;
     net = `<ul class="dt-netstate fine">
-      <li>${n.internet ? "✓ Internet on: phones stay on this Wi-Fi." : `✗ No internet: phones soon send the check-in page over mobile data and lose it, unless Mobile Data is off.${canMake ? ` <button class="btn sm" data-setupnet="internet">Turn internet on…</button>` : ""}`}</li>
+      <li>${n.internet ? (on ? `⚠ Internet on: anyone with its password (children who set up with it, too) can switch to it and get internet off the home Wi-Fi. HomeOwl has its own address on it now, so it works without internet.${canMake ? ` <button class="btn sm" data-setupnet="nointernet">Turn internet off…</button>` : ""}` : "✓ Internet on: phones stay on this Wi-Fi. Anyone with its password gets internet on it, so turn it off once HomeOwl has its own address on it (below).") : `✗ No internet: phones soon send the check-in page over mobile data and lose it, unless Mobile Data is off.${canMake ? ` <button class="btn sm" data-setupnet="internet">Turn internet on…</button>` : ""}`}</li>
       <li>${on ? `✓ HomeOwl has its own address on it (${esc(on)}), so the page loads directly.` : `✗ HomeOwl has no address on ${esc(n.subnet || "this network")} (VLAN ${esc(String(n.vlan ?? "?"))}), so the page goes through the router. <button class="btn sm ghost" id="dt-setup-vlanhow">How to add one</button>`}</li>
       <li>${iso === undefined ? `– This console has no “isolate network” switch (zone-based firewall): in UniFi › Settings › Security, put ${esc(n.name)} in its own zone with no access to your home network.` : iso ? "✓ Isolated: devices on it can't reach your home network." : on ? `✗ Not isolated: devices on it can reach your home network.${canMake ? ` <button class="btn sm" data-setupnet="isolate">Isolate it…</button>` : ""}` : "✗ Not isolated: devices on it can reach your home network. Isolate it once HomeOwl has its own address on it (isolating cuts off HomeOwl's home address)."}</li></ul>`;
   }
@@ -170,9 +170,9 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-setupnet]");
   if (b) {
     const n = S.devTypes?.setup_net; if (!n) return;
-    const iso = b.dataset.setupnet === "isolate";
-    runActions([{ kind: "rest", resource: "networkconf", id: n.id, fields: iso ? { network_isolation_enabled: true } : { internet_access_enabled: true },
-      description: iso ? `Setup Wi-Fi: isolate ${n.name} from the home network` : `Setup Wi-Fi: internet on for ${n.name}` }], iso ? "Isolate the setup network" : "Internet on the setup network");
+    const op = b.dataset.setupnet, iso = op === "isolate", off = op === "nointernet";
+    runActions([{ kind: "rest", resource: "networkconf", id: n.id, fields: iso ? { network_isolation_enabled: true } : { internet_access_enabled: !off },
+      description: iso ? `Setup Wi-Fi: isolate ${n.name} from the home network` : `Setup Wi-Fi: internet ${off ? "off" : "on"} for ${n.name}` }], iso ? "Isolate the setup network" : `Internet ${off ? "off" : "on"} on the setup network`);
     return;
   }
   if (e.target.id === "dt-setup-vlanhow") {
@@ -265,7 +265,7 @@ function editDevType(id) {
     <label class="check" style="margin-top:8px"><input type="checkbox" id="dt-default" ${t.default ? "checked" : ""}> <span>Everyone else too <span class="fine muted">Devices whose person has no type of their own (or no person yet, like devices from the setup Wi-Fi) get this type. One type can be the default.</span></span></label>
     <h3>Wi-Fi networks</h3><p class="fine muted">The device joins them by itself. The password goes into the device's profile.</p>
     <div class="dt-checks">${r.wlans.length ? r.wlans.map(w => `<label class="check"><input type="checkbox" data-dtw="${esc(w.id)}" ${arr(t.wifi).includes(w.id) ? "checked" : ""} ${w.usable ? "" : "disabled"}> <span>${esc(w.ssid)}${w.guest ? ` <span class="fine muted">guest</span>` : ""}${w.usable ? "" : ` <span class="fine muted">enterprise — not possible</span>`}</span></label>`).join("") : `<span class="fine muted">No Wi-Fi networks from UniFi.</span>`}</div>
-    <label class="check"><input type="checkbox" id="dt-noother" ${t.no_other_wifi ? "checked" : ""}> <span>Don't join our other Wi-Fi networks by themselves <span class="fine muted">The profile lists the console's other networks (guest, IoT, the setup Wi-Fi…) as “don't join automatically”, so the device stays on the ones ticked above. Their passwords go in too (read from UniFi), so installing doesn't stop to ask for each one; someone could still pick one by hand in Wi-Fi settings.</span></span></label>
+    <label class="check"><input type="checkbox" id="dt-noother" ${t.no_other_wifi ? "checked" : ""}> <span>Don't join our other Wi-Fi networks by themselves <span class="fine muted">so the device stays on the ones ticked above: open networks are listed as “don't join automatically”, and no other network's password goes in the profile, so it can't join those at all unless someone types the password. The setup Wi-Fi is listed with its password, which its users already know.</span></span></label>
     <label class="check"><input type="checkbox" id="dt-fixed" ${t.private_mac ? "" : "checked"}> <span>Use the device's real Wi-Fi address on these networks <span class="fine muted">Recommended: phones stop changing their address there, so HomeOwl keeps knowing whose device it is. iPhone and iPad (iOS 14+) show a privacy note for that network. Android and Windows: turn off the private/random address for the network by hand.</span></span></label>
     <h3>NextDNS on other Wi-Fi</h3>
     <div class="dt-checks dt-radios"><label class="check"><input type="radio" name="dt-other" value="on" ${t.other_wifi !== "off" ? "checked" : ""}> <span>Everywhere <span class="fine muted">except the networks in Settings › Device profiles (planes…) and the ones below</span></span></label>
