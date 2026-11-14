@@ -75,6 +75,10 @@ function registered(st) {
     ? `<p class="fine">After installing, this device moves to <b>${esc(wifi[0])}</b> by itself and won't rejoin ${esc(setupWiFi)}.</p>` : "";
   const captive = setupWiFi && pf === "ios"
     ? `<p class="fine">If this page opened in a sign-in window, it can't install profiles: copy the link into Safari. If iOS asks, choose <b>Use Without Internet</b> to stay on ${esc(setupWiFi)}.</p>${copyRow(location.href, "link")}` : "";
+  // the WireGuard VPN needs its app on the device before the profile goes in, or the install fails
+  // ("The VPN service could not be created")
+  const appStep = p => vpn?.app === "WireGuard" && vpn.ready !== false
+    ? `<li><b>First</b> install <a href="${p === "mac" ? "https://apps.apple.com/app/wireguard/id1451685025" : "https://apps.apple.com/app/wireguard/id1441195209"}" target="_blank" rel="noopener">WireGuard from the App Store</a> and open it once. Without it the profile can't add the VPN.</li>` : "";
   const holds = extra ? `<ul class="hi-holds">${nd ? `<li>Encrypted DNS through NextDNS, under this device's name</li>` : ""}
       ${wifi.length ? `<li>Wi-Fi: ${wifi.map(esc).join(", ")} — joins by itself${inc.fixed_mac ? ", with this device's real Wi-Fi address so it's recognised at home (Settings shows a privacy note for that network)" : ""}</li>` : ""}
       ${(inc.no_join || []).length ? `<li>Doesn't join by itself: ${inc.no_join.map(esc).join(", ")}</li>` : ""}
@@ -84,9 +88,9 @@ function registered(st) {
       ? `<div class="msg warn">iPhone and iPad install profiles only from <b>Safari</b>. This browser would just save the file.</div>
         <a class="btn primary" href="${esc("x-safari-" + location.href)}">Open this page in Safari</a>
         <p class="fine">If nothing happens, copy the link and paste it into Safari:</p>${copyRow(location.href, "link")}`
-      : `<ol class="hi-steps"><li>Tap the button and choose <b>Allow</b>.</li><li>Open <b>Settings</b> › <b>Profile Downloaded</b> (near the top) › <b>Install</b>.</li></ol>${apple}
+      : `<ol class="hi-steps">${appStep("ios")}<li>Tap the button and choose <b>Allow</b>.</li><li>Open <b>Settings</b> › <b>Profile Downloaded</b> (near the top) › <b>Install</b>.</li></ol>${apple}
         ${iconNote(inc.icon)}${moveNote}${captive}`,
-    mac: `<ol class="hi-steps"><li>Click the button to download the profile.</li><li>Open <b>System Settings</b> › <b>General</b> › <b>Device Management</b>, double-click <b>HomeOwl</b> and choose <b>Install</b>.</li></ol>${apple}`,
+    mac: `<ol class="hi-steps">${appStep("mac")}<li>Click the button to download the profile.</li><li>Open <b>System Settings</b> › <b>General</b> › <b>Device Management</b>, double-click <b>HomeOwl</b> and choose <b>Install</b>.</li></ol>${apple}`,
     android: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › <b>Private DNS</b>.</li><li>Choose <b>Private DNS provider hostname</b> and paste:</li></ol>${copyRow(nd.android, "host name")}`,
     windows: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › your connection › <b>DNS server assignment</b> › <b>Edit</b> › <b>Manual</b>.</li>
       <li>Turn on IPv4, set Preferred DNS to <code>${esc(nd.servers[0])}</code> and Alternate to <code>${esc(nd.servers[1])}</code>.</li>

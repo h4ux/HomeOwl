@@ -442,7 +442,9 @@ func vpnPayloadXML(p plistW, base string, v *vpnPayload, mac bool) {
 		p.b.WriteString("<key>IKEv2</key><dict>\n")
 		p.str("RemoteAddress", c.Server)
 		p.str("RemoteIdentifier", orDefault(c.RemoteID, c.Server))
-		p.str("LocalIdentifier", c.LocalID)
+		if c.LocalID != "" { // an empty identifier makes macOS refuse the VPN ("the VPN service could not be created")
+			p.str("LocalIdentifier", c.LocalID)
+		}
 		if c.Auth == "eap" {
 			p.str("AuthenticationMethod", "None")
 			p.integer("ExtendedAuthEnabled", "1")

@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.60] — 2026-11-14
+
+- Profiles with a VPN: an IKEv2 VPN without a local identifier no longer puts an empty one in the profile (macOS
+  refused it: "The VPN service could not be created"). With a WireGuard VPN, the check-in page now makes installing
+  the WireGuard app the first step, with its App Store link: without the app, the profile can't add the VPN.
+
 ## [0.1.59] — 2026-11-14
 
 - Archive old device addresses: a phone or laptop shows up once per Wi-Fi address it ever used. Network › Clients
