@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.55] — 2026-11-14
+
+- Setup Wi-Fi: UniFi's guest portal can point at HomeOwl ("External portal server"). Its visits
+  (`/guest/s/<site>/…`) open the check-in page, on port 80 and on HomeOwl's own port.
+
 ## [0.1.54] — 2026-11-14
 
 - The starting list of networks where NextDNS stands down is now just British Airways' in-flight Wi-Fi ("BAWi-Fi",

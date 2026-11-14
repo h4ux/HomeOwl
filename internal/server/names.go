@@ -84,9 +84,17 @@ func (a *App) ApplyNames() {
 	}()
 }
 
+// portalPath: UniFi's guest portal, pointed at HomeOwl ("External portal server"), sends devices on the setup
+// Wi-Fi to http://<HomeOwl>/guest/s/<site>/?… — that's the check-in page.
+func portalPath(p string) bool { return strings.HasPrefix(p, "/guest/s/") }
+
 // port80Handler serves the easy names; any other visit is sent to HomeOwl's real port.
 func (a *App) port80Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if portalPath(r.URL.Path) {
+			http.Redirect(w, r, "/hi", http.StatusFound)
+			return
+		}
 		if a.nameHost(r) != "" || shortPaths[r.URL.Path] {
 			a.handler.ServeHTTP(w, r)
 			return

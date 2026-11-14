@@ -163,3 +163,19 @@ func TestOnboard(t *testing.T) {
 		t.Fatal("setup Wi-Fi off: guest networks can't check in again")
 	}
 }
+
+func TestPortalRedirect(t *testing.T) {
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range []http.Handler{a.port80Handler(), a.guard(http.NotFoundHandler())} {
+		r := httptest.NewRequest("GET", "http://192.168.1.10/guest/s/default/?ap=00:11:22:00:00:01&id=aa:bb:cc:00:00:20&url=http://captive.apple.com/", nil)
+		r.RemoteAddr = "192.168.2.20:51234"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != 302 || w.Header().Get("Location") != "/hi" {
+			t.Fatalf("the UniFi portal should land on the check-in page: %d %v", w.Code, w.Header())
+		}
+	}
+}

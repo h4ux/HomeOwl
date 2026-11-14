@@ -485,6 +485,10 @@ func (a *App) guard(h http.Handler) http.Handler {
 			http.Error(w, "Unexpected host name. Open HomeOwl by this computer's IP address or name.", http.StatusMisdirectedRequest)
 			return
 		}
+		if portalPath(r.URL.Path) { // the setup Wi-Fi's portal (names.go)
+			http.Redirect(w, r, "/hi", http.StatusFound)
+			return
+		}
 		if kind := a.nameHost(r); kind != "" { // http://hi.local, http://wifi.local: only their own small page
 			a.serveName(kind, w, r, h)
 			return
