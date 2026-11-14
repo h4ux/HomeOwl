@@ -52,7 +52,7 @@ function registered(st) {
   const apple = `<a class="btn primary" href="/api/hi/profile${pf === "ios" ? "?p=ios" : pf === "mac" ? "?p=mac" : ""}" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
   const inc = r.includes || {}, wifi = inc.wifi || [], vpn = inc.vpn, extra = wifi.length || vpn;
   const holds = extra ? `<ul class="hi-holds">${nd ? `<li>Encrypted DNS through NextDNS, under this device's name</li>` : ""}
-      ${wifi.length ? `<li>Wi-Fi: ${wifi.map(esc).join(", ")} — joins by itself</li>` : ""}
+      ${wifi.length ? `<li>Wi-Fi: ${wifi.map(esc).join(", ")} — joins by itself${inc.fixed_mac ? ", with this device's real Wi-Fi address so it's recognised at home (Settings shows a privacy note for that network)" : ""}</li>` : ""}
       ${vpn ? `<li>VPN: ${esc(vpn.name)}${vpn.on_demand ? " — turns on by itself away from home" : ""}${vpn.app ? ` (needs the ${esc(vpn.app)} app${vpn.ready === false ? "; an admin still has to add this device's key" : ""})` : ""}</li>` : ""}</ul>` : "";
   const how = {
     ios: notSafariIOS()

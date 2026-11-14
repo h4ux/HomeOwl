@@ -157,7 +157,7 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 		fail(w, 405, "use GET")
 		return
 	}
-	_, mac, ok := a.hiDevice(w, r)
+	c, mac, ok := a.hiDevice(w, r)
 	if !ok {
 		return
 	}
@@ -175,6 +175,7 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 		_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+x.Name)
 	}
 	a.checkins.Touch(x.ID, x.NDProfile, a.setupHash(x))
+	a.fixedDownloaded(x, c, ex.WiFi)
 	ex.Mac = r.URL.Query().Get("p") == "mac"
 	if r.URL.Query().Get("p") == "ios" && ex.Icon != "none" { // iPhone and iPad: also a Home Screen icon
 		icon, _ := fs.ReadFile(web.Static, "static/icon-192.png")
@@ -345,6 +346,11 @@ func stableUUID(s string) string {
 // imported NextDNS logs show it working — and from where.
 func (a *App) setupStatus(x CheckIn) map[string]any {
 	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileAt > 0 && a.setupUpdate(x)}
+	if x.Fixed {
+		st["mac"] = "fixed"
+	} else if x.FixedFrom != "" {
+		st["mac"] = "waiting"
+	}
 	if t, ok := a.typeFor(x); ok {
 		st["type"] = t.Name
 		if t.VPN != nil && t.VPN.Type == "wireguard" {

@@ -197,6 +197,9 @@ func (a *App) watchNewDevices(online []map[string]any) {
 		if g, _ := c["is_guest"].(bool); g && mode != "all" {
 			continue
 		}
+		if _, known := a.checkins.Registered(mac); known { // e.g. a checked-in phone back with its real Wi-Fi address
+			continue
+		}
 		report = append(report, c)
 	}
 	if len(report) == 0 {

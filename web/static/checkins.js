@@ -66,6 +66,8 @@ function setupState(x, st) {
     no_nextdns: st.downloaded ? `<span class="tag" title="Wi-Fi and VPN only. Without NextDNS HomeOwl can't see whether it's in use.">downloaded</span>` : `<span class="tag">not set up</span>`,
   }[st.state] || "";
   const upd = (st.update ? ` <span class="tag warn" title="Its settings changed after it was installed (NextDNS profile, Wi-Fi, VPN). Open the check-in page on the device to install the new ones.">update ready</span>` : "")
+    + (st.mac === "fixed" ? ` <span class="tag good" title="It uses its real Wi-Fi address on the home network (from its profile), so it stays recognised even when it would change a private address">real address</span>`
+      : st.mac === "waiting" ? ` <span class="tag" title="Its profile gives it its real Wi-Fi address. HomeOwl follows the switch once the device reconnects with it (same name, old address gone).">waiting for real address</span>` : "")
     + (st.wg === false ? ` <span class="tag warn" title="Its profile type has a WireGuard VPN, and each device needs its own config: paste it with Change…">needs WireGuard config</span>` : "");
   const note = st.state === "not_seen" ? `downloaded ${ago(st.downloaded * 1000)}, no queries under its name yet` : st.state === "offered" ? "open the check-in page on the device" : seen;
   return `${tag}${upd}${note ? `<div class="fine muted">${esc(note)}</div>` : ""}`;
@@ -140,6 +142,7 @@ function editDevType(id) {
     <div class="dt-checks">${S.devTypePeople.length ? S.devTypePeople.map(p => `<label class="check"><input type="checkbox" data-dtp="${esc(p.id)}" ${arr(t.people).includes(p.id) ? "checked" : ""}> <span>${esc(p.name)}</span></label>`).join("") : `<span class="fine muted">Add people in Family › People & groups.</span>`}</div>
     <h3>Wi-Fi networks</h3><p class="fine muted">The device joins them by itself. The password goes into the device's profile.</p>
     <div class="dt-checks">${r.wlans.length ? r.wlans.map(w => `<label class="check"><input type="checkbox" data-dtw="${esc(w.id)}" ${arr(t.wifi).includes(w.id) ? "checked" : ""} ${w.usable ? "" : "disabled"}> <span>${esc(w.ssid)}${w.guest ? ` <span class="fine muted">guest</span>` : ""}${w.usable ? "" : ` <span class="fine muted">enterprise — not possible</span>`}</span></label>`).join("") : `<span class="fine muted">No Wi-Fi networks from UniFi.</span>`}</div>
+    <label class="check"><input type="checkbox" id="dt-fixed" ${t.private_mac ? "" : "checked"}> <span>Use the device's real Wi-Fi address on these networks <span class="fine muted">Recommended: phones stop changing their address there, so HomeOwl keeps knowing whose device it is. iPhone and iPad (iOS 14+) show a privacy note for that network. Android and Windows: turn off the private/random address for the network by hand.</span></span></label>
     <h3>Home Screen icon</h3><p class="fine muted">iPhone and iPad get a HomeOwl icon with the profile. Macs don't take one.</p>
     <div class="dt-checks dt-radios">${DT_ICONS.map(([k, l, d]) => `<label class="check"><input type="radio" name="dt-icon" value="${k}" ${(t.icon || "checkin") === k ? "checked" : ""}> <span>${esc(l)}${d ? ` <span class="fine muted">${esc(d)}</span>` : ""}</span></label>`).join("")}</div>
     <h3>VPN</h3>
@@ -161,7 +164,7 @@ function editDevType(id) {
     buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
       const kind = $("#dt-vpn").value;
       const body = { id, name: $("#dt-name").value.trim(), people: $$("[data-dtp]").filter(c => c.checked).map(c => c.dataset.dtp), wifi: $$("[data-dtw]").filter(c => c.checked).map(c => c.dataset.dtw),
-        icon: $("input[name=dt-icon]:checked")?.value || "checkin",
+        icon: $("input[name=dt-icon]:checked")?.value || "checkin", private_mac: !$("#dt-fixed").checked,
         vpn: kind ? { type: kind, name: $("#dt-vname").value.trim(), server: $("#dt-server").value.trim(), remote_id: $("#dt-rid").value.trim(), local_id: $("#dt-lid").value.trim(), auth: $("#dt-auth").value, user: $("#dt-user").value.trim(), on_demand: $("#dt-od").checked } : null,
         secret: $("#dt-secret").value, password: $("#dt-pass").value };
       try { S.devTypes = await api("/api/devtypes/save", body); closeModal(); toast("Saved — devices with this type show Update ready", "ok"); renderDevTypes(); S.ciTypes = null; }

@@ -48,6 +48,12 @@ type CheckIn struct {
 	SetupLost    int64  `json:"setup_lost,omitempty"`
 	TypeID       string `json:"type_id,omitempty"`      // profile type picked for this device ("" = its person's, "-" = none)
 	ProfileHash  string `json:"profile_hash,omitempty"` // fingerprint of what the last download held (profiletypes.go)
+	// fixedmac.go: the device downloaded a profile that gives it its real Wi-Fi address. Until it's seen with it,
+	// FixedFrom is the private address it had then and FixedHost its host name; Fixed: it now uses the real one.
+	FixedFrom string `json:"fixed_from,omitempty"`
+	FixedHost string `json:"fixed_host,omitempty"`
+	FixedAt   int64  `json:"fixed_at,omitempty"`
+	Fixed     bool   `json:"fixed,omitempty"`
 }
 
 var checkinKinds = map[string]bool{"phone": true, "tablet": true, "laptop": true, "computer": true, "tv": true, "console": true,
@@ -272,6 +278,9 @@ func (a *App) hiDevice(w http.ResponseWriter, r *http.Request) (map[string]any, 
 	if g, _ := c["is_guest"].(bool); g {
 		fail(w, 403, "Devices on the guest network can't check in.")
 		return nil, "", false
+	}
+	if a.fixedPending() { // back with its real Wi-Fi address after installing the profile
+		a.followFixed([]map[string]any{c})
 	}
 	return c, strings.ToLower(str(c, "mac")), true
 }

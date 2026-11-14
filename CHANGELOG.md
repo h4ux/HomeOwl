@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.48] — 2026-11-14
+
+- Real Wi-Fi addresses: a profile type's Wi-Fi networks now go into the device's profile with "use the real Wi-Fi
+  address here" (on by default, can be turned off per type). iPhones and iPads stop changing their private address
+  on the home Wi-Fi, so the owner from the check-in sticks. After installing, the device comes back once with its
+  real address. HomeOwl follows that switch: same host name, a real address, the old one gone, only one match. It
+  carries the check-in, the person and the device type over, without a "new device" alert. The device list shows
+  "real address" or "waiting for real address".
+
 ## [0.1.47] — 2026-11-14
 
 - Sign in with Tailscale from any of HomeOwl's addresses: when you open HomeOwl by its home-network address or

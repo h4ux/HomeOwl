@@ -45,6 +45,9 @@ type ProfileType struct {
 	VPN    *VPNConf `json:"vpn,omitempty"`
 	People []string `json:"people,omitempty"`
 	Icon   string   `json:"icon,omitempty"` // Home Screen icon on iPhone and iPad: "" the check-in page, "app" HomeOwl, "none"
+	// PrivateMAC keeps the device's private (changing) Wi-Fi address on these networks. Off (the default), the
+	// profile tells Apple devices to use their real address there, so the device stays recognisable (fixedmac.go).
+	PrivateMAC bool `json:"private_mac,omitempty"`
 }
 
 type profileTypes struct {
@@ -122,6 +125,7 @@ func (a *App) typeFor(x CheckIn) (ProfileType, bool) {
 type wifiNet struct {
 	ID, SSID, Enc, Password string
 	Hidden                  bool
+	Fixed                   bool // use the device's real Wi-Fi address on this network
 }
 
 type vpnPayload struct {
@@ -166,7 +170,7 @@ var wlanCache struct {
 
 // wifiFor turns UniFi networks into profile entries. Enterprise (802.1X) networks have no shared password and are
 // left out.
-func wifiFor(all []map[string]any, ids []string) []wifiNet {
+func wifiFor(all []map[string]any, ids []string, fixed bool) []wifiNet {
 	want := map[string]bool{}
 	for _, id := range ids {
 		want[id] = true
@@ -177,7 +181,7 @@ func wifiFor(all []map[string]any, ids []string) []wifiNet {
 		if !want[id] {
 			continue
 		}
-		n := wifiNet{ID: id, SSID: str(w, "name")}
+		n := wifiNet{ID: id, SSID: str(w, "name"), Fixed: fixed}
 		n.Hidden, _ = w["hide_ssid"].(bool)
 		switch str(w, "security") {
 		case "open":
@@ -209,7 +213,7 @@ func (a *App) extrasFor(x CheckIn) (profileExtras, bool) {
 			ok = false
 		}
 	}
-	ex.WiFi = wifiFor(all, t.WiFi)
+	ex.WiFi = wifiFor(all, t.WiFi, !t.PrivateMAC)
 	if t.VPN != nil {
 		v := &vpnPayload{Conf: *t.VPN, Secret: a.Sec.Get(vpnSecretSlot(t.ID)), Password: a.Sec.Get(vpnPasswordSlot(t.ID))}
 		if v.Conf.Type == "wireguard" {
@@ -265,10 +269,11 @@ func (a *App) includes(x CheckIn) map[string]any {
 	out["icon"] = orDefault(t.Icon, "checkin")
 	if all, err := a.wlans(); err == nil {
 		var names []string
-		for _, w := range wifiFor(all, t.WiFi) {
+		for _, w := range wifiFor(all, t.WiFi, false) {
 			names = append(names, w.SSID)
 		}
 		out["wifi"] = names
+		out["fixed_mac"] = len(names) > 0 && !t.PrivateMAC
 	}
 	if t.VPN != nil {
 		v := map[string]any{"name": orDefault(t.VPN.Name, "Home VPN"), "type": t.VPN.Type, "on_demand": t.VPN.OnDemand}
@@ -318,6 +323,9 @@ func wifiPayload(p plistW, base string, w wifiNet) {
 	}
 	p.head(base, "wifi."+w.ID, "com.apple.wifi.managed", "Wi-Fi · "+w.SSID, "Joins "+w.SSID+" by itself.")
 	p.str("SSID_STR", w.SSID)
+	if w.Fixed { // iOS 14+: the real address on this network, so HomeOwl keeps recognising the device
+		p.boolean("DisableAssociationMACRandomization", true)
+	}
 	p.b.WriteString("</dict>\n")
 }
 
@@ -405,7 +413,7 @@ func vpnPayloadXML(p plistW, base string, v *vpnPayload, mac bool) {
 func (a *App) devTypesView() (map[string]any, error) {
 	types := []map[string]any{}
 	for _, t := range a.devTypes.List() {
-		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"),
+		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"), "private_mac": t.PrivateMAC,
 			"secret_set": a.Sec.Get(vpnSecretSlot(t.ID)) != "", "password_set": a.Sec.Get(vpnPasswordSlot(t.ID)) != ""})
 	}
 	wl := []map[string]any{}
@@ -426,7 +434,7 @@ var vpnHostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9]
 
 // saveDevType adds or changes a type. Secrets: "" keeps the saved one, "-" removes it.
 func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
-	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon")}
+	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon"), PrivateMAC: b(body, "private_mac")}
 	switch t.Icon {
 	case "", "checkin":
 		t.Icon = ""

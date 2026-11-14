@@ -72,7 +72,7 @@ func (a *App) presenceLoop(ctx context.Context) {
 // presenceTick reads the clients online once a minute: for Who's home and for the new-device alert.
 func (a *App) presenceTick() {
 	people := a.presencePeople()
-	if (len(people) == 0 && a.Cfg.Get().Alerts.NewDevice == "off") || !a.UniFi.Connected() {
+	if (len(people) == 0 && a.Cfg.Get().Alerts.NewDevice == "off" && !a.fixedPending()) || !a.UniFi.Connected() {
 		return
 	}
 	st, d := a.UniFi.Get(a.UniFi.SitePath("stat/sta", false))
@@ -81,6 +81,9 @@ func (a *App) presenceTick() {
 	}
 	list := unifi.List(d)
 	a.online.mark(list, time.Now())
+	if a.fixedPending() {
+		a.followFixed(list) // before the new-device alert: a phone that switched to its real address isn't new
+	}
 	a.watchNewDevices(list)
 	if len(people) == 0 {
 		return
