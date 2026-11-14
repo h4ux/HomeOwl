@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,7 +15,11 @@ import (
 //   - new address: a phone or tablet with a private Wi-Fi address came back under a new MAC — same host name as
 //     someone's linked device, and the two were never online together;
 //   - name: the client's name or host name holds one person's first name ("Alexs-iPhone", "alex-mbp");
-//   - shared: a TV, speaker, printer or smart-home thing, offered to the matching group.
+//   - shared: a TV, speaker, printer or smart-home thing, offered to the matching group;
+//   - together: over the last weeks it joined and left the home Wi-Fi with one person's phone (together.go).
+//
+// Each guess carries a confidence in percent: measured for "together" (the share of its arrivals and departures
+// that matched), an estimate of how often that kind of clue is right for the others.
 
 type OwnerClient struct {
 	MAC, Name, Hostname, Vendor string
@@ -30,8 +35,9 @@ type OwnerHint struct {
 	PersonID string `json:"person_id"`
 	Person   string `json:"person"`
 	Group    bool   `json:"group,omitempty"`
-	Signal   string `json:"signal"`   // same-device | new-address | name | shared
-	Strength string `json:"strength"` // strong | likely
+	Signal   string `json:"signal"`   // same-device | new-address | name | shared | together
+	Strength string `json:"strength"` // strong (confidence ≥ 85) | likely
+	Percent  int    `json:"percent"`  // confidence
 	Reason   string `json:"reason"`
 }
 
@@ -54,7 +60,8 @@ func (e *Engine) OwnerSuggestions(kinds map[string]string, skip func(mac, person
 		}
 	}
 	rs.Close()
-	return ownerHints(e.People(), cls, kinds, skip), nil
+	people := e.People()
+	return ownerHints(people, cls, kinds, skip, e.together(people, cls)), nil
 }
 
 var (
@@ -118,7 +125,10 @@ var sharedKinds = []struct {
 		regexp.MustCompile(`\b(hue|tuya|shelly|tasmota|esp[0-9a-z]*|espressif|tplink|kasa|tapo|meross|wiz|lifx|nest|ecobee|roomba|roborock|ring|wyze|eufy|smartthings|homey|ikea|tradfri|sonoff|myq)\b`)},
 }
 
-func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, skip func(mac, pid string) bool) []OwnerHint {
+// how often each kind of clue is right (an estimate; "together" is measured)
+var cluePercent = map[string]int{"same-device": 95, "new-address": 90, "new-address-generic": 70, "name": 85, "name-likely": 65, "shared": 60}
+
+func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, skip func(mac, pid string) bool, together map[string]Together) []OwnerHint {
 	linked := map[string]string{} // MAC → person
 	pname := map[string]Person{}
 	devNames := map[string]string{} // squashed NextDNS device name → person ("" when two people have one)
@@ -163,15 +173,19 @@ func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, ski
 			label = c.MAC
 		}
 		var cands []OwnerHint
-		hint := func(pid, signal, strength, reason string) {
+		hint := func(pid, signal string, pct int, reason string) {
 			if p, ok := pname[pid]; ok && (skip == nil || !skip(mac, pid)) {
-				cands = append(cands, OwnerHint{PersonID: pid, Person: p.Name, Group: p.Kind == "group", Signal: signal, Strength: strength, Reason: reason})
+				st := "likely"
+				if pct >= 85 {
+					st = "strong"
+				}
+				cands = append(cands, OwnerHint{PersonID: pid, Person: p.Name, Group: p.Kind == "group", Signal: signal, Strength: st, Percent: pct, Reason: reason})
 			}
 		}
 		// the same device as a NextDNS device someone owns
 		for _, n := range []string{c.Name, c.Hostname} {
 			if pid := devNames[squash(n)]; n != "" && pid != "" {
-				hint(pid, "same-device", "strong", "Same name as "+pname[pid].Name+"'s NextDNS device “"+n+"”")
+				hint(pid, "same-device", cluePercent["same-device"], "Same name as "+pname[pid].Name+"'s NextDNS device “"+n+"”")
 				break
 			}
 		}
@@ -185,11 +199,11 @@ func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, ski
 			}
 			if len(owners) == 1 {
 				for pid, m := range owners {
-					st := "strong"
+					pct := cluePercent["new-address"]
 					if genericHST.MatchString(squash(c.Hostname)) {
-						st = "likely"
+						pct = cluePercent["new-address-generic"]
 					}
-					hint(pid, "new-address", st, "Looks like "+pname[pid].Name+"'s “"+orStr(m.Name, m.Hostname)+"” with a new private Wi-Fi address (same host name “"+c.Hostname+"”, never online at the same time)")
+					hint(pid, "new-address", pct, "Looks like "+pname[pid].Name+"'s “"+orStr(m.Name, m.Hostname)+"” with a new private Wi-Fi address (same host name “"+c.Hostname+"”, never online at the same time)")
 				}
 			}
 		}
@@ -210,11 +224,11 @@ func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, ski
 			}
 		}
 		if len(who) == 1 {
-			st := "likely"
+			pct := cluePercent["name-likely"]
 			if strong {
-				st = "strong"
+				pct = cluePercent["name"]
 			}
-			hint(who[0], "name", st, "“"+label+"” has "+pname[who[0]].Name+"'s name in it")
+			hint(who[0], "name", pct, "“"+label+"” has "+pname[who[0]].Name+"'s name in it")
 		}
 		// shared things → a matching group
 		k, text := kinds[mac], strings.ToLower(c.Name+" "+c.Hostname+" "+c.Vendor)
@@ -224,19 +238,34 @@ func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, ski
 			}
 			for _, p := range people {
 				if p.Kind == "group" && s.group.MatchString(strings.ToLower(p.Name)) {
-					hint(p.ID, "shared", "likely", "“"+label+"” looks like a shared "+s.kinds[0]+" thing, not one person's")
+					hint(p.ID, "shared", cluePercent["shared"], "“"+label+"” looks like a shared "+s.kinds[0]+" thing, not one person's")
 					break
 				}
 			}
 			break
 		}
+		// came and went with one person's phone
+		if t, ok := together[mac]; ok {
+			hint(t.PersonID, "together", t.Percent, fmt.Sprintf("Arrived and left with %s's %s %d of %d times in the last %d days",
+				pname[t.PersonID].Name, orStr(t.Anchor, "phone"), t.Matched, t.Events, t.Days))
+		}
 		if len(cands) == 0 {
 			continue
 		}
 		best := cands[0]
-		for _, x := range cands[1:] { // a strong clue beats a likely one; same strength: the order above
-			if x.Strength == "strong" && best.Strength != "strong" {
+		for _, x := range cands[1:] { // the surest clue wins; a tie keeps the order above
+			if x.Percent > best.Percent {
 				best = x
+			}
+		}
+		for _, x := range cands { // two clues for the same person: a little surer
+			if x.PersonID == best.PersonID && x.Signal != best.Signal && best.Percent < 98 {
+				best.Percent = min(98, best.Percent+5)
+				best.Reason += "; also: " + x.Reason
+				if best.Percent >= 85 {
+					best.Strength = "strong"
+				}
+				break
 			}
 		}
 		best.MAC, best.Device, best.Hostname, best.Vendor, best.Last = mac, label, c.Hostname, c.Vendor, c.Last.Unix()
@@ -246,8 +275,8 @@ func ownerHints(people []Person, cls []OwnerClient, kinds map[string]string, ski
 		out = append(out, best)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if (out[i].Strength == "strong") != (out[j].Strength == "strong") {
-			return out[i].Strength == "strong"
+		if out[i].Percent != out[j].Percent {
+			return out[i].Percent > out[j].Percent
 		}
 		return out[i].Last > out[j].Last
 	})

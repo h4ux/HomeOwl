@@ -490,13 +490,13 @@ function renderOwners() {
   const el = $("#pp-owners"); if (!el) return;
   const list = arr(S.owners?.suggestions), all = arr(S.ex.meta?.people);
   el.hidden = !list.length; if (!list.length) return;
-  const sure = list.filter(h => h.strength === "strong");
-  el.innerHTML = `<div class="pp-sec"><h2>Whose device is this?</h2>${hint("HomeOwl's guesses for UniFi devices nobody owns yet: the same name as someone's NextDNS device, someone's phone back with a new private Wi-Fi address, a name in the device's name, or a TV or printer for a group. Nothing is linked until you say so.")}
-      ${sure.length > 1 ? `<button class="btn sm" id="ow-all">Link the ${sure.length} sure ones</button>` : ""}</div>
+  const sure = list.filter(h => h.percent >= 85);
+  el.innerHTML = `<div class="pp-sec"><h2>Whose device is this?</h2>${hint("HomeOwl's guesses for UniFi devices nobody owns yet: the same name as someone's NextDNS device, someone's phone back with a new private Wi-Fi address, a name in the device's name, a TV or printer for a group, or a device that arrives and leaves with someone's phone (after about two weeks of history). The % is measured for that last clue and an estimate for the others. Nothing is linked until you say so.")}
+      ${sure.length > 1 ? `<button class="btn sm" id="ow-all">Link the ${sure.length} that are 85%+ sure</button>` : ""}</div>
     <div class="ow-list">${list.slice(0, 15).map(h => `<div class="ow-row">
       ${cliIcon({ name: h.device, hostname: h.hostname, oui: h.vendor }, 18)}
       <div class="ow-main"><div><a href="#" data-exgo="device|${esc(h.device)}">${esc(h.device)}</a>${h.hostname ? ` <span class="fine muted mono">${esc(h.hostname)}</span>` : ""} <span class="muted">→</span> <b>${esc(h.person)}</b>
-        <span class="tag ${h.strength === "strong" ? "good" : ""}">${h.strength === "strong" ? "sure" : "likely"}</span></div>
+        <span class="tag ${h.percent >= 85 ? "good" : h.percent >= 70 ? "" : "warn"}" title="${h.signal === "together" ? "Measured: the share of its arrivals and departures that matched" : "How often this kind of clue is right"}">${h.percent}% sure</span></div>
         <div class="fine muted">${esc(h.reason)}${h.vendor ? ` · ${esc(h.vendor)}` : ""}${h.last ? ` · seen ${esc(ago(h.last * 1000))}` : ""}</div></div>
       <div class="btnrow"><button class="btn sm primary" data-owlink="${esc(h.mac)}" data-owp="${esc(h.person_id)}">Link</button>
         <select data-owother="${esc(h.mac)}" aria-label="Someone else's"><option value="">Someone else…</option>${all.filter(p => p.id !== h.person_id).map(p => `<option value="${esc(p.id)}">${isGroup(p) ? "▣ " : ""}${esc(p.name)}</option>`).join("")}</select>
@@ -512,7 +512,7 @@ document.addEventListener("click", async e => {
   if (l) { const h = arr(S.owners?.suggestions).find(x => x.mac === l.dataset.owlink); return ownerDo("link", { mac: l.dataset.owlink, person_id: l.dataset.owp }, h ? `${h.device} → ${h.person}` : "Linked"); }
   const n = e.target.closest("[data-owno]"); if (n) return ownerDo("dismiss", { mac: n.dataset.owno, person_id: n.dataset.owp });
   if (e.target.id === "ow-all") {
-    const sure = arr(S.owners?.suggestions).filter(h => h.strength === "strong");
+    const sure = arr(S.owners?.suggestions).filter(h => h.percent >= 85);
     for (const h of sure) { try { await api("/api/owners/link", { mac: h.mac, person_id: h.person_id }); } catch (err) { toast(`${h.device}: ${err.message}`, "err"); } }
     toast(`Linked ${sure.length} devices`, "ok"); S.ex.meta = null; loadAnalytics();
   }

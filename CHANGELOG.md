@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.44] — 2026-11-14
+
+### Added
+- **"Comes and goes together"** owner clue. A device that joined and left the home Wi-Fi with one person's linked devices (within 10 minutes, at least 8 times in the last 30 days, 75% or more of its arrivals and departures, and clearly more than with anyone else) is suggested as theirs, for example "Arrived and left with Sam's iPhone 23 of 25 times". Devices that never leave home, and people who always go out together, give no guess.
+- Every owner suggestion shows **how sure it is in %**: measured for "comes and goes together", an estimate of how often that kind of clue is right for the others. Two clues pointing at the same person add a little. "Link the … that are 85%+ sure" links the surest at once.
+
 ## [0.1.43] — 2026-11-14
 
 ### Added
