@@ -457,6 +457,9 @@ func (a *App) routes() http.Handler {
 		if p == "wifi" {
 			p = "wifi.html"
 		}
+		if p == "welcome" {
+			p = "welcome.html"
+		}
 		b, err := fs.ReadFile(static, p)
 		if err != nil {
 			fail(w, 404, "not found")
@@ -477,7 +480,7 @@ func (a *App) routes() http.Handler {
 
 // The device check-in page also works over plain HTTP, so a phone can open it without a certificate warning.
 // It only shows the device itself and the family's first names, and only queues a request for an admin.
-var plainHTTPOK = map[string]bool{"/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true,
+var plainHTTPOK = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true,
 	"/wifi": true, "/wifi.js": true, "/qr.js": true, "/api/wifi": true} // the guest card (Settings › Access › Easy names)
 
 // guard applies the Host check and sends plain-HTTP visitors from other devices to HTTPS.
@@ -487,8 +490,8 @@ func (a *App) guard(h http.Handler) http.Handler {
 			http.Error(w, "Unexpected host name. Open HomeOwl by this computer's IP address or name.", http.StatusMisdirectedRequest)
 			return
 		}
-		if portalPath(r.URL.Path) { // the setup Wi-Fi's portal (names.go)
-			http.Redirect(w, r, "/hi", http.StatusFound)
+		if portalPath(r.URL.Path) { // the guest portal (portal.go)
+			a.portalVisit(w, r)
 			return
 		}
 		if kind := a.nameHost(r); kind != "" { // http://hi.local, http://wifi.local: only their own small page

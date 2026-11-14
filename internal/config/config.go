@@ -60,6 +60,15 @@ type Onboard struct {
 	// SkipWiFi: Wi-Fi networks where the profile's NextDNS stands down (planes, hotels: their sign-in pages need
 	// ordinary DNS). nil = the starting list of in-flight networks (internal/server/dnsskip.go); [] = none.
 	SkipWiFi []string `json:"skip_wifi"`
+	// Portal: UniFi's guest portal points at HomeOwl (internal/server/portal.go). Devices on the setup Wi-Fi get the
+	// check-in page; devices on the guest Wi-Fi get HomeOwl's sign-in page, which works as the portal did before.
+	Portal *Portal `json:"portal,omitempty"`
+}
+
+type Portal struct {
+	Mode    string `json:"mode"`              // how guest Wi-Fi visitors sign in: "none" (a Connect button) or "password"
+	IP      string `json:"ip"`                // HomeOwl's address that UniFi sends portal visits to
+	Minutes int    `json:"minutes,omitempty"` // how long a guest stays online
 }
 
 type Names struct {

@@ -20,7 +20,7 @@ import (
 // and a visit by that name gets only its own small page — the check-in page or the guest Wi-Fi card — over plain HTTP.
 
 // short links by IP on port 80 (http://192.168.1.10/wifi): only these pages, everything else goes to the real port
-var shortPaths = map[string]bool{"/hi": true, "/hi.js": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
+var shortPaths = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
 	"/api/wifi": true, "/style.css": true, "/icon.png": true}
 
 // pages each name may serve; anything else on that name goes back to its page
@@ -92,7 +92,7 @@ func portalPath(p string) bool { return strings.HasPrefix(p, "/guest/s/") }
 func (a *App) port80Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if portalPath(r.URL.Path) {
-			http.Redirect(w, r, "/hi", http.StatusFound)
+			a.portalVisit(w, r)
 			return
 		}
 		if a.nameHost(r) != "" || shortPaths[r.URL.Path] {

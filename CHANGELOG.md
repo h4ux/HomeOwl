@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.66] — 2026-11-14
+
+- Setup Wi-Fi with UniFi's guest portal: "Open the check-in page by itself (guest portal)" makes HomeOwl the site's
+  guest portal (External portal server, on port 80) and turns the portal on for the setup Wi-Fi, which keeps its
+  password. Devices on the setup Wi-Fi open the check-in page by themselves and are never let online, so they reach
+  HomeOwl and nothing else. Guest Wi-Fi visitors get HomeOwl's sign-in page, which works as the portal did (a Connect
+  button, or the portal's own password, checked against UniFi's) and lets them online for as long as before. HomeOwl
+  reads the current portal first and won't take over vouchers, payment, RADIUS or another external portal. Both
+  console changes are previewed, logged and undoable.
+- iCloud Private Relay moved to its own tab: Family › Apps › Private Relay.
+
 ## [0.1.65] — 2026-11-14
 
 - Docs: [How HomeOwl works](docs/how-it-works.md), with diagrams of the pieces, getting a new device onto the home

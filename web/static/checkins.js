@@ -155,7 +155,9 @@ function setupWiFiBlock(r) {
   const noMove = r.onboard_ssid && !moves ? `<p class="fine warn-t">Devices from the setup Wi-Fi only move to the home Wi-Fi if their profile has it. Make a profile type with the home Wi-Fi ticked (and “Don't join our other Wi-Fi networks”) and tick <b>Everyone else too</b>.</p>` : "";
   if (!exists) return noMove + (canMake ? `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-setup-make">Create a setup Wi-Fi on the console…</button></div>` : "");
   let net = "";
-  if (n) {
+  if (r.portal) net = `<ul class="dt-netstate fine"><li>✓ Guest portal: devices on it open the check-in page by themselves and reach nothing but HomeOwl (${esc(r.portal.ip)}). Guest Wi-Fi visitors sign in on HomeOwl's page (${r.portal.mode === "password" ? "with the portal's password" : "a Connect button"}). Undo it from Changes.</li></ul>`;
+  else if (canMake) net = `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-portal">Open the check-in page by itself (guest portal)…</button></div>`;
+  if (n && !r.portal) {
     const on = n.homeowl_ip, iso = n.isolated;
     net = `<ul class="dt-netstate fine">
       <li>${n.internet ? (on ? `⚠ Internet on: anyone with its password (children who set up with it, too) can switch to it and get internet off the home Wi-Fi. HomeOwl has its own address on it now, so it works without internet.${canMake ? ` <button class="btn sm" data-setupnet="nointernet">Turn internet off…</button>` : ""}` : "✓ Internet on: phones stay on this Wi-Fi. Anyone with its password gets internet on it, so turn it off once HomeOwl has its own address on it (below).") : `✗ No internet: phones soon send the check-in page over mobile data and lose it, unless Mobile Data is off.${canMake ? ` <button class="btn sm" data-setupnet="internet">Turn internet on…</button>` : ""}`}</li>
@@ -166,7 +168,19 @@ function setupWiFiBlock(r) {
       <div><p class="fine">People open the check-in page on “${esc(r.onboard_ssid)}” here (print the code or show it on a screen).${n && !n.internet && !n.homeowl_ip ? " Phones need Mobile Data off while they're on it; the page tells them." : ""}</p>
       ${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}</div></div>` : "");
 }
+async function portalPreview() {
+  let pv; try { pv = await api("/api/setupwifi/portal-preview", {}); } catch (err) { return toast(err.message, "err"); }
+  openModal({ title: "Guest portal for the setup Wi-Fi", wide: true, body: `<p class="muted">UniFi has one guest portal for the whole site. HomeOwl becomes it, at ${esc(pv.ip)}. Review exactly what will be sent to the console. ${S.write ? "" : `<b>Change mode is locked</b> — applying will unlock it for this session.`}</p>` +
+    arr(pv.steps).map(p => `<div class="pv"><div class="pv-h"><b>${esc(p.description)}</b> <span class="muted">${esc(p.target || "")}</span></div>
+      <table class="pv-t"><tr><th>Setting</th><th>Now</th><th>New</th></tr>${Object.keys(p.after || {}).map(k => `<tr><td class="mono">${esc(k)}</td><td>${esc(fmtVal(p.before?.[k]))}</td><td><b>${esc(fmtVal(p.after[k]))}</b></td></tr>`).join("")}</table>
+      <div class="fine mono">${esc(p.method)} ${esc(p.path)}</div><div class="fine">↩ Can be undone from the Changes page.</div></div>`).join("") +
+    arr(pv.notes).map(t => `<p class="fine">${esc(t)}</p>`).join(""),
+    buttons: [{ label: "Cancel" }, { label: S.write ? "Apply" : "Unlock & apply", cls: "primary", onClick: async () => {
+      try { if (!S.write) await setWrite(true); S.devTypes = await api("/api/setupwifi/portal-apply", {}); closeModal(); toast("The guest portal is HomeOwl now", "ok"); renderDevTypes(); }
+      catch (err) { toast(err.message, "err"); } } }] });
+}
 document.addEventListener("click", e => {
+  if (e.target.id === "dt-portal") { portalPreview(); return; }
   const b = e.target.closest("[data-setupnet]");
   if (b) {
     const n = S.devTypes?.setup_net; if (!n) return;

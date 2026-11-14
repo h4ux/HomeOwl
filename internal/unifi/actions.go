@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ import (
 var restFields = map[string][]string{
 	"wlanconf": {"enabled", "pmf_mode", "wpa3_support", "wpa3_transition", "hide_ssid", "l2_isolation", "fast_roaming_enabled",
 		"bss_transition", "uapsd_enabled", "mac_filter_enabled", "minrate_setting_preference", "minrate_ng_enabled",
-		"minrate_ng_data_rate_kbps", "minrate_na_enabled", "minrate_na_data_rate_kbps"},
+		"minrate_ng_data_rate_kbps", "minrate_na_enabled", "minrate_na_data_rate_kbps", "is_guest"},
 	"portforward": {"enabled", "log"},
 	"networkconf": {"network_isolation_enabled", "internet_access_enabled", "mdns_enabled", "igmp_snooping", "dhcpd_dns_enabled"},
 	"user":        {"name", "note", "noted", "use_fixedip", "fixed_ip", "network_id", "virtual_network_override_enabled", "virtual_network_override_id"},
@@ -29,6 +30,8 @@ var restFields = map[string][]string{
 var settingFields = map[string][]string{
 	"usg": {"upnp_enabled", "geo_ip_filtering_enabled"}, "ips": {"ips_mode"},
 	"mgmt": {"x_ssh_enabled", "x_ssh_auth_password_enabled", "auto_upgrade", "led_enabled"}, "dpi": {"enabled"}, "doh": {"state"},
+	// the guest portal, pointed at HomeOwl for the setup Wi-Fi (portal.go in the server)
+	"guest_access": {"portal_enabled", "auth", "custom_ip", "redirect_enabled"},
 }
 var radioFields = []string{"channel", "ht", "tx_power_mode", "tx_power", "min_rssi_enabled", "min_rssi"}
 var devCmds = []string{"restart", "set-locate", "unset-locate", "upgrade", "force-provision", "adopt", "power-cycle", "speedtest"}
@@ -227,6 +230,16 @@ func (c *Client) plan(a Action) (*plan, error) {
 			p.Undo = &req{"POST", p.Path, ub}
 		}
 		return p, nil
+	case "guestauth": // HomeOwl's guest portal lets a device on the guest Wi-Fi online (UniFi's "authorize-guest")
+		mac := strings.ToLower(a.s("mac"))
+		minutes, err := strconv.Atoi(orStr(a.s("minutes"), "480"))
+		if !macRE.MatchString(mac) || err != nil || minutes < 1 || minutes > 525600 {
+			return nil, aerr("bad guest")
+		}
+		path := c.SitePath("cmd/stamgr", false)
+		return &plan{req: req{"POST", path, map[string]any{"cmd": "authorize-guest", "mac": mac, "minutes": minutes}}, Before: map[string]any{},
+			After: map[string]any{"online for": fmt.Sprintf("%d minutes", minutes)}, Undo: &req{"POST", path, map[string]any{"cmd": "unauthorize-guest", "mac": mac}},
+			Target: orStr(a.s("label"), mac)}, nil
 	case "stacmd":
 		cmd, mac := a.s("cmd"), strings.ToLower(a.s("mac"))
 		if !contains(staCmds, cmd) || !macRE.MatchString(mac) {

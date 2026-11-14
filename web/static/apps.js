@@ -9,7 +9,6 @@ const APP_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 V.apps = () => `<div class="head"><div><h1>Apps ${hint("Apps are recognised from the domains a device looks up in NextDNS, so an app shows up when it's used (or updates itself), not when it's only installed. Blocking adds the app's own domains to the NextDNS profile's denylist.")}</h1></div>
     <div class="btnrow">${isAdmin() && S.source === "live" ? `<button class="btn primary" id="ap-new">Block an app…</button>` : ""}</div></div>
   <div id="ap-blocks"></div>
-  <div id="ap-relay"></div>
   <div class="card"><div class="ap-bar"><h2 style="margin:0">Seen on the network</h2><span style="flex:1"></span>
     <select id="ap-person" aria-label="Whose apps"><option value="">Everyone</option>${(S.apps.people || []).map(p => `<option value="${esc(p.id)}" ${S.apps.person === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
     <div class="seg">${[["24h", "24 h"], ["7d", "7 days"], ["30d", "30 days"]].map(([k, l]) => `<button data-aprange="${k}" class="${S.apps.range === k ? "on" : ""}">${l}</button>`).join("")}</div></div>
@@ -25,7 +24,6 @@ async function loadApps() {
   if (live && isAdmin() && !S.apps.blocks) { try { S.apps.blocks = await api("/api/appblocks"); apCatalog().forEach(a => { S.apps.names[a.id] = a.name; }); } catch (e) { S.apps.blocks = { blocks: [], apps: [], profiles: [], error: e.message }; } }
   if (live && !S.apps.people) { S.apps.people = []; try { const m = await api("/api/analytics/meta", {}); if (m?.people?.length) { S.apps.people = m.people; return render(); } } catch { /* analytics off */ } }
   renderAppBlocks();
-  if (live && isAdmin()) loadRelay();
   let r;
   try { r = await api("/api/analytics/explore", { range: S.apps.range, views: ["by_app"], filters: S.apps.person ? { person: S.apps.person } : {} }); }
   catch (e) { if ($("#ap-seen")) $("#ap-seen").innerHTML = `<div class="empty">${esc(/analytics/i.test(e.message) ? "Apps need Analytics with NextDNS logs (Settings › Analytics)." : e.message)}</div>`; return; }
@@ -45,7 +43,11 @@ function renderAppBlocks() {
       <div class="btnrow"><button class="btn sm" data-apedit="${esc(x.id)}">Change</button><button class="btn sm danger" data-apdel="${esc(x.id)}">Unblock</button></div></div>`).join("")}</div></div>`;
 }
 
-// iCloud Private Relay: turned off per NextDNS profile through its denylist (privaterelay.go)
+// iCloud Private Relay (its own tab under Apps): turned off per NextDNS profile through its denylist (privaterelay.go)
+V.relay = () => `<div class="head"><div><h1>iCloud Private Relay</h1><div class="muted">With Private Relay on, Safari's traffic skips NextDNS, so blocks and HomeOwl don't see it.</div></div></div>
+  ${isAdmin() && S.source === "live" ? `<div id="ap-relay"><div class="card"><div class="empty">Loading…</div></div></div>` : `<div class="card"><div class="empty">${S.source === "live" ? "Only admins can change this." : "This needs a live connection to the console and NextDNS."}</div></div>`}`;
+{ const _render = render; render = function () { _render(); if (S.view === "relay" && isAdmin() && S.source === "live") { S.apps.relay = null; loadRelay(); } }; }
+
 async function loadRelay() {
   if (!S.apps.relay) { try { S.apps.relay = await api("/api/privaterelay"); } catch (e) { S.apps.relay = { profiles: [], error: e.message }; } }
   renderRelay();
@@ -53,9 +55,9 @@ async function loadRelay() {
 const RELAY_STATE = { on: ["good", "turned off"], off: ["", "allowed"], partial: ["warn", "partly turned off"] };
 function renderRelay() {
   const el = $("#ap-relay"), r = S.apps.relay; if (!el || !r) return;
-  if (r.error) { el.innerHTML = ""; return; }
-  if (!r.profiles.length) { el.innerHTML = ""; return; }
-  el.innerHTML = `<div class="card"><h2>iCloud Private Relay ${hint("With Private Relay on, Safari's traffic skips NextDNS, so blocks and HomeOwl don't see it. A profile can't turn it off on a personal iPhone, but the network can: HomeOwl adds mask.icloud.com and mask-h2.icloud.com to the NextDNS profile's denylist. Devices using that profile (at home, and anywhere with HomeOwl's encrypted-DNS profile) then show “Private Relay is turned off for this network”.")}</h2>
+  if (r.error) { el.innerHTML = `<div class="card"><div class="empty bad-t">${esc(r.error)}</div></div>`; return; }
+  if (!r.profiles.length) { el.innerHTML = `<div class="card"><div class="empty">Connect NextDNS (Settings › NextDNS) to turn Private Relay off per profile.</div></div>`; return; }
+  el.innerHTML = `<div class="card"><h2>Per NextDNS profile ${hint("With Private Relay on, Safari's traffic skips NextDNS, so blocks and HomeOwl don't see it. A profile can't turn it off on a personal iPhone, but the network can: HomeOwl adds mask.icloud.com and mask-h2.icloud.com to the NextDNS profile's denylist. Devices using that profile (at home, and anywhere with HomeOwl's encrypted-DNS profile) then show “Private Relay is turned off for this network”.")}</h2>
     <p class="fine muted">Turn it off so Safari's traffic goes through NextDNS too, per NextDNS profile.</p>
     <div class="ap-blocks">${r.profiles.map(p => { const [cls, label] = p.error ? ["bad", "can't read"] : RELAY_STATE[p.state] || ["", p.state]; const off = p.state === "on";
       return `<div class="ap-block"><div><b>${esc(p.name || p.id)}</b> <span class="tag ${cls}">Private Relay ${esc(label)}</span>

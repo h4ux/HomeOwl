@@ -43,6 +43,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiProfile(w, r)
 		return
 	}
+	if p == "welcome" { // the guest Wi-Fi's sign-in page, when HomeOwl is the guest portal (portal.go)
+		a.welcomeAPI(w, r)
+		return
+	}
 	if p == "hi/wifi" { // the home Wi-Fi for an approved Android or Windows device (onboard.go)
 		a.hiWiFi(w, r)
 		return
@@ -379,6 +383,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.approvalAPI(strings.TrimPrefix(p, "approval/"), body, by)
 	case p == "skipwifi/save":
 		res, err = a.saveSkipWiFi(body)
+	case p == "setupwifi/portal-preview" || p == "setupwifi/portal-apply":
+		res, err = a.portalAPI(strings.TrimPrefix(p, "setupwifi/portal-"), by)
 	case strings.HasPrefix(p, "setupwifi/"):
 		res, err = a.setupWiFiAPI(strings.TrimPrefix(p, "setupwifi/"), body, by)
 	case p == "onboard/save":
