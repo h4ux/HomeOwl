@@ -284,6 +284,10 @@ func (c *Client) plan(a Action) (*plan, error) {
 			"static-route_network": ipn.String(), "static-route_nexthop": hop.String(), "static-route_distance": 1}
 		return &plan{req: req{"POST", c.SitePath("rest/routing", false), body}, Before: map[string]any{"route": nil},
 			After: map[string]any{"route": ipn.String() + " via " + hop.String()}, DeleteCreated: true, Target: name}, nil
+	case "setupnet": // HomeOwl's setup Wi-Fi: its network, then the Wi-Fi (setupwifi.go)
+		return c.planSetupNet(a)
+	case "setupwlan":
+		return c.planSetupWLAN(a)
 	case "dnsrecord": // a local DNS record on the console (UniFi Network 8.2+): name → a home address
 		name, ip := strings.TrimSuffix(strings.ToLower(a.s("name")), "."), net.ParseIP(a.s("ip")).To4()
 		if !hostRE.MatchString(name) || ip == nil || !ip.IsPrivate() {

@@ -375,6 +375,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.approvalAPI(strings.TrimPrefix(p, "approval/"), body, by)
 	case p == "skipwifi/save":
 		res, err = a.saveSkipWiFi(body)
+	case strings.HasPrefix(p, "setupwifi/"):
+		res, err = a.setupWiFiAPI(strings.TrimPrefix(p, "setupwifi/"), body, by)
 	case p == "onboard/save":
 		res, err = a.saveOnboard(body)
 	case p == "privaterelay":

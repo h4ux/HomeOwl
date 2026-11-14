@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.57] — 2026-11-14
+
+- Settings › Device profiles › Setup Wi-Fi › "Create a setup Wi-Fi on the console…": HomeOwl creates a
+  network with no internet on its own VLAN and a Wi-Fi on it with its own password (it suggests one),
+  modelled on the console's home network and Wi-Fi (no home password, private keys, MAC filter or schedule
+  copied). You see a preview first; both creates are in the change log and undo deletes them. It becomes
+  HomeOwl's setup Wi-Fi, and the section shows the check-in page's link and QR code to use on it.
+
 ## [0.1.56] — 2026-11-14
 
 - Setup Wi-Fi with a password: the profile's "don't rejoin the setup Wi-Fi" entry now matches the network's

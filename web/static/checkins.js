@@ -132,12 +132,13 @@ async function renderDevTypes() {
       { k: "id", label: "", fmt: t => `<div class="btnrow"><button class="btn sm" data-dtedit="${esc(t.id)}">Edit</button><button class="btn sm" data-dtdel="${esc(t.id)}">Delete</button></div>` }], r.types)
       : `<p class="muted">No profile types yet. Devices get their NextDNS setup only.</p>`}
     <div class="btnrow" style="margin-top:10px"><button class="btn primary" data-dtedit="">+ Profile type</button></div>
-    <h3 style="margin-top:18px">Setup Wi-Fi ${hint("A Wi-Fi network with no internet (open, or with its own password that you give out) whose guest portal opens HomeOwl's check-in page. New devices join it, check in and wait there for your approval, then install their profile, which moves them to the home Wi-Fi and stops them rejoining the setup Wi-Fi. Android and Windows get the home Wi-Fi's name and password on their page instead. Keep the home Wi-Fi password to yourself so the profile is the way in.")}</h3>
+    <h3 style="margin-top:18px">Setup Wi-Fi ${hint("A Wi-Fi network with no internet and its own password that you give out. People open HomeOwl's check-in page on it from the link or QR code below (or, if it has a guest portal, UniFi sends them there). New devices join it, check in and wait there for your approval, then install their profile, which moves them to the home Wi-Fi and stops them rejoining the setup Wi-Fi. Android and Windows get the home Wi-Fi's name and password on their page instead. Keep the home Wi-Fi password to yourself so the profile is the way in.")}</h3>
     <p class="fine muted">Devices on this network may check in (other guest networks can't). Leave empty if you don't have one.</p>
     <div class="dt-onboard"><label>Network name<input id="dt-onboard" maxlength="32" list="dt-onboard-list" value="${esc(r.onboard_ssid || "")}" placeholder="e.g. Home Setup" autocomplete="off"></label>
       <datalist id="dt-onboard-list">${r.wlans.filter(w => w.guest || w.security === "open").map(w => `<option value="${esc(w.ssid)}">`).join("")}</datalist>
       <button class="btn" id="dt-onboard-save">Save</button></div>
     ${r.onboard_ssid && !r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase()) && r.wlans.length ? `<p class="fine warn-t">There's no Wi-Fi called “${esc(r.onboard_ssid)}” on the console yet.</p>` : ""}
+    ${setupWiFiBlock(r)}
     <h3 style="margin-top:18px">NextDNS off on these Wi-Fi networks ${hint("A plane's or hotel's sign-in page only loads with ordinary DNS, and the profile's encrypted NextDNS can't reach NextDNS before you sign in. On these networks the profile's NextDNS stands down; everywhere else it stays on. Names must match exactly (Settings › Wi-Fi on the plane shows it). Changing the list shows Update ready on the devices.")}</h3>
     <p class="fine muted">For every device. One Wi-Fi name per line, exactly as the phone shows it.${r.skip_wifi_default ? " This is HomeOwl's starting list (British Airways). Add other airlines' networks exactly as the phone shows them." : ""}</p>
     <textarea id="dt-skip" rows="5" spellcheck="false" class="mono">${esc((r.skip_wifi || []).join("\n"))}</textarea>
@@ -145,6 +146,40 @@ async function renderDevTypes() {
     <div id="st-approval"></div>`;
   loadApproval();
 }
+// Setup Wi-Fi made by HomeOwl (setupwifi.go): a no-internet VLAN + a Wi-Fi with its own password, then the check-in link by IP
+function setupWiFiBlock(r) {
+  const exists = r.onboard_ssid && r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase());
+  const canMake = S.source === "live" && S.model?.hasLegacy && S.role === "admin" && !S.readOnly;
+  const links = arr(r.setup_links);
+  if (exists) return links.length ? `<div class="dt-setuplink"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
+      <div><p class="fine">On “${esc(r.onboard_ssid)}” there's no internet. People open the check-in page here (print the code or show it on a screen):</p>
+      ${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}</div></div>` : "";
+  return canMake ? `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-setup-make">Create a setup Wi-Fi on the console…</button></div>` : "";
+}
+async function makeSetupWiFi() {
+  let sg; try { sg = await api("/api/setupwifi/suggest", {}); } catch (err) { return toast(err.message, "err"); }
+  const cur = S.devTypes?.onboard_ssid || "";
+  openModal({ title: "Create a setup Wi-Fi", body: `
+    <p class="fine">HomeOwl adds a network with no internet on its own VLAN and a Wi-Fi on it with its own password, modelled on your home network and Wi-Fi. Nothing is sent until you've seen the preview.</p>
+    <label>Wi-Fi name<input id="sw-ssid" maxlength="32" value="${esc(cur || "Home Setup")}" autocomplete="off"></label>
+    <label>Password (what you give guests to set up)<input id="sw-pw" maxlength="63" value="${esc(sg.password)}" autocomplete="off" spellcheck="false" class="mono"></label>
+    <label>VLAN<input id="sw-vlan" type="number" min="2" max="4009" value="${esc(String(sg.vlan))}"></label>
+    <label>Network name in UniFi<input id="sw-net" maxlength="32" value="${esc(sg.network)}" autocomplete="off"></label>`,
+    buttons: [{ label: "Cancel" }, { label: "Preview", cls: "primary", onClick: previewSetupWiFi }] });
+}
+async function previewSetupWiFi() {
+  const body = { ssid: $("#sw-ssid").value.trim(), password: $("#sw-pw").value, vlan: +$("#sw-vlan").value, network: $("#sw-net").value.trim() };
+  let pv; try { pv = await api("/api/setupwifi/preview", body); } catch (err) { return toast(err.message, "err"); }
+  openModal({ title: "Create a setup Wi-Fi", wide: true, body: `<p class="muted">Review exactly what will be sent to the console. ${S.write ? "" : `<b>Change mode is locked</b> — applying will unlock it for this session.`}</p>` +
+    arr(pv.steps).map(p => `<div class="pv"><div class="pv-h"><b>${esc(p.description)}</b> <span class="muted">${esc(p.target || "")}</span></div>
+      <table class="pv-t"><tr><th>Setting</th><th>New</th></tr>${Object.keys(p.after || {}).map(k => `<tr><td class="mono">${esc(k)}</td><td><b>${esc(fmtVal(p.after[k]))}</b></td></tr>`).join("")}</table>
+      <div class="fine mono">${esc(p.method)} ${esc(p.path)}</div><div class="fine">↩ Can be undone from the Changes page (it deletes what was made).</div></div>`).join("") +
+    `<p class="fine">The setup network has no internet, but until you add a firewall rule in UniFi it can reach your home network. It becomes HomeOwl's setup Wi-Fi.</p>`,
+    buttons: [{ label: "Cancel" }, { label: S.write ? "Create" : "Unlock & create", cls: "primary", onClick: async () => {
+      try { if (!S.write) await setWrite(true); S.devTypes = await api("/api/setupwifi/apply", body); closeModal(); toast(`Created ${body.ssid}`, "ok"); renderDevTypes(); }
+      catch (err) { toast(err.message, "err"); } } }] });
+}
+document.addEventListener("click", e => { if (e.target.id === "dt-setup-make") makeSetupWiFi(); });
 // Approve new devices (approval.go): first-time devices on the home Wi-Fi are blocked until approved
 async function loadApproval() {
   try { S.approval = await api("/api/approval"); } catch (e) { S.approval = { error: e.message }; }

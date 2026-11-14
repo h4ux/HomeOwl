@@ -495,7 +495,7 @@ func (a *App) devTypesView() (map[string]any, error) {
 			"usable": sec == "open" || sec == "wpapsk", "security": sec}) // never the password
 	}
 	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID,
-		"skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}
+		"setup_links": a.setupLinks(), "skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}
 	if err != nil {
 		res["wlan_error"] = err.Error()
 	}
