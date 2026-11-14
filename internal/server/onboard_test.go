@@ -129,7 +129,8 @@ func TestOnboard(t *testing.T) {
 		t.Fatalf("should follow it to the home Wi-Fi: %+v", x)
 	}
 
-	// "don't join our other networks": the rest go in as no-join, without passwords; enterprise left out
+	// "don't join our other networks": the rest go in as no-join, with their passwords (so installing asks for
+	// none); enterprise left out
 	tid := a.devTypes.List()[0].ID
 	if _, err := a.saveDevType(map[string]any{"id": tid, "name": "Family", "wifi": []any{"w1"}, "people": []any{alex}, "no_other_wifi": true}); err != nil {
 		t.Fatal(err)
@@ -138,8 +139,8 @@ func TestOnboard(t *testing.T) {
 	var names []string
 	for _, w := range ex.WiFi {
 		if w.NoJoin {
-			if w.Password != "" {
-				t.Fatalf("%s: no passwords for no-join networks", w.SSID)
+			if (w.Enc == "None") != (w.Password == "") {
+				t.Fatalf("%s: a password network carries its password, an open one none (%s)", w.SSID, w.Enc)
 			}
 			names = append(names, w.SSID)
 		}
@@ -158,11 +159,11 @@ func TestOnboard(t *testing.T) {
 	if code != 200 || !strings.Contains(body, `"password":"example-pass-123"`) || !strings.Contains(body, `"leave":"Home Setup"`) || strings.Contains(body, "iot-pass") {
 		t.Fatalf("home Wi-Fi for Android: %d %s", code, body)
 	}
-	// a setup Wi-Fi with a password: the no-join entry matches its security, without the password
+	// a setup Wi-Fi with a password: the no-join entry matches its security and carries the password (no prompt)
 	_ = a.Cfg.Update(func(c *config.Config) { c.Onboard.SSID = "Example IoT" })
 	ex, _ = a.extrasFor(x)
 	for _, w := range ex.WiFi {
-		if w.ID == "setup" && (w.SSID != "Example IoT" || w.Enc != "Any" || w.Password != "" || !w.NoJoin) {
+		if w.ID == "setup" && (w.SSID != "Example IoT" || w.Enc != "Any" || w.Password != "iot-pass-789" || !w.NoJoin) {
 			t.Fatalf("setup Wi-Fi with a password: %+v", w)
 		}
 	}

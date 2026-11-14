@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.63] — 2026-11-14
+
+- "Don't join our other Wi-Fi networks" and the setup Wi-Fi's no-rejoin entry now carry the networks' passwords
+  (read from UniFi, auto-join off), so installing a profile no longer stops to ask for each network's password.
+
 ## [0.1.62] — 2026-11-14
 
 - Device approval: turning it on approves only the devices seen in the last day (it used to approve every device

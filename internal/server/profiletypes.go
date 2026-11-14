@@ -48,7 +48,8 @@ type ProfileType struct {
 	// PrivateMAC keeps the device's private (changing) Wi-Fi address on these networks. Off (the default), the
 	// profile tells Apple devices to use their real address there, so the device stays recognisable (fixedmac.go).
 	PrivateMAC bool `json:"private_mac,omitempty"`
-	// NoOtherWiFi lists the console's other Wi-Fi networks in the profile as "don't join by itself" (no passwords):
+	// NoOtherWiFi lists the console's other Wi-Fi networks in the profile as "don't join by itself" (with their
+	// passwords, read from UniFi like the type's own networks, so installing doesn't ask for each one):
 	// the device stays on the networks its type gives it.
 	NoOtherWiFi bool `json:"no_other_wifi,omitempty"`
 	// SkipWiFi: more networks (beyond the global list) where NextDNS stands down; OtherWiFi "off": NextDNS only on
@@ -201,11 +202,11 @@ func (a *App) noJoinFor(x CheckIn, t ProfileType, all []map[string]any) []wifiNe
 	if ssid := a.Cfg.Get().Onboard.SSID; ssid != "" && (x.Onboard || t.NoOtherWiFi) && !seen[strings.ToLower(ssid)] {
 		seen[strings.ToLower(ssid)] = true
 		// the device tells saved networks apart by name and security: match the setup Wi-Fi's (open, or with a
-		// password — which stays out of the profile)
+		// password — included, so installing doesn't stop to ask for it)
 		n := wifiNet{ID: "setup", SSID: ssid, Enc: "None", NoJoin: true}
 		for _, w := range all {
 			if strings.EqualFold(str(w, "name"), ssid) && str(w, "security") != "open" {
-				n.Enc = "Any"
+				n.Enc, n.Password = "Any", str(w, "x_passphrase") // with it, installing asks nothing
 				n.Hidden, _ = w["hide_ssid"].(bool)
 			}
 		}
@@ -220,12 +221,12 @@ func (a *App) noJoinFor(x CheckIn, t ProfileType, all []map[string]any) []wifiNe
 			continue // enterprise networks need a login to join anyway
 		}
 		seen[strings.ToLower(name)] = true
-		enc := "Any"
-		if sec == "open" {
-			enc = "None"
+		enc, pw := "Any", str(w, "x_passphrase") // a password network listed without its password makes the
+		if sec == "open" {                       // device ask for it while installing
+			enc, pw = "None", ""
 		}
 		h, _ := w["hide_ssid"].(bool)
-		out = append(out, wifiNet{ID: "nojoin." + str(w, "_id"), SSID: name, Enc: enc, Hidden: h, NoJoin: true})
+		out = append(out, wifiNet{ID: "nojoin." + str(w, "_id"), SSID: name, Enc: enc, Password: pw, Hidden: h, NoJoin: true})
 	}
 	return out
 }
@@ -397,7 +398,7 @@ func wifiPayload(p plistW, base string, w wifiNet) {
 	}
 	desc := "Joins " + w.SSID + " by itself."
 	if w.NoJoin {
-		desc = "Doesn't join " + w.SSID + " (the setup Wi-Fi) by itself any more."
+		desc = "Doesn't join " + w.SSID + " by itself."
 	}
 	p.head(base, "wifi."+w.ID, "com.apple.wifi.managed", "Wi-Fi · "+w.SSID, desc)
 	p.str("SSID_STR", w.SSID)
