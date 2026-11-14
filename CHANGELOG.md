@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.68] — 2026-11-14
+
+- Private Relay tab: "Turn it off" and "Allow it again" did nothing after the move to their own tab (the click
+  handler only listened on the Apps tab).
+
 ## [0.1.67] — 2026-11-14
 
 - "Don't join our other Wi-Fi networks" lists password networks again, without their passwords, as "don't join by

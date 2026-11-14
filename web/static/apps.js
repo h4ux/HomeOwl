@@ -120,7 +120,7 @@ function apDoms() { const a = apApp($("#ap-app")?.value); if ($("#ap-doms")) $("
 document.addEventListener("click", e => {
   const g = s => e.target.closest(s); let x;
   if ((x = g("[data-apmode]"))) { $$("[data-apmode]").forEach(b => b.classList.toggle("on", b === x)); $("#ap-sched").hidden = x.dataset.apmode !== "schedule"; return; }
-  if (S.view !== "apps") return;
+  if (S.view !== "apps" && S.view !== "relay") return; // Private Relay has its own tab
   if ((x = g("[data-aprange]"))) { S.apps.range = x.dataset.aprange; render(); return; }
   if ((x = g("[data-apcat]"))) { S.apps.cat = x.dataset.apcat; renderAppsSeen(); return; }
   if (e.target.id === "ap-new") { apEdit(null, ""); return; }
