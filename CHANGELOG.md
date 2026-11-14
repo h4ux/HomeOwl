@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.46] — 2026-11-14
+
+- Wi-Fi sign-in check: the "whose password" answer now counts the devices actually on a private-password (PPSK)
+  network. With none on it, it says to join one and check again instead of guessing. It also compares the field names
+  those devices have with everyone else's (names only, never values), so a key field under any name is found.
+
 ## [0.1.45] — 2026-11-14
 
 ### Added

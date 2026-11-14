@@ -58,6 +58,7 @@ func (a *App) wifiIdentCheck() (*identCheck, error) {
 	// Wi-Fi networks: security, PPSK and RADIUS settings (never the passwords)
 	ppskSeen, ppskOn, ppskKeys, enterprise := false, 0, 0, 0
 	ppskNets := map[string]bool{}
+	ppskSSID := map[string]bool{}
 	for _, w := range get("wifi", "rest/wlanconf") {
 		sec := str(w, "security")
 		row := map[string]any{"name": str(w, "name"), "security": sec, "wpa_mode": str(w, "wpa_mode"), "enabled": w["enabled"] != false,
@@ -78,6 +79,7 @@ func (a *App) wifiIdentCheck() (*identCheck, error) {
 			case bool:
 				if x {
 					row["ppsk"] = true
+					ppskSSID[str(w, "name")] = true
 					ppskOn++
 				}
 			case []any:
@@ -142,9 +144,20 @@ func (a *App) wifiIdentCheck() (*identCheck, error) {
 	// clients: which identity fields UniFi records, and on how many clients (names only, never the values)
 	fields := map[string]int{}
 	cls := get("clients", "stat/sta")
-	wifiN, private := 0, 0
+	wifiN, private, onPPSK := 0, 0, 0
+	ppskOnly, others := map[string]bool{}, map[string]bool{}
 	for _, c := range cls {
 		if c["is_wired"] != true {
+			set := others
+			if ppskSSID[str(c, "essid")] {
+				onPPSK++
+				set = ppskOnly
+			}
+			for k, v := range c {
+				if v != nil && v != "" {
+					set[k] = true
+				}
+			}
 			wifiN++
 			if privateMACAddr(str(c, "mac")) {
 				private++
@@ -156,10 +169,29 @@ func (a *App) wifiIdentCheck() (*identCheck, error) {
 			}
 		}
 	}
-	r.Clients = map[string]any{"wifi": wifiN, "private_mac": private, "identity_fields": fields}
+	// field names (never values) that only devices on a private-password network have: where UniFi would keep the key
+	extra := []string{}
+	for k := range ppskOnly {
+		if !others[k] {
+			extra = append(extra, k)
+		}
+	}
+	sort.Strings(extra)
+	r.Clients = map[string]any{"wifi": wifiN, "private_mac": private, "identity_fields": fields, "on_ppsk": onPPSK, "ppsk_only_fields": extra}
 
 	r.Verdict = identVerdict(r, fields)
 	return r, nil
+}
+
+// keyish picks a field name that looks like it holds which key or password a device used.
+func keyish(names []string) string {
+	for _, k := range names {
+		lk := strings.ToLower(k)
+		if strings.Contains(lk, "key") || strings.Contains(lk, "psk") || strings.Contains(lk, "pass") {
+			return k
+		}
+	}
+	return ""
 }
 
 func anyList(v any) []any { l, _ := v.([]any); return l }
@@ -198,8 +230,12 @@ func identVerdict(r *identCheck, fields map[string]int) []map[string]any {
 	if r.PPSK["offered"] == true {
 		if k, n := idf("ppsk", "preshared", "psk_"); k != "" {
 			say("PPSK: whose password", "ok", "UniFi records which private password a device used (field “"+k+"”, on "+strconv.Itoa(n)+" devices now), so a password per person names the device's owner.")
+		} else if r.PPSK["networks_on"].(int) > 0 && r.Clients["on_ppsk"].(int) == 0 {
+			say("PPSK: whose password", "info", "No device is on the private-password network right now, so it can't be seen yet whether UniFi records which password a device used. Join it from one phone and check again.")
+		} else if ex := r.Clients["ppsk_only_fields"].([]string); r.PPSK["networks_on"].(int) > 0 && keyish(ex) != "" {
+			say("PPSK: whose password", "ok", "UniFi seems to record which private password a device used (field “"+keyish(ex)+"”, only on devices using a private password), so a password per person can name the device's owner.")
 		} else if r.PPSK["networks_on"].(int) > 0 {
-			say("PPSK: whose password", "warn", "No device shows which private password it used, so HomeOwl could only tell people apart by the network each password leads to: one VLAN per person.")
+			say("PPSK: whose password", "warn", strconv.Itoa(r.Clients["on_ppsk"].(int))+" device(s) are on the private-password network, but none shows which password it used, so HomeOwl could only tell people apart by the network each password leads to: one VLAN per person.")
 		} else {
 			say("PPSK: whose password", "info", "Can't tell yet whether UniFi records which password a device used — no device uses a private password. One test password on one device would show it.")
 		}

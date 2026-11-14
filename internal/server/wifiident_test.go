@@ -10,6 +10,10 @@ import (
 
 func TestWifiIdentCheck(t *testing.T) {
 	var methods []string
+	sta := `[
+				{"mac":"00:bb:cc:00:00:01","1x_identity":"alex","is_wired":false},
+				{"mac":"12:bb:cc:00:00:02","is_wired":false},
+				{"mac":"aa:bb:cc:00:00:03","is_wired":true}]`
 	console := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		methods = append(methods, r.Method)
 		p := r.URL.Path
@@ -33,10 +37,7 @@ func TestWifiIdentCheck(t *testing.T) {
 		case strings.HasSuffix(p, "/rest/radiusprofile"):
 			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[{"name":"Default"}]}`))
 		case strings.HasSuffix(p, "/stat/sta"):
-			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[
-				{"mac":"00:bb:cc:00:00:01","1x_identity":"alex","is_wired":false},
-				{"mac":"12:bb:cc:00:00:02","is_wired":false},
-				{"mac":"aa:bb:cc:00:00:03","is_wired":true}]}`))
+			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":` + sta + `}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -72,5 +73,28 @@ func TestWifiIdentCheck(t *testing.T) {
 	}
 	if !strings.Contains(out, "1x_identity") || !strings.Contains(out, "names the device's owner") {
 		t.Fatalf("verdict: %s", out)
+	}
+
+	ppsk := func(body string) string {
+		sta = body
+		r, err := a.wifiIdentCheck()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range r.Verdict {
+			if v["topic"] == "PPSK: whose password" {
+				return v["state"].(string) + " " + v["text"].(string)
+			}
+		}
+		return ""
+	}
+	if v := ppsk(`[{"mac":"00:bb:cc:00:00:01","essid":"Example Work","is_wired":false}]`); !strings.HasPrefix(v, "info") || !strings.Contains(v, "No device is on") {
+		t.Fatalf("nobody on the private-password network yet: %s", v)
+	}
+	if v := ppsk(`[{"mac":"00:bb:cc:00:00:01","essid":"Example Home","signal":-50,"is_wired":false},{"mac":"00:bb:cc:00:00:02","essid":"Example Work","signal":-60,"is_wired":false}]`); !strings.HasPrefix(v, "warn 1 device") {
+		t.Fatalf("on it, no key field: %s", v)
+	}
+	if v := ppsk(`[{"mac":"00:bb:cc:00:00:01","essid":"Example Home","wlan_key_index":2,"is_wired":false},{"mac":"00:bb:cc:00:00:02","essid":"Example Work","is_wired":false}]`); !strings.HasPrefix(v, "ok") || !strings.Contains(v, "wlan_key_index") {
+		t.Fatalf("a key field only on private-password devices: %s", v)
 	}
 }
