@@ -4,7 +4,9 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
-## [0.1.50] — 2026-11-14
+## [0.1.51] — 2026-11-14
+
+The 0.1.50 build stopped at a flaky test (a cache shared between tests), so these changes ship as 0.1.51.
 
 - Setup Wi-Fi (Settings › Device profiles): name the open network whose guest portal opens the check-in page.
   Devices on it may check in (other guest networks still can't), and the page waits there and moves on once you
