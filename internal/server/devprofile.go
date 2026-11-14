@@ -292,6 +292,9 @@ func mobileConfig(x CheckIn, ex profileExtras) []byte {
 		str("DNSProtocol", "HTTPS")
 		str("ServerURL", doh)
 		b.WriteString("</dict>\n")
+		if !ex.DNS.empty() {
+			onDemandXML(p, ex.DNS)
+		}
 		str("PayloadDescription", "Encrypted DNS through NextDNS, so this device is recognised by name on any network.")
 		str("PayloadDisplayName", "NextDNS · "+x.Name)
 		str("PayloadIdentifier", base+".dns")

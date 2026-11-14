@@ -92,6 +92,7 @@ function registered(st) {
       ${!nd ? (pf === "ios" || pf === "mac" ? how[pf] : `<p>Open this page on the iPhone, iPad or Mac to install it.</p>`)
         : how[pf] || `<p>iPhone, iPad or Mac: open this page on it. Android: Private DNS host name:</p>${copyRow(nd.android, "host name")}<p>Anything else: DNS-over-HTTPS address:</p>${copyRow(nd.doh, "address")}`}
       ${r.profile_at && (pf === "ios" || pf === "mac") ? `<p class="fine">Downloaded before on ${esc(new Date(r.profile_at * 1000).toLocaleDateString())}. Installing again replaces it.</p>` : ""}
+      ${nd && (pf === "ios" || pf === "mac") ? `<p class="fine">On a plane or in a hotel and the Wi-Fi sign-in page won't load? ${pf === "ios" ? "Open <b>Settings</b> › <b>General</b> › <b>VPN &amp; Device Management</b> › <b>DNS</b> and choose <b>Automatic</b>" : "Open <b>System Settings</b> › <b>Network</b> › <b>Filters</b> (or <b>VPN &amp; Filters</b>) and turn the NextDNS DNS setting off"}, sign in, then switch it back. Tell an admin the network's name so HomeOwl skips it next time.</p>` : ""}
       ${pf === "ios" || pf === "mac" ? `<p class="fine">If iCloud Private Relay is on, Safari's visits go through Apple instead and aren't seen by NextDNS.</p>` : ""}`;
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
     <p class="muted">${r.person ? `It belongs to <b>${esc(r.person)}</b>. ` : ""}HomeOwl knows this device.</p>

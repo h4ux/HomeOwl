@@ -51,6 +51,10 @@ type ProfileType struct {
 	// NoOtherWiFi lists the console's other Wi-Fi networks in the profile as "don't join by itself" (no passwords):
 	// the device stays on the networks its type gives it.
 	NoOtherWiFi bool `json:"no_other_wifi,omitempty"`
+	// SkipWiFi: more networks (beyond the global list) where NextDNS stands down; OtherWiFi "off": NextDNS only on
+	// the home Wi-Fi and mobile data (dnsskip.go)
+	SkipWiFi  []string `json:"skip_wifi,omitempty"`
+	OtherWiFi string   `json:"other_wifi,omitempty"`
 }
 
 type profileTypes struct {
@@ -140,7 +144,8 @@ type vpnPayload struct {
 }
 
 type profileExtras struct {
-	Icon string // the type's Home Screen icon choice (see ProfileType.Icon)
+	DNS  dnsRules // where the NextDNS setting stands down (dnsskip.go)
+	Icon string   // the type's Home Screen icon choice (see ProfileType.Icon)
 	Clip *webClip
 	Mac  bool
 	WiFi []wifiNet
@@ -241,17 +246,19 @@ func (a *App) extrasFor(x CheckIn) (profileExtras, bool) {
 	var ex profileExtras
 	t, has := a.typeFor(x)
 	if !has {
+		ex.DNS = a.dnsRulesFor(t, false, nil)
 		return ex, true
 	}
 	ex.Icon = t.Icon
 	ok := true
 	var all []map[string]any
-	if len(t.WiFi) > 0 || t.NoOtherWiFi || t.VPN != nil && t.VPN.OnDemand {
+	if len(t.WiFi) > 0 || t.NoOtherWiFi || t.OtherWiFi == "off" || t.VPN != nil && t.VPN.OnDemand {
 		var err error
 		if all, err = a.wlans(); err != nil {
 			ok = false
 		}
 	}
+	ex.DNS = a.dnsRulesFor(t, true, all)
 	ex.WiFi = wifiFor(all, t.WiFi, !t.PrivateMAC)
 	ex.WiFi = append(ex.WiFi, a.noJoinFor(x, t, all)...)
 	if t.VPN != nil {
@@ -283,6 +290,9 @@ func (a *App) setupHash(x CheckIn) string {
 	parts := []any{x.NDProfile, x.Name, ex.WiFi, ex.VPN}
 	if ex.Icon != "" { // only when set, so devices installed before the choice existed don't all show an update
 		parts = append(parts, ex.Icon)
+	}
+	if x.NDProfile != "" && !ex.DNS.empty() { // likewise: only devices whose DNS setting gets rules
+		parts = append(parts, ex.DNS)
 	}
 	_ = json.NewEncoder(h).Encode(parts)
 	return hex.EncodeToString(h.Sum(nil))[:16]
@@ -465,7 +475,7 @@ func vpnPayloadXML(p plistW, base string, v *vpnPayload, mac bool) {
 func (a *App) devTypesView() (map[string]any, error) {
 	types := []map[string]any{}
 	for _, t := range a.devTypes.List() {
-		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"), "private_mac": t.PrivateMAC, "no_other_wifi": t.NoOtherWiFi,
+		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"), "private_mac": t.PrivateMAC, "no_other_wifi": t.NoOtherWiFi, "skip_wifi": orEmpty(t.SkipWiFi), "other_wifi": orDefault(t.OtherWiFi, "on"),
 			"secret_set": a.Sec.Get(vpnSecretSlot(t.ID)) != "", "password_set": a.Sec.Get(vpnPasswordSlot(t.ID)) != ""})
 	}
 	wl := []map[string]any{}
@@ -475,7 +485,8 @@ func (a *App) devTypesView() (map[string]any, error) {
 		wl = append(wl, map[string]any{"id": str(w, "_id"), "ssid": str(w, "name"), "guest": a.UniFi.IsGuestWLAN(w),
 			"usable": sec == "open" || sec == "wpapsk", "security": sec}) // never the password
 	}
-	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID}
+	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID,
+		"skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}
 	if err != nil {
 		res["wlan_error"] = err.Error()
 	}
@@ -487,6 +498,14 @@ var vpnHostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9]
 // saveDevType adds or changes a type. Secrets: "" keeps the saved one, "-" removes it.
 func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
 	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon"), PrivateMAC: b(body, "private_mac"), NoOtherWiFi: b(body, "no_other_wifi")}
+	if s(body, "other_wifi") == "off" {
+		t.OtherWiFi = "off"
+	}
+	if l, err := cleanSSIDs(body["skip_wifi"]); err != nil {
+		return nil, err
+	} else if len(l) > 0 {
+		t.SkipWiFi = l
+	}
 	switch t.Icon {
 	case "", "checkin":
 		t.Icon = ""

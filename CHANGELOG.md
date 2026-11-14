@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.53] — 2026-11-14
+
+- NextDNS off on chosen Wi-Fi networks: planes' and hotels' sign-in pages need ordinary DNS, so the profile's
+  NextDNS setting now stands down on listed networks and stays on everywhere else (on-demand rules, iOS 14+ and
+  macOS 11+). The global list in Settings › Device profiles starts with common in-flight networks and is editable.
+  Each profile type can add its own networks, or keep NextDNS to the home Wi-Fi and mobile data only.
+- The device's check-in page explains the manual fallback (DNS → Automatic) for a network that isn't listed yet.
+
 ## [0.1.52] — 2026-11-14
 
 - Approve new devices (Settings › Device profiles): with it on, a device that joins the home Wi-Fi for the first

@@ -373,6 +373,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = a.approvalView()
 	case strings.HasPrefix(p, "approval/"):
 		res, err = a.approvalAPI(strings.TrimPrefix(p, "approval/"), body, by)
+	case p == "skipwifi/save":
+		res, err = a.saveSkipWiFi(body)
 	case p == "onboard/save":
 		res, err = a.saveOnboard(body)
 	case p == "privaterelay":

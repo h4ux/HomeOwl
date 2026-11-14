@@ -57,6 +57,9 @@ type Onboard struct {
 	// Approve: a device that joins the home Wi-Fi for the first time is blocked until an admin approves it,
 	// unless it's a checked-in device (internal/server/approval.go)
 	Approve bool `json:"approve,omitempty"`
+	// SkipWiFi: Wi-Fi networks where the profile's NextDNS stands down (planes, hotels: their sign-in pages need
+	// ordinary DNS). nil = the starting list of in-flight networks (internal/server/dnsskip.go); [] = none.
+	SkipWiFi []string `json:"skip_wifi"`
 }
 
 type Names struct {

@@ -138,6 +138,10 @@ async function renderDevTypes() {
       <datalist id="dt-onboard-list">${r.wlans.filter(w => w.guest || w.security === "open").map(w => `<option value="${esc(w.ssid)}">`).join("")}</datalist>
       <button class="btn" id="dt-onboard-save">Save</button></div>
     ${r.onboard_ssid && !r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase()) && r.wlans.length ? `<p class="fine warn-t">There's no Wi-Fi called “${esc(r.onboard_ssid)}” on the console yet.</p>` : ""}
+    <h3 style="margin-top:18px">NextDNS off on these Wi-Fi networks ${hint("A plane's or hotel's sign-in page only loads with ordinary DNS, and the profile's encrypted NextDNS can't reach NextDNS before you sign in. On these networks the profile's NextDNS stands down; everywhere else it stays on. Names must match exactly (Settings › Wi-Fi on the plane shows it). Changing the list shows Update ready on the devices.")}</h3>
+    <p class="fine muted">For every device. One Wi-Fi name per line, exactly as the phone shows it.${r.skip_wifi_default ? " This is HomeOwl's starting list of in-flight networks — check it against the airlines you fly." : ""}</p>
+    <textarea id="dt-skip" rows="5" spellcheck="false" class="mono">${esc((r.skip_wifi || []).join("\n"))}</textarea>
+    <div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-skip-save">Save</button>${r.skip_wifi_default ? "" : `<button class="btn ghost" id="dt-skip-reset">Back to the starting list</button>`}</div>
     <div id="st-approval"></div>`;
   loadApproval();
 }
@@ -190,6 +194,10 @@ function editDevType(id) {
     <div class="dt-checks">${r.wlans.length ? r.wlans.map(w => `<label class="check"><input type="checkbox" data-dtw="${esc(w.id)}" ${arr(t.wifi).includes(w.id) ? "checked" : ""} ${w.usable ? "" : "disabled"}> <span>${esc(w.ssid)}${w.guest ? ` <span class="fine muted">guest</span>` : ""}${w.usable ? "" : ` <span class="fine muted">enterprise — not possible</span>`}</span></label>`).join("") : `<span class="fine muted">No Wi-Fi networks from UniFi.</span>`}</div>
     <label class="check"><input type="checkbox" id="dt-noother" ${t.no_other_wifi ? "checked" : ""}> <span>Don't join our other Wi-Fi networks by themselves <span class="fine muted">The profile lists the console's other networks (guest, IoT, the setup Wi-Fi…) as “don't join automatically”, without their passwords, so the device stays on the ones ticked above. Someone can still join one by hand if they know its password.</span></span></label>
     <label class="check"><input type="checkbox" id="dt-fixed" ${t.private_mac ? "" : "checked"}> <span>Use the device's real Wi-Fi address on these networks <span class="fine muted">Recommended: phones stop changing their address there, so HomeOwl keeps knowing whose device it is. iPhone and iPad (iOS 14+) show a privacy note for that network. Android and Windows: turn off the private/random address for the network by hand.</span></span></label>
+    <h3>NextDNS on other Wi-Fi</h3>
+    <div class="dt-checks dt-radios"><label class="check"><input type="radio" name="dt-other" value="on" ${t.other_wifi !== "off" ? "checked" : ""}> <span>Everywhere <span class="fine muted">except the networks in Settings › Device profiles (planes…) and the ones below</span></span></label>
+      <label class="check"><input type="radio" name="dt-other" value="off" ${t.other_wifi === "off" ? "checked" : ""}> <span>Only at home and on mobile data <span class="fine muted">off on any other Wi-Fi: planes, hotels and friends' Wi-Fi just work. Not for kids.</span></span></label></div>
+    <label>More networks where NextDNS is off, for this type <span class="fine muted">(one per line)</span><textarea id="dt-skipt" rows="2" spellcheck="false" class="mono" placeholder="e.g. Example Hotel">${esc(arr(t.skip_wifi).join("\n"))}</textarea></label>
     <h3>Home Screen icon</h3><p class="fine muted">iPhone and iPad get a HomeOwl icon with the profile. Macs don't take one.</p>
     <div class="dt-checks dt-radios">${DT_ICONS.map(([k, l, d]) => `<label class="check"><input type="radio" name="dt-icon" value="${k}" ${(t.icon || "checkin") === k ? "checked" : ""}> <span>${esc(l)}${d ? ` <span class="fine muted">${esc(d)}</span>` : ""}</span></label>`).join("")}</div>
     <h3>VPN</h3>
@@ -212,6 +220,7 @@ function editDevType(id) {
       const kind = $("#dt-vpn").value;
       const body = { id, name: $("#dt-name").value.trim(), people: $$("[data-dtp]").filter(c => c.checked).map(c => c.dataset.dtp), wifi: $$("[data-dtw]").filter(c => c.checked).map(c => c.dataset.dtw),
         icon: $("input[name=dt-icon]:checked")?.value || "checkin", private_mac: !$("#dt-fixed").checked, no_other_wifi: $("#dt-noother").checked,
+        other_wifi: $("input[name=dt-other]:checked")?.value || "on", skip_wifi: $("#dt-skipt").value.split("\n").map(s => s.trim()).filter(Boolean),
         vpn: kind ? { type: kind, name: $("#dt-vname").value.trim(), server: $("#dt-server").value.trim(), remote_id: $("#dt-rid").value.trim(), local_id: $("#dt-lid").value.trim(), auth: $("#dt-auth").value, user: $("#dt-user").value.trim(), on_demand: $("#dt-od").checked } : null,
         secret: $("#dt-secret").value, password: $("#dt-pass").value };
       try { S.devTypes = await api("/api/devtypes/save", body); closeModal(); toast("Saved — devices with this type show Update ready", "ok"); renderDevTypes(); S.ciTypes = null; }
@@ -226,6 +235,11 @@ function dtVpnFields() {
 document.addEventListener("change", e => { if (e.target.id === "dt-vpn" || e.target.id === "dt-auth") dtVpnFields(); });
 document.addEventListener("click", e => {
   const ed = e.target.closest("[data-dtedit]"); if (ed) { editDevType(ed.dataset.dtedit); return; }
+  if (e.target.id === "dt-skip-save" || e.target.id === "dt-skip-reset") {
+    const reset = e.target.id === "dt-skip-reset", ssids = $("#dt-skip").value.split("\n").map(s => s.trim()).filter(Boolean);
+    api("/api/skipwifi/save", reset ? { reset: true } : { ssids }).then(r => { S.devTypes = r; toast(reset ? "Starting list back" : "Saved — devices show Update ready", "ok"); renderDevTypes(); }).catch(err => toast(err.message, "err"));
+    return;
+  }
   if (e.target.id === "dt-onboard-save") {
     const ssid = $("#dt-onboard").value.trim();
     api("/api/onboard/save", { ssid }).then(r => { S.devTypes = r; toast(ssid ? `Setup Wi-Fi: ${ssid}` : "No setup Wi-Fi", "ok"); renderDevTypes(); }).catch(err => toast(err.message, "err"));
