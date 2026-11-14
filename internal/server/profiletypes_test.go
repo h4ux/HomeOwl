@@ -137,6 +137,12 @@ func TestProfileTypes(t *testing.T) {
 	if strings.Contains(mac, "webClip") {
 		t.Error("no Home Screen icon on a Mac")
 	}
+	if !strings.Contains(mac, "<key>PayloadScope</key><string>System</string>") {
+		t.Error("a Mac profile installs for the whole Mac (encrypted DNS and VPNs can't install for one user)")
+	}
+	if strings.Contains(get(""), "PayloadScope") {
+		t.Error("PayloadScope is for macOS only")
+	}
 	cv, _ := json.Marshal(a.checkinView())
 	if strings.Contains(string(cv), "yAnz5TF") {
 		t.Fatal("the WireGuard key must not go to the browser")

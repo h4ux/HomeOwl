@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.61] — 2026-11-14
+
+- Mac profiles install for the whole Mac (PayloadScope System). Without it macOS installed them for the signed-in
+  user, where encrypted DNS can't go, and the install failed with "The 'VPN Service' payload could not be installed.
+  The VPN service could not be created".
+
 ## [0.1.60] — 2026-11-14
 
 - Profiles with a VPN: an IKEv2 VPN without a local identifier no longer puts an empty one in the profile (macOS

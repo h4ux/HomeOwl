@@ -332,6 +332,11 @@ func mobileConfig(x CheckIn, ex profileExtras) []byte {
 	str("PayloadIdentifier", base)
 	str("PayloadOrganization", "HomeOwl")
 	b.WriteString("<key>PayloadRemovalDisallowed</key><false/>\n")
+	if ex.Mac {
+		// macOS installs a profile for the signed-in user unless it says otherwise, and encrypted DNS (and VPNs)
+		// only install for the whole Mac: without this the install fails with "The VPN service could not be created"
+		str("PayloadScope", "System")
+	}
 	str("PayloadType", "Configuration")
 	str("PayloadUUID", stableUUID(base))
 	b.WriteString("<key>PayloadVersion</key><integer>1</integer>\n</dict>\n</plist>\n")
