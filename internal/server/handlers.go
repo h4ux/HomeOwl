@@ -365,6 +365,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.ownersAPI(strings.TrimPrefix(p, "owners/"), body)
 	case p == "appblocks":
 		res = a.appBlocksView()
+	case p == "privaterelay":
+		res = a.privateRelayView()
+	case p == "privaterelay/set":
+		res, err = a.setPrivateRelay(body, by)
 	case p == "appblocks/save":
 		res, err = a.saveAppBlock(body, by)
 	case p == "appblocks/delete":
@@ -1121,5 +1125,5 @@ func orStr(v ...string) string {
 // getOK: the admin routes that only read, so a GET may run them. Every other admin route changes something and
 // needs a POST, which carries the session token (X-Audit-Token) and passes the same-origin check: a link, an
 // <img> or a page on another site can't make HomeOwl act.
-var getOK = map[string]bool{"appblocks": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
+var getOK = map[string]bool{"appblocks": true, "privaterelay": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
 	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "cameras/discover": true}

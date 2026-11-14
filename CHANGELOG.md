@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.49] — 2026-11-14
+
+- iCloud Private Relay switch (Family › Apps), per NextDNS profile. "Turn it off" adds mask.icloud.com and
+  mask-h2.icloud.com to the profile's denylist, Apple's documented way for a network to turn Private Relay off, so
+  Safari's traffic goes through NextDNS too. "Allow it again" removes only the entries HomeOwl added; an entry that
+  was already on the denylist is switched off instead. Every switch is logged.
+
 ## [0.1.48] — 2026-11-14
 
 - Real Wi-Fi addresses: a profile type's Wi-Fi networks now go into the device's profile with "use the real Wi-Fi
