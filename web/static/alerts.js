@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone" };
 
 // demo: two fictional new devices
 function alFromBundle() {
@@ -46,7 +46,7 @@ function alList(items, people) {
       S.source === "live" ? actBtn({ kind: "stacmd", cmd: "block-sta", mac, label: a.data?.name || mac, description: `Block ${a.data?.name || mac}` }, "Block") : "",
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
     ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
-      : a.kind === "setup_lost" && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">Check-ins</button>` : "";
+      : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "Check-ins"}</button>` : "";
     return `${head}<div class="al-row${a.read ? "" : " unread"}${a.level === "warn" ? " warn" : ""}">
       <span class="al-ic">${iconSvg(AL_ICON[a.kind] || "iot", 18)}</span>
       <div class="al-main"><b>${esc(a.title)}</b>${a.body ? `<span class="fine muted">${esc(a.body)}</span>` : ""}${mac ? `<span class="fine mono muted">${esc(mac)}</span>` : ""}</div>

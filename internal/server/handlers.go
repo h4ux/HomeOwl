@@ -43,6 +43,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiProfile(w, r)
 		return
 	}
+	if p == "hi/wifi" { // the home Wi-Fi for an approved Android or Windows device (onboard.go)
+		a.hiWiFi(w, r)
+		return
+	}
 	// ---- the guest Wi-Fi card at http://wifi.local (no session; only on that name, only when turned on)
 	if p == "wifi" {
 		a.wifiAPI(w, r)
@@ -365,6 +369,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.ownersAPI(strings.TrimPrefix(p, "owners/"), body)
 	case p == "appblocks":
 		res = a.appBlocksView()
+	case p == "onboard/save":
+		res, err = a.saveOnboard(body)
 	case p == "privaterelay":
 		res = a.privateRelayView()
 	case p == "privaterelay/set":

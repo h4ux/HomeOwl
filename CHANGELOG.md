@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.50] — 2026-11-14
+
+- Setup Wi-Fi (Settings › Device profiles): name the open network whose guest portal opens the check-in page.
+  Devices on it may check in (other guest networks still can't), and the page waits there and moves on once you
+  approve. The profile joins the home Wi-Fi and lists the setup Wi-Fi as "don't join by itself", and HomeOwl follows
+  the device to its home Wi-Fi address. Android and Windows get the home Wi-Fi's name and password (copy or QR) on
+  their page, with a reminder to forget the setup Wi-Fi.
+- New check-ins raise an alert with an Approve button, so they reach you on macOS, ntfy or webhook.
+- Profile types: "Don't join our other Wi-Fi networks by themselves" lists the console's other networks in the
+  profile with auto-join off and no passwords.
+
 ## [0.1.49] — 2026-11-14
 
 - iCloud Private Relay switch (Family › Apps), per NextDNS profile. "Turn it off" adds mask.icloud.com and

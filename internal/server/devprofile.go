@@ -348,6 +348,8 @@ func (a *App) setupStatus(x CheckIn) map[string]any {
 	st := map[string]any{"downloaded": x.ProfileAt, "update": x.ProfileAt > 0 && a.setupUpdate(x)}
 	if x.Fixed {
 		st["mac"] = "fixed"
+	} else if x.FixedFrom != "" && x.Onboard {
+		st["mac"] = "joining" // on the setup Wi-Fi, not yet seen on the home one
 	} else if x.FixedFrom != "" {
 		st["mac"] = "waiting"
 	}

@@ -14,18 +14,21 @@ import (
 
 const fixedFollowFor = 14 * 24 * time.Hour // stop looking after this long
 
-// fixedDownloaded notes a download that gives the device its real address on at least one network.
+// fixedDownloaded notes a download that will move the device to another address: its real one (on a network with
+// the real-address setting), or — from the setup Wi-Fi — the one it gets on the home Wi-Fi (onboard.go).
 func (a *App) fixedDownloaded(x CheckIn, c map[string]any, wifi []wifiNet) {
-	fixed := false
+	fixed, home := false, false
 	for _, w := range wifi {
 		fixed = fixed || w.Fixed
+		home = home || !w.NoJoin
 	}
-	if !fixed {
+	moves := x.Onboard && home && a.onSetupWiFi(c) // the setup Wi-Fi's address is never the home one
+	if !fixed && !moves {
 		return
 	}
 	mac, host := strings.ToLower(str(c, "mac")), str(c, "hostname")
 	a.checkins.Edit(x.ID, func(y *CheckIn) {
-		if !privateMACAddr(mac) { // already its real address: nothing will move
+		if !privateMACAddr(mac) && !moves { // already its real address: nothing will move
 			y.Fixed, y.FixedFrom, y.FixedHost, y.FixedAt = true, "", "", 0
 			return
 		}
@@ -65,7 +68,7 @@ func (a *App) followFixed(online []map[string]any) {
 		var found []string
 		for _, c := range online {
 			mac := strings.ToLower(str(c, "mac"))
-			if mac == "" || mac == x.FixedFrom || privateMACAddr(mac) || c["is_wired"] == true || c["is_guest"] == true ||
+			if mac == "" || mac == x.FixedFrom || (privateMACAddr(mac) && !x.Onboard) || c["is_wired"] == true || c["is_guest"] == true ||
 				!strings.EqualFold(str(c, "hostname"), x.FixedHost) {
 				continue
 			}
@@ -93,7 +96,7 @@ func (a *App) fixedMove(x CheckIn, mac string) {
 		_ = a.cliTypes.Set(mac, k, true)
 	}
 	a.checkins.Edit(x.ID, func(y *CheckIn) {
-		y.MAC, y.Fixed, y.FixedFrom, y.FixedHost, y.FixedAt = mac, true, "", "", 0
+		y.MAC, y.Fixed, y.FixedFrom, y.FixedHost, y.FixedAt = mac, !privateMACAddr(mac), "", "", 0
 	})
-	log.Printf("real Wi-Fi address: %s now uses its real address", x.Name)
+	log.Printf("check-in: %s moved to its home Wi-Fi address", x.Name)
 }

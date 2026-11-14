@@ -50,6 +50,12 @@ type LAN struct {
 
 // Names are easy addresses on the home network, answered by HomeOwl itself over mDNS (Bonjour):
 // e.g. http://hi.local opens the device check-in page and http://wifi.local the guest Wi-Fi card.
+// Onboard: the setup Wi-Fi (an open network with a portal to the check-in page and no internet). Devices on it
+// may check in and get their profile; the profile then moves them to the home Wi-Fi and stops them rejoining it.
+type Onboard struct {
+	SSID string `json:"ssid,omitempty"` // "" = none
+}
+
 type Names struct {
 	Checkin string `json:"checkin,omitempty"` // a single label like "hi" → hi.local ("" = off)
 	Guest   string `json:"guest,omitempty"`   // a single label like "wifi" → wifi.local ("" = off)
@@ -194,6 +200,7 @@ type Config struct {
 	Cameras        Cameras    `json:"cameras"`
 	Access         Access     `json:"access"`
 	UPS            UPS        `json:"ups"`
+	Onboard        Onboard    `json:"onboard"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`

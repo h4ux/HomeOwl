@@ -48,6 +48,9 @@ type ProfileType struct {
 	// PrivateMAC keeps the device's private (changing) Wi-Fi address on these networks. Off (the default), the
 	// profile tells Apple devices to use their real address there, so the device stays recognisable (fixedmac.go).
 	PrivateMAC bool `json:"private_mac,omitempty"`
+	// NoOtherWiFi lists the console's other Wi-Fi networks in the profile as "don't join by itself" (no passwords):
+	// the device stays on the networks its type gives it.
+	NoOtherWiFi bool `json:"no_other_wifi,omitempty"`
 }
 
 type profileTypes struct {
@@ -126,6 +129,7 @@ type wifiNet struct {
 	ID, SSID, Enc, Password string
 	Hidden                  bool
 	Fixed                   bool // use the device's real Wi-Fi address on this network
+	NoJoin                  bool // the setup Wi-Fi: known, but never joined by itself
 }
 
 type vpnPayload struct {
@@ -170,6 +174,41 @@ var wlanCache struct {
 
 // wifiFor turns UniFi networks into profile entries. Enterprise (802.1X) networks have no shared password and are
 // left out.
+// noJoinFor: the networks the device should know but never join by itself — the setup Wi-Fi it checked in from,
+// and (when its type says so) every other Wi-Fi network on the console. No passwords go in for these.
+func (a *App) noJoinFor(x CheckIn, t ProfileType, all []map[string]any) []wifiNet {
+	var out []wifiNet
+	seen := map[string]bool{}
+	for _, id := range t.WiFi {
+		for _, w := range all {
+			if str(w, "_id") == id {
+				seen[strings.ToLower(str(w, "name"))] = true
+			}
+		}
+	}
+	if ssid := a.Cfg.Get().Onboard.SSID; ssid != "" && (x.Onboard || t.NoOtherWiFi) && !seen[strings.ToLower(ssid)] {
+		seen[strings.ToLower(ssid)] = true
+		out = append(out, wifiNet{ID: "setup", SSID: ssid, Enc: "None", NoJoin: true})
+	}
+	if !t.NoOtherWiFi {
+		return out
+	}
+	for _, w := range all {
+		name, sec := str(w, "name"), str(w, "security")
+		if name == "" || seen[strings.ToLower(name)] || (sec != "open" && sec != "wpapsk") {
+			continue // enterprise networks need a login to join anyway
+		}
+		seen[strings.ToLower(name)] = true
+		enc := "Any"
+		if sec == "open" {
+			enc = "None"
+		}
+		h, _ := w["hide_ssid"].(bool)
+		out = append(out, wifiNet{ID: "nojoin." + str(w, "_id"), SSID: name, Enc: enc, Hidden: h, NoJoin: true})
+	}
+	return out
+}
+
 func wifiFor(all []map[string]any, ids []string, fixed bool) []wifiNet {
 	want := map[string]bool{}
 	for _, id := range ids {
@@ -207,13 +246,14 @@ func (a *App) extrasFor(x CheckIn) (profileExtras, bool) {
 	ex.Icon = t.Icon
 	ok := true
 	var all []map[string]any
-	if len(t.WiFi) > 0 || t.VPN != nil && t.VPN.OnDemand {
+	if len(t.WiFi) > 0 || t.NoOtherWiFi || t.VPN != nil && t.VPN.OnDemand {
 		var err error
 		if all, err = a.wlans(); err != nil {
 			ok = false
 		}
 	}
 	ex.WiFi = wifiFor(all, t.WiFi, !t.PrivateMAC)
+	ex.WiFi = append(ex.WiFi, a.noJoinFor(x, t, all)...)
 	if t.VPN != nil {
 		v := &vpnPayload{Conf: *t.VPN, Secret: a.Sec.Get(vpnSecretSlot(t.ID)), Password: a.Sec.Get(vpnPasswordSlot(t.ID))}
 		if v.Conf.Type == "wireguard" {
@@ -274,6 +314,14 @@ func (a *App) includes(x CheckIn) map[string]any {
 		}
 		out["wifi"] = names
 		out["fixed_mac"] = len(names) > 0 && !t.PrivateMAC
+		if ssid := a.Cfg.Get().Onboard.SSID; x.Onboard && ssid != "" {
+			out["leaves"] = ssid
+		}
+		var nj []string
+		for _, w := range a.noJoinFor(x, t, all) {
+			nj = append(nj, w.SSID)
+		}
+		out["no_join"] = nj
 	}
 	if t.VPN != nil {
 		v := map[string]any{"name": orDefault(t.VPN.Name, "Home VPN"), "type": t.VPN.Type, "on_demand": t.VPN.OnDemand}
@@ -315,13 +363,17 @@ func (p plistW) head(base, kind, typ, name, desc string) {
 
 func wifiPayload(p plistW, base string, w wifiNet) {
 	p.b.WriteString("<dict>\n")
-	p.boolean("AutoJoin", true)
+	p.boolean("AutoJoin", !w.NoJoin)
 	p.str("EncryptionType", w.Enc)
 	p.boolean("HIDDEN_NETWORK", w.Hidden)
 	if w.Password != "" {
 		p.str("Password", w.Password)
 	}
-	p.head(base, "wifi."+w.ID, "com.apple.wifi.managed", "Wi-Fi · "+w.SSID, "Joins "+w.SSID+" by itself.")
+	desc := "Joins " + w.SSID + " by itself."
+	if w.NoJoin {
+		desc = "Doesn't join " + w.SSID + " (the setup Wi-Fi) by itself any more."
+	}
+	p.head(base, "wifi."+w.ID, "com.apple.wifi.managed", "Wi-Fi · "+w.SSID, desc)
 	p.str("SSID_STR", w.SSID)
 	if w.Fixed { // iOS 14+: the real address on this network, so HomeOwl keeps recognising the device
 		p.boolean("DisableAssociationMACRandomization", true)
@@ -413,7 +465,7 @@ func vpnPayloadXML(p plistW, base string, v *vpnPayload, mac bool) {
 func (a *App) devTypesView() (map[string]any, error) {
 	types := []map[string]any{}
 	for _, t := range a.devTypes.List() {
-		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"), "private_mac": t.PrivateMAC,
+		types = append(types, map[string]any{"id": t.ID, "name": t.Name, "wifi": t.WiFi, "vpn": t.VPN, "people": t.People, "icon": orDefault(t.Icon, "checkin"), "private_mac": t.PrivateMAC, "no_other_wifi": t.NoOtherWiFi,
 			"secret_set": a.Sec.Get(vpnSecretSlot(t.ID)) != "", "password_set": a.Sec.Get(vpnPasswordSlot(t.ID)) != ""})
 	}
 	wl := []map[string]any{}
@@ -423,7 +475,7 @@ func (a *App) devTypesView() (map[string]any, error) {
 		wl = append(wl, map[string]any{"id": str(w, "_id"), "ssid": str(w, "name"), "guest": a.UniFi.IsGuestWLAN(w),
 			"usable": sec == "open" || sec == "wpapsk", "security": sec}) // never the password
 	}
-	res := map[string]any{"types": types, "wlans": wl}
+	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID}
 	if err != nil {
 		res["wlan_error"] = err.Error()
 	}
@@ -434,7 +486,7 @@ var vpnHostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9]
 
 // saveDevType adds or changes a type. Secrets: "" keeps the saved one, "-" removes it.
 func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
-	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon"), PrivateMAC: b(body, "private_mac")}
+	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon"), PrivateMAC: b(body, "private_mac"), NoOtherWiFi: b(body, "no_other_wifi")}
 	switch t.Icon {
 	case "", "checkin":
 		t.Icon = ""
@@ -453,6 +505,15 @@ func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
 					t.WiFi = append(t.WiFi, id)
 				} else {
 					t.People = append(t.People, id)
+				}
+			}
+		}
+	}
+	if ssid := a.Cfg.Get().Onboard.SSID; ssid != "" && len(t.WiFi) > 0 {
+		if all, err := a.wlans(); err == nil {
+			for _, w := range wifiFor(all, t.WiFi, false) {
+				if strings.EqualFold(w.SSID, ssid) {
+					return nil, errors.New(ssid + " is the setup Wi-Fi: devices shouldn't join it by themselves")
 				}
 			}
 		}

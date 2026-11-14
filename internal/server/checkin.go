@@ -50,6 +50,7 @@ type CheckIn struct {
 	ProfileHash  string `json:"profile_hash,omitempty"` // fingerprint of what the last download held (profiletypes.go)
 	// fixedmac.go: the device downloaded a profile that gives it its real Wi-Fi address. Until it's seen with it,
 	// FixedFrom is the private address it had then and FixedHost its host name; Fixed: it now uses the real one.
+	Onboard   bool   `json:"onboard,omitempty"` // checked in from the setup Wi-Fi (onboard.go)
 	FixedFrom string `json:"fixed_from,omitempty"`
 	FixedHost string `json:"fixed_host,omitempty"`
 	FixedAt   int64  `json:"fixed_at,omitempty"`
@@ -275,7 +276,7 @@ func (a *App) hiDevice(w http.ResponseWriter, r *http.Request) (map[string]any, 
 		fail(w, 404, "HomeOwl can't find this device on your network. Are you on the home Wi-Fi (not mobile data or a VPN)?")
 		return nil, "", false
 	}
-	if g, _ := c["is_guest"].(bool); g {
+	if g, _ := c["is_guest"].(bool); g && !a.onSetupWiFi(c) {
 		fail(w, 403, "Devices on the guest network can't check in.")
 		return nil, "", false
 	}
@@ -304,6 +305,9 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		res := map[string]any{"device": map[string]any{"mac": mac, "name": str(c, "name"), "hostname": str(c, "hostname"),
 			"vendor": str(c, "oui"), "network": str(c, "network")}, "people": people, "waiting": waiting}
+		if a.onSetupWiFi(c) {
+			res["setup_wifi"] = a.Cfg.Get().Onboard.SSID
+		}
 		if x, ok := a.checkins.Registered(mac); ok {
 			res["registered"] = a.deviceSetup(x)
 		}
@@ -353,11 +357,12 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		seen = str(c, "hostname")
 	}
 	x := CheckIn{IP: ip, MAC: mac, UserID: uid, Seen: seen, Vendor: str(c, "oui"), Network: str(c, "network"), Name: name, Kind: kind,
-		PersonID: pid, PersonName: pname}
+		PersonID: pid, PersonName: pname, Onboard: a.onSetupWiFi(c)}
 	if err := a.checkins.Add(x); err != nil {
 		fail(w, 400, err.Error())
 		return
 	}
+	a.checkinAlert(x)
 	send(w, 200, map[string]any{"ok": true})
 }
 
