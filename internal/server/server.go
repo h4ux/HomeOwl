@@ -86,6 +86,7 @@ type App struct {
 	devTypes     *profileTypes
 	appBlocks    *appBlocks
 	privateRelay *privateRelay
+	approval     *approvalStore
 	cert         tls.Certificate
 	handler      http.Handler
 	started      time.Time
@@ -121,7 +122,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}, appLogos: newAppLogos(dataDir),
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
-		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir)}
+		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }

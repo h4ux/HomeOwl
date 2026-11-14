@@ -62,13 +62,13 @@ func (a *App) followFixed(online []map[string]any) {
 			a.checkins.Edit(x.ID, func(y *CheckIn) { y.FixedFrom, y.FixedHost, y.FixedAt = "", "", 0 })
 			continue
 		}
-		if onNow[x.FixedFrom] { // still on its old address: not installed yet (or not reconnected)
-			continue
+		if onNow[x.FixedFrom] && !x.Onboard { // still on its old address: not installed yet (or not reconnected)
+			continue // (from the setup Wi-Fi the old entry can linger after it left; a new one elsewhere is the move)
 		}
 		var found []string
 		for _, c := range online {
 			mac := strings.ToLower(str(c, "mac"))
-			if mac == "" || mac == x.FixedFrom || (privateMACAddr(mac) && !x.Onboard) || c["is_wired"] == true || c["is_guest"] == true ||
+			if mac == "" || mac == x.FixedFrom || (privateMACAddr(mac) && !x.Onboard) || c["is_wired"] == true || c["is_guest"] == true || a.onSetupWiFi(c) ||
 				!strings.EqualFold(str(c, "hostname"), x.FixedHost) {
 				continue
 			}

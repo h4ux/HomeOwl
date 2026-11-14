@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown" };
 
 // demo: two fictional new devices
 function alFromBundle() {
@@ -46,6 +46,8 @@ function alList(items, people) {
       S.source === "live" ? actBtn({ kind: "stacmd", cmd: "block-sta", mac, label: a.data?.name || mac, description: `Block ${a.data?.name || mac}` }, "Block") : "",
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
     ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
+      : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button><button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`
+      : a.kind === "approval_flood" && S.role === "admin" ? `<button class="btn sm" data-goto="settings">Settings</button>`
       : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "Check-ins"}</button>` : "";
     return `${head}<div class="al-row${a.read ? "" : " unread"}${a.level === "warn" ? " warn" : ""}">
       <span class="al-ic">${iconSvg(AL_ICON[a.kind] || "iot", 18)}</span>
@@ -58,6 +60,12 @@ function alList(items, people) {
 document.addEventListener("click", e => {
   if (e.target.id === "al-read") { if (alLive()) api("/api/alerts/read", { id: 0 }).then(() => loadAlerts()).catch(err => toast(err.message, "err")); return; }
   const sh = e.target.closest("[data-alshow]"); if (sh) { showClient(sh.dataset.alshow); return; }
+  const apv = e.target.closest("[data-alapv],[data-alapvkeep]");
+  if (apv) {
+    const keep = !!apv.dataset.alapvkeep, mac = apv.dataset.alapv || apv.dataset.alapvkeep; apv.disabled = true;
+    api(keep ? "/api/approval/keep" : "/api/approval/approve", { mac }).then(() => toast(keep ? "Kept blocked" : "Approved — it can connect now", "ok")).catch(err => toast(err.message, "err"));
+    return;
+  }
   if (e.target.id === "al-test") { api("/api/alerts/test", {}).then(() => toast("Test sent", "ok")).catch(err => toast(err.message, "err")).finally(() => setTimeout(renderAlertSettings, 300)); return; }
   if (e.target.id === "al-save") {
     const body = { new_device: $("#al-new").value, setup: !!$("#al-setup")?.checked, macos: !!$("#al-mac")?.checked };

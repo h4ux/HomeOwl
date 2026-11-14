@@ -780,6 +780,7 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .rp-bar select{width:auto;margin:0}
 .dt-checks{display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:6px}
 .dt-onboard{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.dt-onboard label{flex:1;min-width:200px;margin:0}
+#st-approval .btnrow{align-items:center;flex-wrap:nowrap}#st-approval select{width:auto;max-width:170px;margin:0}
 .dt-checks .check{margin:0}
 .dt-radios{flex-direction:column}
 .dt-vpn [hidden]{display:none!important}

@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.52] — 2026-11-14
+
+- Approve new devices (Settings › Device profiles): with it on, a device that joins the home Wi-Fi for the first
+  time is blocked in UniFi until you approve it, from Settings or its alert (Approve, optionally giving it to
+  someone, or Keep blocked). Checked-in devices aren't blocked, including one moving over from the setup Wi-Fi.
+  Everything UniFi already knew when it was turned on counts as approved. Guest networks, the setup Wi-Fi and wired
+  devices aren't covered. Each block is a logged UniFi action with undo. More than 10 new devices at once blocks
+  none and raises an alert.
+- Setup Wi-Fi: a phone's old entry on the setup Wi-Fi no longer holds up following it to the home Wi-Fi.
+
 ## [0.1.51] — 2026-11-14
 
 The 0.1.50 build stopped at a flaky test (a cache shared between tests), so these changes ship as 0.1.51.

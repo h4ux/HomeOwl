@@ -54,6 +54,9 @@ type LAN struct {
 // may check in and get their profile; the profile then moves them to the home Wi-Fi and stops them rejoining it.
 type Onboard struct {
 	SSID string `json:"ssid,omitempty"` // "" = none
+	// Approve: a device that joins the home Wi-Fi for the first time is blocked until an admin approves it,
+	// unless it's a checked-in device (internal/server/approval.go)
+	Approve bool `json:"approve,omitempty"`
 }
 
 type Names struct {

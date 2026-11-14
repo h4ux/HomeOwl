@@ -137,8 +137,48 @@ async function renderDevTypes() {
     <div class="dt-onboard"><label>Network name<input id="dt-onboard" maxlength="32" list="dt-onboard-list" value="${esc(r.onboard_ssid || "")}" placeholder="e.g. Home Setup" autocomplete="off"></label>
       <datalist id="dt-onboard-list">${r.wlans.filter(w => w.guest || w.security === "open").map(w => `<option value="${esc(w.ssid)}">`).join("")}</datalist>
       <button class="btn" id="dt-onboard-save">Save</button></div>
-    ${r.onboard_ssid && !r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase()) && r.wlans.length ? `<p class="fine warn-t">There's no Wi-Fi called “${esc(r.onboard_ssid)}” on the console yet.</p>` : ""}`;
+    ${r.onboard_ssid && !r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase()) && r.wlans.length ? `<p class="fine warn-t">There's no Wi-Fi called “${esc(r.onboard_ssid)}” on the console yet.</p>` : ""}
+    <div id="st-approval"></div>`;
+  loadApproval();
 }
+// Approve new devices (approval.go): first-time devices on the home Wi-Fi are blocked until approved
+async function loadApproval() {
+  try { S.approval = await api("/api/approval"); } catch (e) { S.approval = { error: e.message }; }
+  renderApproval();
+}
+function renderApproval() {
+  const el = $("#st-approval"), r = S.approval; if (!el || !r) return;
+  if (r.error) { el.innerHTML = `<div class="msg warn">${esc(r.error)}</div>`; return; }
+  const who = d => esc(d.name || d.hostname || d.mac), meta = d => [d.vendor, d.ssid, ago(d.at * 1000)].filter(Boolean).map(esc).join(" · ");
+  const people = S.devTypePeople || [];
+  const row = (d, kept) => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)}</div></div>
+    <div class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}
+      <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${kept ? "" : `<button class="btn sm" data-apvkeep="${esc(d.mac)}">Keep blocked</button>`}</div></div>`;
+  el.innerHTML = `<h3 style="margin-top:18px">Approve new devices ${hint("A device that joins the home Wi-Fi for the first time is blocked in UniFi until you approve it here or from its alert. Checked-in devices (from the setup Wi-Fi with their profile) don't need it. Everything UniFi already knows when you turn this on counts as approved. Guest networks, the setup Wi-Fi and wired devices aren't covered. Each block is in the change log and can be undone.")}</h3>
+    <label class="check"><input type="checkbox" id="apv-on" ${r.on ? "checked" : ""}> <span>Block first-time devices on the home Wi-Fi until I approve them</span></label>
+    ${r.on ? `<p class="fine muted">${r.approved} devices approved.</p>` : ""}
+    ${r.waiting.length ? `<div class="ap-blocks">${r.waiting.map(d => row(d, false)).join("")}</div>` : r.on ? `<p class="fine muted">Nothing waiting.</p>` : ""}
+    ${r.kept.length ? `<details class="wi-more"><summary>Kept blocked (${r.kept.length})</summary><div class="ap-blocks">${r.kept.map(d => row(d, true)).join("")}</div></details>` : ""}`;
+}
+async function approvalDo(path, body, msg) {
+  try { S.approval = await api(path, body); toast(msg, "ok"); renderApproval(); } catch (err) { toast(err.message, "err"); loadApproval(); }
+}
+document.addEventListener("change", e => {
+  if (e.target.id !== "apv-on") return;
+  const on = e.target.checked;
+  if (!on) return approvalDo("/api/approval/set", { on }, "New devices aren't blocked any more");
+  e.target.checked = false;
+  openModal({ title: "Block new devices until you approve them?", body: `<p>From now on, a device that joins the home Wi-Fi for the first time is <b>blocked in UniFi</b> and you get an alert to approve it. HomeOwl does this on its own, through the logged UniFi block (with undo).</p>
+    <p>Every device UniFi already knows counts as approved, so nothing in the house is cut off. Checked-in devices from the setup Wi-Fi aren't blocked. Guests use the guest Wi-Fi.</p>`,
+    buttons: [{ label: "Cancel" }, { label: "Turn on", cls: "primary", onClick: async () => { closeModal(); await approvalDo("/api/approval/set", { on: true }, "New devices now wait for your approval"); } }] });
+});
+document.addEventListener("click", e => {
+  const ok = e.target.closest("[data-apv]");
+  if (ok) { const mac = ok.dataset.apv; ok.disabled = true; approvalDo("/api/approval/approve", { mac, person_id: $(`[data-apvwho="${mac}"]`)?.value || "" }, "Approved — it can connect now"); return; }
+  const keep = e.target.closest("[data-apvkeep]");
+  if (keep) approvalDo("/api/approval/keep", { mac: keep.dataset.apvkeep }, "Kept blocked");
+});
+
 function editDevType(id) {
   const r = S.devTypes, t = r.types.find(x => x.id === id) || { name: "", wifi: [], people: [], vpn: null, icon: "checkin" }, v = t.vpn || {};
   const keep = set => set ? "Saved — leave empty to keep" : "";
