@@ -81,7 +81,7 @@ function registered(st) {
     ? `<li><b>First</b> install <a href="${p === "mac" ? "https://apps.apple.com/app/wireguard/id1451685025" : "https://apps.apple.com/app/wireguard/id1441195209"}" target="_blank" rel="noopener">WireGuard from the App Store</a> and open it once. Without it the profile can't add the VPN.</li>` : "";
   const holds = extra ? `<ul class="hi-holds">${nd ? `<li>Encrypted DNS through NextDNS, under this device's name</li>` : ""}
       ${wifi.length ? `<li>Wi-Fi: ${wifi.map(esc).join(", ")} — joins by itself${inc.fixed_mac ? ", with this device's real Wi-Fi address so it's recognised at home (Settings shows a privacy note for that network)" : ""}</li>` : ""}
-      ${(inc.no_join || []).length ? `<li>Doesn't join by itself: ${inc.no_join.map(esc).join(", ")}</li>` : ""}
+      ${(inc.no_join || []).length ? `<li>Doesn't join by itself: ${inc.no_join.map(esc).join(", ")}${inc.no_join.length > 1 ? `. While installing it asks for their passwords: leave each one empty and tap <b>Next</b>` : ""}</li>` : ""}
       ${vpn ? `<li>VPN: ${esc(vpn.name)}${vpn.on_demand ? " — turns on by itself away from home" : ""}${vpn.app ? ` (needs the ${esc(vpn.app)} app${vpn.ready === false ? "; an admin still has to add this device's key" : ""})` : ""}</li>` : ""}</ul>` : "";
   const how = {
     ios: notSafariIOS()

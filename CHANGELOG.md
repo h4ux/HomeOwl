@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.67] — 2026-11-14
+
+- "Don't join our other Wi-Fi networks" lists password networks again, without their passwords, as "don't join by
+  itself": that turns auto-join off where a device had already saved them (0.1.64 left them out, so a saved one kept
+  joining). Installing asks for each password; the check-in page says to leave it empty and tap Next.
+
 ## [0.1.66] — 2026-11-14
 
 - Setup Wi-Fi with UniFi's guest portal: "Open the check-in page by itself (guest portal)" makes HomeOwl the site's
