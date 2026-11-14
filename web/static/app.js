@@ -683,6 +683,9 @@ function showLogin(st) {
     <form id="login-form" autocomplete="on"><label>Username<input id="l-user" autocomplete="username" required></label>
     <label>Password<input id="l-pass" type="password" autocomplete="current-password" required></label>
     <button class="btn primary" type="submit">Sign in</button><div id="auth-msg" class="msg" role="status"></div></form>
+    ${st?.tailscale_url ? `<div class="ts-or"><span class="muted">or</span></div>
+    <a class="btn" id="ts-signin" href="${esc(st.tailscale_url)}/api/auth/ts-go?back=${encodeURIComponent(location.origin)}">Sign in with Tailscale</a>
+    <p class="fine">Works on a device that's on your tailnet with a Tailscale login linked to your HomeOwl user.</p>` : ""}
     ${st?.tailscale_login ? `<p class="fine">You're on the tailnet as <b>${esc(st.tailscale_login)}</b>. An admin can link this login to your user so you're signed in automatically.</p>` : ""}
     <p class="fine">Forgot your password? On the computer running HomeOwl run <span class="mono">homeowl reset-password USERNAME</span>.</p>`);
 }

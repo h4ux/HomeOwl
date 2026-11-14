@@ -555,6 +555,9 @@ func (a *App) authAPI(w http.ResponseWriter, r *http.Request, op string) {
 				st["tailscale_login"] = id.Login
 			}
 		}
+		if !tsnetx.FromTailnet(r) && who == nil && !a.Users.NeedsSetup() {
+			st["tailscale_url"] = a.tailscaleURL() // "Sign in with Tailscale"
+		}
 		send(w, 200, st)
 	case "setup":
 		if r.Method != http.MethodPost {
@@ -599,6 +602,10 @@ func (a *App) authAPI(w http.ResponseWriter, r *http.Request, op string) {
 		}
 		setCookie(w, r, token)
 		send(w, 200, map[string]any{"ok": true, "user": u.Public()})
+	case "ts-go":
+		a.tsGo(w, r)
+	case "ts-back":
+		a.tsBack(w, r)
 	case "logout":
 		if c, err := r.Cookie(cookieName); err == nil {
 			a.Users.Logout(c.Value)

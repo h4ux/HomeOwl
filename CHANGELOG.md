@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.47] — 2026-11-14
+
+- Sign in with Tailscale from any of HomeOwl's addresses: when you open HomeOwl by its home-network address or
+  your own domain name, the sign-in page offers "Sign in with Tailscale". It opens HomeOwl's tailnet address, which
+  knows who you are, and comes back with a single-use code that lasts 30 seconds and is only sent to HomeOwl's own
+  addresses.
+
 ## [0.1.46] — 2026-11-14
 
 - Wi-Fi sign-in check: the "whose password" answer now counts the devices actually on a private-password (PPSK)

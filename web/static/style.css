@@ -285,6 +285,7 @@ table.nd-prof td{font-size:12.5px;padding:6px 8px}
 .mcp-mode.god.on{border-color:var(--crit);background:var(--crit-bg)}
 .btn.danger{color:#fff;background:var(--crit);border-color:var(--crit)}
 #auth-box form{display:flex;flex-direction:column;gap:2px}
+#auth-box .ts-or{text-align:center;margin:12px 0 8px;font-size:13px}#auth-box #ts-signin{display:block;text-align:center;text-decoration:none}
 @media (max-width:900px){.mcp-modes{grid-template-columns:1fr 1fr}}
 
 /* internet connections (Overview) */

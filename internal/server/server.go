@@ -54,6 +54,7 @@ type App struct {
 	Changes  *unifi.Changes
 	An       *analytics.Engine
 	TS       *tsnetx.Node
+	tsCodes  tsHandoff
 	MCP      *mcp.Server
 	Updates  *update.Checker
 	ReadOnly bool
