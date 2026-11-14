@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.71] — 2026-11-14
+
+- Check-in page and guest portal: "couldn't ask the network who you are" no longer leaves a dead end. HomeOwl reads
+  the console's client list at most every few seconds however many phones and captive-portal checks ask, retries
+  when the console doesn't answer (and logs what it said), and the page keeps trying by itself.
+
 ## [0.1.70] — 2026-11-14
 
 - Setup Wi-Fi: "Print these instructions" prints one page with the join QR code and password, the check-in QR code

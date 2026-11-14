@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -232,23 +233,72 @@ func (a *App) clientByIP(ip string) (map[string]any, error) {
 	if !a.UniFi.Connected() {
 		return nil, errors.New("HomeOwl isn't connected to the network yet — ask an admin")
 	}
-	st, d := a.UniFi.Get(a.UniFi.SitePath("stat/sta", false))
-	if st != 200 {
-		return nil, errors.New("couldn't ask the network who you are — try again in a minute")
-	}
-	for _, c := range unifi.List(d) {
-		if c["ip"] == ip {
+	// a device that only just joined may not be in the last few seconds' list: look again with a newer one
+	for _, age := range []time.Duration{staFresh, time.Second} {
+		list, err := a.onlineClients(age)
+		if err != nil {
+			return nil, err
+		}
+		if c := findClientIP(list, ip); c != nil {
 			return c, nil
+		}
+	}
+	return nil, nil
+}
+
+// staCache: the clients online, read at most every few seconds however many phones (and their captive-portal
+// checks) ask at once, retried when the console doesn't answer.
+type staCache struct {
+	mu   sync.Mutex
+	at   time.Time
+	list []map[string]any
+}
+
+const staFresh = 4 * time.Second
+
+// onlineClients answers from a list up to maxAge old.
+func (a *App) onlineClients(maxAge time.Duration) ([]map[string]any, error) {
+	a.sta.mu.Lock()
+	defer a.sta.mu.Unlock()
+	if a.sta.list != nil && time.Since(a.sta.at) < maxAge {
+		return a.sta.list, nil
+	}
+	var st int
+	var d any
+	for try := 0; try < 3; try++ {
+		if try > 0 {
+			time.Sleep(time.Duration(try) * 700 * time.Millisecond)
+		}
+		if st, d = a.UniFi.Get(a.UniFi.SitePath("stat/sta", false)); st == 200 {
+			a.sta.list, a.sta.at = unifi.List(d), time.Now()
+			return a.sta.list, nil
+		}
+	}
+	log.Printf("check-in: the console didn't list its clients (HTTP %d): %s", st, clip(unifi.ErrText(d), 200))
+	return nil, errors.New("couldn't ask the network who you are — trying again")
+}
+
+func clip(s string, n int) string {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
+}
+
+func findClientIP(list []map[string]any, ip string) map[string]any {
+	for _, c := range list {
+		if c["ip"] == ip {
+			return c
 		}
 		if v6, ok := c["ipv6"].([]any); ok {
 			for _, x := range v6 {
 				if x == ip {
-					return c, nil
+					return c
 				}
 			}
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 func str(m map[string]any, k string) string {

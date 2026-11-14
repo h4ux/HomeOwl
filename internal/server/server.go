@@ -45,6 +45,7 @@ const cookieName = "homeowl_session"
 const unifiKeySlot = "unifi-api-key"
 
 type App struct {
+	sta      staCache // who's online, shared by the check-in page and the guest portal
 	DataDir  string
 	Cfg      *config.Store
 	Sec      *secrets.Store

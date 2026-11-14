@@ -129,9 +129,16 @@ async function homeWiFi() {
     ${r.leave ? `<p class="fine">Once you're on the home Wi-Fi, open <b>Settings</b> › <b>Wi-Fi</b>, tap <b>${esc(r.leave)}</b> and choose <b>Forget</b>.</p>` : ""}`;
 }
 
+start.tries = 0;
 async function start() {
   let st;
-  try { st = await call("GET"); } catch (err) { $("#hi-box").innerHTML = `<div class="msg err">${esc(err.message)}</div>`; return; }
+  try { st = await call("GET"); start.tries = 0; }
+  catch (err) { // the network may be busy for a moment (a phone just joined): keep trying rather than leave a dead end
+    const again = ++start.tries <= 40;
+    $("#hi-box").innerHTML = `<div class="msg ${again ? "" : "err"}">${esc(err.message)}${again ? `<div class="fine muted">Trying again by itself in a few seconds…</div>` : ""}</div>`;
+    if (again) setTimeout(start, Math.min(3000 + start.tries * 500, 10000));
+    return;
+  }
   start.setup = st.setup_wifi || "";
   if (st.waiting && !start.force) return done(true);
   if (st.registered && !start.force) return registered(st);
