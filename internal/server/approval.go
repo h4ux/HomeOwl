@@ -44,7 +44,14 @@ type approvalState struct {
 	Approved map[string]int64         `json:"approved"` // MAC → when
 	Blocked  map[string]pendingDevice `json:"blocked"`
 	Seeded   int64                    `json:"seeded,omitempty"`
+	// SeedRecent: the seed took only devices seen recently (older seeds approved everything UniFi ever saw, and
+	// are trimmed once)
+	SeedRecent bool `json:"seed_recent,omitempty"`
 }
+
+// recentSeed: turning approval on approves the devices seen this recently; older ones wait for approval when they
+// come back
+const recentSeed = 24 * time.Hour
 
 func newApprovalStore(dir string) *approvalStore {
 	return &approvalStore{path: filepath.Join(dir, "device-approval.json")}
@@ -99,6 +106,14 @@ func (a *App) approvalTick(online []map[string]any) {
 	if st.Seeded == 0 || len(st.Approved) == 0 { // never block without knowing what was there before
 		s.mu.Unlock()
 		return
+	}
+	if !st.SeedRecent { // an older seed approved every device UniFi ever saw: trim it once
+		s.mu.Unlock()
+		if _, err := a.trimSeed(); err != nil {
+			log.Printf("device approval: %v", err)
+		}
+		s.mu.Lock()
+		st = s.load()
 	}
 	var block []map[string]any
 	for _, c := range online {
@@ -174,7 +189,7 @@ func (a *App) approvalView() map[string]any {
 	}
 	sort.Slice(waiting, func(i, j int) bool { return waiting[i].At > waiting[j].At })
 	sort.Slice(kept, func(i, j int) bool { return kept[i].At > kept[j].At })
-	return map[string]any{"on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "waiting": waiting, "kept": kept}
+	return map[string]any{"on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept}
 }
 
 // approvalAPI: on/off, approve (unblock, optionally give it to someone), keep blocked.
@@ -190,6 +205,14 @@ func (a *App) approvalAPI(op string, body map[string]any, by string) (map[string
 		if err := a.Cfg.Update(func(c *config.Config) { c.Onboard.Approve = on }); err != nil {
 			return nil, err
 		}
+	case "trim":
+		n, err := a.trimSeed()
+		if err != nil {
+			return nil, err
+		}
+		v := a.approvalView()
+		v["trimmed"] = n
+		return v, nil
 	case "approve", "keep":
 		mac := strings.ToLower(s(body, "mac"))
 		as := a.approval
@@ -250,22 +273,75 @@ func (a *App) seedApproval() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := s.load()
-	now := time.Now().Unix()
-	for _, c := range append(unifi.List(d1), unifi.List(d2)...) {
-		if mac := strings.ToLower(str(c, "mac")); mac != "" && st.Approved[mac] == 0 {
-			if _, blocked := st.Blocked[mac]; !blocked {
-				st.Approved[mac] = now
+	now := time.Now()
+	if st.Seeded != 0 { // a new start: the old seed's devices go, approvals made by hand stay
+		for mac, t := range st.Approved {
+			if t == st.Seeded {
+				delete(st.Approved, mac)
 			}
 		}
 	}
+	for mac := range recentMACs(unifi.List(d1), unifi.List(d2), now) {
+		if _, blocked := st.Blocked[mac]; !blocked && st.Approved[mac] == 0 {
+			st.Approved[mac] = now.Unix()
+		}
+	}
 	for _, x := range a.checkins.List() {
-		if x.Status == "approved" && x.MAC != "" {
-			st.Approved[x.MAC] = now
+		if x.Status == "approved" && x.MAC != "" && st.Approved[x.MAC] == 0 {
+			st.Approved[x.MAC] = now.Unix()
 		}
 	}
 	if len(st.Approved) == 0 {
-		return errors.New("UniFi lists no devices yet, so there's nothing to start from")
+		return errors.New("UniFi lists no devices seen in the last day, so there's nothing to start from")
 	}
-	st.Seeded = now
+	st.Seeded, st.SeedRecent = now.Unix(), true
 	return s.save(st)
+}
+
+// recentMACs: devices online now or seen within recentSeed.
+func recentMACs(known, online []map[string]any, now time.Time) map[string]bool {
+	out := map[string]bool{}
+	for _, c := range online {
+		if mac := strings.ToLower(str(c, "mac")); mac != "" {
+			out[mac] = true
+		}
+	}
+	for _, c := range known {
+		mac := strings.ToLower(str(c, "mac"))
+		if ls, ok := c["last_seen"].(float64); ok && mac != "" && now.Sub(time.Unix(int64(ls), 0)) < recentSeed {
+			out[mac] = true
+		}
+	}
+	return out
+}
+
+// trimSeed takes back the approvals a seed gave to devices not seen recently (approvals made by hand and checked-in
+// devices stay). Returns how many went.
+func (a *App) trimSeed() (int, error) {
+	st1, d1 := a.UniFi.Get(a.UniFi.SitePath("rest/user", false))
+	st2, d2 := a.UniFi.Get(a.UniFi.SitePath("stat/sta", false))
+	if st1 != 200 || st2 != 200 {
+		return 0, errors.New("couldn't read the devices UniFi knows — try again in a minute")
+	}
+	recent := recentMACs(unifi.List(d1), unifi.List(d2), time.Now())
+	s := a.approval
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.load()
+	n := 0
+	for mac, t := range st.Approved {
+		if t != st.Seeded || recent[mac] {
+			continue
+		}
+		if _, ok := a.checkins.Registered(mac); ok {
+			continue
+		}
+		delete(st.Approved, mac)
+		n++
+	}
+	if len(st.Approved) == 0 {
+		return 0, errors.New("nothing was seen in the last day, so HomeOwl left the list alone")
+	}
+	st.SeedRecent = true
+	return n, s.save(st)
 }

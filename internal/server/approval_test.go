@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/h4ux/homeowl/internal/analytics"
 	"github.com/h4ux/homeowl/internal/config"
@@ -17,7 +18,9 @@ import (
 func TestDeviceApproval(t *testing.T) {
 	var mu sync.Mutex
 	var cmds []string
-	known := `[{"mac":"00:11:22:00:00:01","name":"Living room TV"},{"mac":"00:11:22:00:00:02","hostname":"alexs-laptop"}]`
+	now := time.Now().Unix()
+	known := fmt.Sprintf(`[{"mac":"00:11:22:00:00:01","name":"Living room TV","last_seen":%d},{"mac":"00:11:22:00:00:02","hostname":"alexs-laptop","last_seen":%d},
+		{"mac":"00:11:22:00:00:03","hostname":"old-tablet","last_seen":%d}]`, now-600, now-3600*20, now-86400*2)
 	console := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/integration/v1/info"):
@@ -62,8 +65,19 @@ func TestDeviceApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	if v := a.approvalView(); v["on"] != true || v["approved"] != 2 {
-		t.Fatalf("seeded from what UniFi knew: %v", v)
+		t.Fatalf("seeded from the devices seen in the last day: %v", v)
 	}
+	// seen two days ago: not approved, so it waits when it comes back
+	a.approvalTick([]map[string]any{{"mac": "00:11:22:00:00:03", "hostname": "old-tablet", "essid": "Example Home"}})
+	if c := got(); len(c) != 1 || c[0] != "block-sta 00:11:22:00:00:03" {
+		t.Fatalf("a device not seen for two days waits for approval: %v", c)
+	}
+	mu.Lock()
+	cmds = nil
+	mu.Unlock()
+	ast := a.approval.load()
+	delete(ast.Blocked, "00:11:22:00:00:03")
+	_ = a.approval.save(ast)
 	// a checked-in phone moving to the home Wi-Fi (same host name) isn't blocked while HomeOwl follows it
 	_ = a.checkins.Add(CheckIn{MAC: "aa:bb:cc:00:00:20", Name: "Alex's Phone"})
 	x := a.checkins.List()[0]
@@ -144,7 +158,41 @@ func TestDeviceApproval(t *testing.T) {
 			logged++
 		}
 	}
-	if logged != len(got()) {
-		t.Fatalf("logged %d of %d", logged, len(got()))
+	if logged != len(got())+1 { // + the old tablet's block, cleared from the list above
+		t.Fatalf("logged %d of %d", logged, len(got())+1)
+	}
+}
+
+func TestApprovalTrimOldSeed(t *testing.T) {
+	now := time.Now().Unix()
+	known := fmt.Sprintf(`[{"mac":"00:11:22:00:00:01","last_seen":%d},{"mac":"00:11:22:00:00:03","last_seen":%d},{"mac":"00:11:22:00:00:04","last_seen":%d}]`, now-60, now-86400*5, now-86400*9)
+	console := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/integration/v1/info"):
+			_, _ = w.Write([]byte(`{"applicationVersion":"9.0"}`))
+		case strings.HasSuffix(r.URL.Path, "/rest/user"):
+			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":` + known + `}`))
+		case strings.HasSuffix(r.URL.Path, "/stat/sta"):
+			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[]}`))
+		default:
+			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[]}`))
+		}
+	}))
+	defer console.Close()
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.UniFi.Connect(console.URL, "test-key", false, "default"); err != nil {
+		t.Fatal(err)
+	}
+	// an older seed approved everything at once; 00:04 was approved by hand later
+	seed := now - 86400*30
+	_ = a.approval.save(approvalState{Seeded: seed, Approved: map[string]int64{"00:11:22:00:00:01": seed, "00:11:22:00:00:03": seed, "00:11:22:00:00:04": seed + 100}})
+	_ = a.Cfg.Update(func(c *config.Config) { c.Onboard.Approve = true })
+	a.approvalTick(nil) // trims once
+	st := a.approval.load()
+	if !st.SeedRecent || st.Approved["00:11:22:00:00:01"] == 0 || st.Approved["00:11:22:00:00:03"] != 0 || st.Approved["00:11:22:00:00:04"] == 0 {
+		t.Fatalf("old seed trimmed, recent and hand approvals kept: %+v", st)
 	}
 }

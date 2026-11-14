@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.62] — 2026-11-14
+
+- Device approval: turning it on approves only the devices seen in the last day (it used to approve every device
+  UniFi ever saw); older ones wait for approval when they come back. An existing list from the old way is trimmed
+  once by itself, keeping devices you approved and checked-in devices, and Settings has "Re-check devices not seen
+  lately" to do it again.
+
 ## [0.1.61] — 2026-11-14
 
 - Mac profiles install for the whole Mac (PayloadScope System). Without it macOS installed them for the signed-in
