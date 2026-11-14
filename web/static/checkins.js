@@ -237,3 +237,27 @@ document.addEventListener("click", async e => {
   if (e.target.id === "ci-reload") loadCheckins();
 });
 { const _render = render; render = function () { _render(); const a = $("#nav-checkins")?.closest("a"); if (a) a.hidden = S.role !== "admin" || S.source !== "live"; if (S.view === "checkins") loadCheckins(); }; }
+
+// ---- Settings › Device profiles: Wi-Fi sign-in check (wifiident.go) — read-only
+const WI_STATE = { ok: ["good", "✓"], warn: ["warn", "!"], bad: ["bad", "✕"], info: ["", "i"] };
+function renderWifiIdent() {
+  const el = $("#st-wifiident"); if (!el) return;
+  const r = S.wifiIdent;
+  el.innerHTML = `<h2>Wi-Fi sign-in check ${hint("Can your UniFi console tell whose device it is by the Wi-Fi login it uses, instead of its MAC address? This reads (never changes) the console's Wi-Fi, RADIUS and guest portal settings. No password, secret or login name leaves the console.")}</h2>
+    <p class="fine">Checks for private passwords per person (PPSK), Enterprise Wi-Fi with UniFi's RADIUS server, and a captive portal for an onboarding network. Read-only.</p>
+    ${r?.error ? `<div class="msg warn">${esc(r.error)}</div>` : ""}
+    ${r && !r.error ? `<ul class="wi-list">${arr(r.verdict).map(v => `<li><span class="tag ${WI_STATE[v.state]?.[0] || ""}" aria-hidden="true">${WI_STATE[v.state]?.[1] || "i"}</span><div><b>${esc(v.topic)}</b><div class="fine">${esc(v.text)}</div></div></li>`).join("")}</ul>
+      <details class="wi-more"><summary class="fine">What was read${r.version ? ` · UniFi Network ${esc(r.version)}` : ""}</summary>
+        <div class="tbl-wrap"><table><thead><tr><th>Wi-Fi network</th><th>Security</th><th>Private passwords</th><th>Network</th></tr></thead><tbody>${arr(r.wlans).map(w => `<tr><td>${esc(w.name)}${w.guest ? ` <span class="tag">guest</span>` : ""}${w.enabled ? "" : ` <span class="tag">off</span>`}</td>
+          <td>${esc(w.security === "wpaeap" ? "Enterprise (802.1X)" : w.security === "wpapsk" ? (w.wpa_mode || "WPA") + (w.wpa3 ? " + WPA3" : "") : w.security || "–")}</td>
+          <td>${w.ppsk ? `on · ${w.ppsk_keys || 0}` : w.ppsk_keys ? `${w.ppsk_keys} (off)` : "–"}</td><td>${esc(w.network || "–")}</td></tr>`).join("")}</tbody></table></div>
+        <p class="fine muted">${r.networks} networks (VLANs) · RADIUS users: ${r.radius.users} · RADIUS profiles: ${r.radius.profiles} · Wi-Fi devices now: ${r.clients.wifi}${Object.keys(r.clients.identity_fields || {}).length ? ` · login fields on devices: ${esc(Object.entries(r.clients.identity_fields).map(([k, n]) => `${k} (${n})`).join(", "))}` : ""}</p>
+        ${arr(r.errors).length ? `<p class="fine bad-t">Couldn't read: ${esc(r.errors.join("; "))}</p>` : ""}</details>` : ""}
+    <div class="btnrow" style="margin-top:10px"><button class="btn${r ? "" : " primary"}" id="wi-run">${r ? "Check again" : "Check my console (read-only)"}</button></div>`;
+}
+document.addEventListener("click", async e => {
+  if (e.target.id !== "wi-run") return;
+  e.target.disabled = true; e.target.textContent = "Reading…";
+  try { S.wifiIdent = await api("/api/wifi-ident"); } catch (err) { S.wifiIdent = { error: err.message }; }
+  renderWifiIdent();
+});

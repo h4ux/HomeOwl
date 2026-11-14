@@ -767,6 +767,10 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .rp-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;margin-right:8px;white-space:nowrap}
 .rp-chip i{width:8px;height:8px;border-radius:50%}
 .rp-notes{margin:0;padding-left:18px}
+.wi-list{list-style:none;margin:6px 0 8px;padding:0;display:flex;flex-direction:column;gap:10px}
+.wi-list li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:8px;align-items:start}
+.wi-list .tag{justify-content:center;text-align:center;min-width:22px}
+.wi-more summary{cursor:pointer;margin:4px 0}
 .rp-notes li{margin:4px 0}
 .rp-notes li.bad{color:var(--crit)}
 .rp-notes li.warn{color:var(--med)}

@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.45] — 2026-11-14
+
+### Added
+- **Wi-Fi sign-in check** (Settings › Device profiles). A read-only look at what your UniFi console offers for knowing whose device it is by its Wi-Fi login instead of its MAC address:
+  - private passwords per person (PPSK), and whether UniFi records which one a device used;
+  - the built-in RADIUS server and Enterprise Wi-Fi, and whether UniFi shows each device's login;
+  - the guest portal, for an onboarding network that sends new devices to HomeOwl.
+  It only reads, and no password, secret or login name leaves the console: only which settings exist, whether they're on, and counts.
+
 ## [0.1.44] — 2026-11-14
 
 ### Added

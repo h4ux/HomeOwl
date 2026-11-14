@@ -357,6 +357,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = a.mdmRestart(body)
 	case p == "mdm/reset":
 		res = a.mdmReset(b(body, "all"))
+	case p == "wifi-ident":
+		res, err = a.wifiIdentCheck()
 	case p == "owners":
 		res, err = a.ownersView()
 	case p == "owners/link" || p == "owners/dismiss":
@@ -1112,5 +1114,5 @@ func orStr(v ...string) string {
 // getOK: the admin routes that only read, so a GET may run them. Every other admin route changes something and
 // needs a POST, which carries the session token (X-Audit-Token) and passes the same-origin check: a link, an
 // <img> or a page on another site can't make HomeOwl act.
-var getOK = map[string]bool{"appblocks": true, "owners": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
+var getOK = map[string]bool{"appblocks": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
 	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "cameras/discover": true}
