@@ -12,6 +12,8 @@ Reviews your UniFi setup, fixes problems with one click, shows who uses what and
 
 <p align="center"><img src="docs/images/overview.png" width="860" alt="HomeOwl overview"></p>
 
+How the pieces fit together, with diagrams: [docs/how-it-works.md](docs/how-it-works.md).
+
 > HomeOwl is an independent open-source project. It is not affiliated with or endorsed by Ubiquiti, NextDNS or Tailscale.
 
 ## What it does

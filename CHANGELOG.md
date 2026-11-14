@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.65] — 2026-11-14
+
+- Docs: [How HomeOwl works](docs/how-it-works.md), with diagrams of the pieces, getting a new device onto the home
+  Wi-Fi, approving new devices and the setup Wi-Fi's network.
+
 ## [0.1.64] — 2026-11-14
 
 - "Don't join our other Wi-Fi networks" no longer puts other networks' passwords in the profile (0.1.63 did, and a
