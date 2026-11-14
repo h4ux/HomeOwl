@@ -19,15 +19,15 @@ func TestOwnerHints(t *testing.T) {
 	cls := []OwnerClient{
 		cl("aa:bb:cc:00:00:01", "Alex phone", "", "Apple", 900*time.Hour, 0),
 		cl("aa:bb:cc:00:00:02", "", "Sams-iPhone", "Apple", 900*time.Hour, 200*time.Hour), // Sam's old address
-		cl("aa:bb:cc:00:00:10", "Alexs-MacBook", "", "", 10*time.Hour, 0),                    // same as the NextDNS device
-		cl("12:bb:cc:00:00:11", "", "Sams-iPhone", "", 100*time.Hour, 0),                     // Sam's phone, new private address
-		cl("aa:bb:cc:00:00:12", "", "alex-mbp", "", 10*time.Hour, 0),                         // name
-		cl("aa:bb:cc:00:00:13", "Living room", "", "Roku", 10*time.Hour, 0),                 // shared
-		cl("aa:bb:cc:00:00:14", "alex-and-sam-ipad", "", "", 10*time.Hour, 0),                // two names: no guess
-		cl("aa:bb:cc:00:00:15", "Kitchen speaker", "", "", 10*time.Hour, 0),                  // admin set it as a speaker
-		cl("aa:bb:cc:00:00:16", "Galaxy-Tab", "", "", 10*time.Hour, 0),                       // nothing to go on
-		cl("aa:bb:cc:00:00:17", "Alexander's iPad", "", "", 10*time.Hour, 0),                 // not "Alex"
-		cl("aa:bb:cc:00:00:18", "Hall Echo", "", "", 10*time.Hour, 0),                        // smart home, but no such group
+		cl("aa:bb:cc:00:00:10", "Alexs-MacBook", "", "", 10*time.Hour, 0),                 // same as the NextDNS device
+		cl("12:bb:cc:00:00:11", "", "Sams-iPhone", "", 100*time.Hour, 0),                  // Sam's phone, new private address
+		cl("aa:bb:cc:00:00:12", "", "alex-mbp", "", 10*time.Hour, 0),                      // name
+		cl("aa:bb:cc:00:00:13", "Living room", "", "Roku", 10*time.Hour, 0),               // shared
+		cl("aa:bb:cc:00:00:14", "alex-and-sam-ipad", "", "", 10*time.Hour, 0),             // two names: no guess
+		cl("aa:bb:cc:00:00:15", "Kitchen speaker", "", "", 10*time.Hour, 0),               // admin set it as a speaker
+		cl("aa:bb:cc:00:00:16", "Galaxy-Tab", "", "", 10*time.Hour, 0),                    // nothing to go on
+		cl("aa:bb:cc:00:00:17", "Alexander's iPad", "", "", 10*time.Hour, 0),              // not "Alex"
+		cl("aa:bb:cc:00:00:18", "Hall Echo", "", "", 10*time.Hour, 0),                     // smart home, but no such group
 	}
 	got := map[string]OwnerHint{}
 	for _, h := range ownerHints(people, cls, map[string]string{"aa:bb:cc:00:00:15": "speaker"}, func(mac, pid string) bool { return mac == "aa:bb:cc:00:00:18" }) {

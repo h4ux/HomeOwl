@@ -4,7 +4,7 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
-## [0.1.42] — 2026-11-14
+## [0.1.43] — 2026-11-14
 
 ### Added
 - **Whose device is this?** (Family › People & groups, admins). HomeOwl suggests an owner for UniFi devices nobody owns yet, says why and how sure it is, and links nothing until you click **Link** (or **Link the sure ones**). The clues:
