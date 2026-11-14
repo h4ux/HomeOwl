@@ -816,3 +816,5 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .pp-app:hover{border-color:var(--accent);color:var(--accent)}
 .pp-app .tag{font-size:10px;padding:0 5px;margin-left:2px;vertical-align:1px}
 .dt-setuplink{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px}.dt-setuplink .mono{word-break:break-all}
+.dt-netstate{margin:8px 0;padding-left:18px}.dt-netstate li{margin:4px 0}
+.arch-hint{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}.arch-list{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto}.arch-list .check span .fine{display:block}

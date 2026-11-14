@@ -177,6 +177,10 @@ function normalise(b) {
       ip: active.get(mac)?.ip || u.last_ip || h.last_ip || null, wired: u.is_wired ?? active.get(mac)?.wired };
   });
   if (!known.length) known = Object.values(hist).map(h => { const mac = String(h.mac).toLowerCase(); return { id: h.id, mac, name: h.name || null, label: h.display_name || h.name || h.hostname || mac, vendor: h.oui, lastSeen: num(h.last_seen), online: active.has(mac), blocked: !!h.blocked, ip: h.last_ip || active.get(mac)?.ip, fixedIp: h.use_fixedip ? h.fixed_ip : null }; });
+  // archived addresses (old copies of a device) stay out of the lists unless they come back online
+  const archived = S.archived instanceof Set ? S.archived : new Set();
+  const archivedCount = known.filter(k => archived.has(k.mac) && !k.online).length;
+  known = known.filter(k => !archived.has(k.mac) || k.online);
   known.forEach(k => { const c = active.get(k.mac); if (c) { c.userId = c.userId || k.id; c.blocked = c.blocked || k.blocked; c.fixedIp = c.fixedIp || k.fixedIp; } });
   const knownByMac = Object.fromEntries(known.map(k => [k.mac, k]));
 
@@ -280,7 +284,7 @@ function normalise(b) {
 
   const coverage = arr(b.meta?.log).reduce((a, l) => { (a[l.source] ||= { ok: 0, total: 0 }); a[l.source].total++; if (l.ok) a[l.source].ok++; return a; }, {});
   return {
-    info, devices, clients, known, knownByMac, networks, wans, wanLinks, wlans, rules, policies, zones, portForwards, settings: st, vpn, coverage, neighbors, history, events, alarms, ips, dpiCats, clientDpi,
+    info, devices, clients, known, knownByMac, archivedCount, networks, wans, wanLinks, wlans, rules, policies, zones, portForwards, settings: st, vpn, coverage, neighbors, history, events, alarms, ips, dpiCats, clientDpi,
     routes: arr(L.routes), netById, defaultNet, netForIp, hasLegacy: !!(arr(L.networks).length || arr(L.devices).length),
     devByMac: Object.fromEntries(devices.map(d => [d.mac, d])),
   };

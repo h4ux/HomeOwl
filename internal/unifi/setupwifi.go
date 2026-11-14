@@ -9,7 +9,7 @@ import (
 )
 
 // The setup Wi-Fi (HomeOwl's onboarding network), created through two allow-listed actions:
-//   - "setupnet": a new network (VLAN) with no internet, modelled on the console's own Default network so the body
+//   - "setupnet": a new network (VLAN), with or without internet ("internet": "on"), modelled on the console's own Default network so the body
 //     has every field this UniFi version expects; only the name, VLAN, subnet, DHCP range and internet are set.
 //   - "setupwlan": a new Wi-Fi on it, modelled on the home Wi-Fi (same security mode, bands, AP groups), with its
 //     own name and password; no MAC filter, schedule, private keys or RADIUS are copied.
@@ -51,6 +51,7 @@ func (c *Client) planSetupNet(a Action) (*plan, error) {
 		return nil, aerr("could not read the networks: %s", ErrText(d))
 	}
 	gw, subnet := SetupSubnet(vlan)
+	internet := a.s("internet") == "on"
 	var tmpl map[string]any
 	for _, n := range List(d) {
 		if strings.EqualFold(fmt.Sprint(n["name"]), name) {
@@ -79,12 +80,12 @@ func (c *Client) planSetupNet(a Action) (*plan, error) {
 	at := func(last byte) string { return net.IPv4(ip[0], ip[1], ip[2], last).String() }
 	set := map[string]any{"name": name, "purpose": "corporate", "enabled": true, "vlan_enabled": true, "vlan": vlan,
 		"ip_subnet": gw + "/24", "dhcpd_enabled": true, "dhcpd_start": at(10), "dhcpd_stop": at(250), "dhcpd_leasetime": 3600,
-		"internet_access_enabled": false, "network_isolation_enabled": false, "mdns_enabled": false, "ipv6_interface_type": "none"}
+		"internet_access_enabled": internet, "network_isolation_enabled": false, "mdns_enabled": false, "ipv6_interface_type": "none"}
 	for k, v := range set {
 		body[k] = v
 	}
 	return &plan{req: req{"POST", c.SitePath("rest/networkconf", false), body}, Before: map[string]any{"network": nil},
-		After: map[string]any{"network": name, "vlan": vlan, "subnet": subnet.String(), "internet": "off"}, DeleteCreated: true, Target: name}, nil
+		After: map[string]any{"network": name, "vlan": vlan, "subnet": subnet.String(), "internet": map[bool]string{true: "on", false: "off"}[internet]}, DeleteCreated: true, Target: name}, nil
 }
 
 func (c *Client) planSetupWLAN(a Action) (*plan, error) {

@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", archive: "unknown" };
 
 // demo: two fictional new devices
 function alFromBundle() {
@@ -47,6 +47,7 @@ function alList(items, people) {
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
     ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
       : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button><button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`
+      : a.kind === "archive" && S.role === "admin" ? `<button class="btn sm" data-goto="clients">Review</button>`
       : a.kind === "approval_flood" && S.role === "admin" ? `<button class="btn sm" data-goto="settings">Settings</button>`
       : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "Check-ins"}</button>` : "";
     return `${head}<div class="al-row${a.read ? "" : " unread"}${a.level === "warn" ? " warn" : ""}">

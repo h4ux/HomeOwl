@@ -481,9 +481,11 @@ V.clients = m => {
   const bins = []; for (let b = -90; b < -30; b += 5) bins.push({ label: String(b), value: wl.filter(c => c.signal !== null && c.signal >= b && c.signal < b + 5).length, color: b < -75 ? "var(--high)" : b < -67 ? "var(--med)" : "var(--ok)" });
   const top = [...m.clients].filter(c => c.tx !== null || c.rx !== null).sort((a, b) => ((b.tx || 0) + (b.rx || 0)) - ((a.tx || 0) + (a.rx || 0))).slice(0, 10);
   const byAp = {}; wl.forEach(c => { const k = m.devByMac[c.apMac]?.name || "Unknown AP"; byAp[k] = (byAp[k] || 0) + 1; });
-  const tabs = { active: ["Active", m.clients.length], known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length] };
-  const tab = S.clientTab;
-  const tbl = tab === "active" ? table("clients", [
+  const admin = S.role === "admin" && S.source === "live";
+  const tabs = { active: ["Active", m.clients.length], known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length], ...(admin && arr(S.archiveSug?.archived).length ? { archived: ["Archived", arr(S.archiveSug.archived).length] } : {}) };
+  const tab = S.clientTab === "archived" && !tabs.archived ? "known" : S.clientTab;
+  if (admin) loadArchive();
+  const tbl = tab === "archived" ? archivedTable() : tab === "active" ? table("clients", [
     { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${m.knownByMac[r.mac]?.note ? `<div class="fine muted cl-note">${esc(m.knownByMac[r.mac].note)}</div>` : ""}` },
     { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "Wi-Fi")} · ${bandLabel(r.band)}` },
     { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}" title="${r.signal < -75 ? "Weak" : r.signal < -67 ? "OK" : "Good"}">${r.signal} dBm</span>` },
@@ -496,14 +498,72 @@ V.clients = m => {
       { k: "ip", more: 1, fmt: r => r.fixedIp || r.ip ? `<span class="mono">${esc(r.fixedIp || r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
       { k: "vendor", label: "Vendor" }, { k: "network", label: "Network" }, { k: "blocked", label: "Blocked", fmt: r => r.blocked ? `<span class="tag bad">blocked</span>` : "" },
       { k: "firstSeen", label: "First seen", num: 1, fmt: r => fmtTime(r.firstSeen) },
+      ...(admin ? [{ k: "mac", label: "", sort: () => 0, fmt: r => r.online ? "" : `<button class="btn sm ghost" data-archive="${esc(r.mac)}" title="Hide this address from HomeOwl's lists (UniFi and the logs keep it)">Archive</button>` }] : []),
     ], tab === "blocked" ? m.known.filter(k => k.blocked) : m.known, { search: true, empty: tab === "blocked" ? "No blocked clients" : "No known-client list returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` });
   return `<div class="head"><div><h1>Clients</h1><div class="muted">${m.clients.length} active · ${m.known.length} known</div></div></div>
+  ${admin ? `<div id="archive-hint">${archiveHint()}</div>` : ""}
   <div class="filters">${Object.entries(tabs).map(([k, [l, n]]) => `<button data-ctab="${k}" class="${tab === k ? "on" : ""}">${l} (${n})</button>`).join("")}</div>${tbl}
   ${insights("clients", `<div class="grid g2"><div class="card"><h2>Wireless signal strength (dBm)</h2>${columns(bins)}<p class="fine">Green ≥ −67 (good for calls/video) · amber −67…−75 · red &lt; −75 (weak)</p></div>
     <div class="card"><h2>Top 10 by traffic (since connected)</h2>${hbar(top.map(c => ({ label: c.label, value: (c.tx || 0) + (c.rx || 0), color: "var(--c2)" })), { fmt: fmtBytes })}</div>
     <div class="card"><h2>Wireless clients per AP</h2>${hbar(Object.entries(byAp).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value, color: "var(--c4)" })))}</div>
     <div class="card"><h2>Whole-network app categories</h2>${hbar([...m.dpiCats].sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx)).slice(0, 8).map(d => ({ label: d.cat, value: d.rx + d.tx, color: "var(--c1)" })), { fmt: fmtBytes })}</div></div>`)}`;
 };
+
+// ---- archived devices (archive.go): old addresses of the same device, hidden from the lists, never deleted
+async function loadArchive(force) {
+  if (S.archiveBusy || (!force && S.archiveAt && Date.now() - S.archiveAt < 300000)) return;
+  S.archiveBusy = true;
+  const before = [...(S.archived || [])].sort().join();
+  try { S.archiveSug = await api("/api/archive"); S.archiveAt = Date.now(); S.archived = new Set(arr(S.archiveSug.archived).map(d => d.mac)); }
+  catch { S.archiveSug = null; S.archiveAt = Date.now(); } finally { S.archiveBusy = false; }
+  if (S.view !== "clients") return;
+  if (S.archiveSug && [...S.archived].sort().join() !== before || $("[data-ctab=archived]") === null && arr(S.archiveSug?.archived).length) { load(S.bundle, S.source, true); return; }
+  const el = $("#archive-hint"); if (el) el.innerHTML = archiveHint();
+}
+function archiveHint() {
+  const l = arr(S.archiveSug?.suggestions); if (!l.length) return "";
+  const dup = l.filter(x => x.kind === "duplicate").length, old = l.length - dup;
+  return `<div class="card section arch-hint"><div><b>HomeOwl suggests archiving ${plural(l.length, "old device address", "old device addresses")}</b>
+    <div class="fine muted">${[dup ? `${dup} older ${dup === 1 ? "copy" : "copies"} of devices now on a newer address` : "", old ? `${old} private ${old === 1 ? "address" : "addresses"} unused for months` : ""].filter(Boolean).join(" · ")}. Archiving hides them from HomeOwl's lists; UniFi, the logs and the history keep them, and you can restore them.</div></div>
+    <button class="btn primary" id="arch-review">Review…</button></div>`;
+}
+function archiveName(mac) { const u = arr(S.bundle?.legacy?.known_clients).find(x => String(x.mac).toLowerCase() === mac); return u?.name || u?.hostname || u?.oui || ""; }
+function archivedTable() {
+  const l = arr(S.archiveSug?.archived);
+  return table("archived", [
+    { k: "name", label: "Device", fmt: r => esc(r.name || archiveName(r.mac) || r.mac) }, { k: "mac", label: "Address", fmt: r => `<span class="mono">${esc(r.mac)}</span>` },
+    { k: "at", label: "Archived", num: 1, fmt: r => `${esc(ago(r.at))}${r.by ? ` <span class="fine muted">by ${esc(r.by)}</span>` : ""}` },
+    { k: "reason", label: "Why", fmt: r => `<span class="fine">${esc(r.reason || "")}</span>` },
+    { k: "x", label: "", sort: () => 0, fmt: r => `<button class="btn sm" data-unarchive="${esc(r.mac)}">Restore</button>` }], l, { search: true, empty: "Nothing archived" });
+}
+async function archiveDo(path, body, msg) {
+  try { S.archiveSug = await api(path, body); S.archiveAt = Date.now(); S.archived = new Set(arr(S.archiveSug.archived).map(d => d.mac)); closeModal(); toast(msg, "ok"); load(S.bundle, S.source, true); }
+  catch (err) { toast(err.message, "err"); }
+}
+document.addEventListener("click", e => {
+  if (e.target.id === "arch-review") {
+    const l = arr(S.archiveSug?.suggestions), linkable = l.some(x => x.person_id);
+    openModal({ title: "Archive old device addresses", wide: true, body: `<p class="fine muted">Ticked addresses leave Clients, Who's home and the device pickers. Nothing is deleted, and an archived address that comes back online shows again.</p>
+      <div class="arch-list">${l.map(x => `<label class="check"><input type="checkbox" data-archpick="${esc(x.mac)}" data-archname="${esc(x.name)}" checked> <span><b>${esc(x.name)}</b> <span class="mono fine">${esc(x.mac)}</span> <span class="fine muted">· seen ${esc(ago(x.last_seen))}</span>
+        <span class="fine">${esc(x.reason)}${x.person_name ? ` It belongs to ${esc(x.person_name)}.` : ""}</span></span></label>`).join("")}</div>
+      ${linkable ? `<label class="check" style="margin-top:10px"><input type="checkbox" id="arch-link" checked> <span>Give the newer address to the same person <span class="fine muted">So Who's home and their stats follow the device to its new address.</span></span></label>` : ""}`,
+      buttons: [{ label: "Cancel" }, { label: "Archive ticked", cls: "primary", onClick: () => {
+        const picks = [...document.querySelectorAll("[data-archpick]:checked")]; if (!picks.length) return toast("Nothing ticked", "err");
+        return archiveDo("/api/archive/add", { macs: picks.map(i => i.dataset.archpick), names: Object.fromEntries(picks.map(i => [i.dataset.archpick, i.dataset.archname])), link: !!$("#arch-link")?.checked, reason: "Suggested by HomeOwl" }, `Archived ${plural(picks.length, "address", "addresses")}`);
+      } }] });
+    return;
+  }
+  const ar = e.target.closest("[data-archive]");
+  if (ar) {
+    e.stopPropagation();
+    const mac = ar.dataset.archive, k = S.model.knownByMac[mac];
+    openModal({ title: `Archive ${k?.label || mac}?`, body: `<p>It leaves Clients, Who's home and the device pickers. UniFi, the logs and the history keep it; restore it from the Archived tab. If it comes back online it shows again.</p>`,
+      buttons: [{ label: "Cancel" }, { label: "Archive", cls: "primary", onClick: () => archiveDo("/api/archive/add", { macs: [mac], names: { [mac]: k?.label || "" }, reason: "Archived by hand" }, "Archived") }] });
+    return;
+  }
+  const un = e.target.closest("[data-unarchive]");
+  if (un) { e.stopPropagation(); archiveDo("/api/archive/restore", { macs: [un.dataset.unarchive] }, "Restored"); }
+}, true);
 
 // ---- history & events
 V.history = m => {
@@ -669,7 +729,7 @@ async function collectLive(quiet, fresh) {
   if (!quiet) busy(true, fresh || !S.dataAge ? "Collecting configuration… (15–40 s)" : "Loading…");
   try {
     const [bundle, types] = await Promise.all([api("/api/collect", { fresh: !!fresh }), api("/api/client-types").catch(() => null)]);
-    if (types) S.cliTypes = types.types || {};
+    if (types) { S.cliTypes = types.types || {}; S.archived = new Set(arr(types.archived)); }
     load(bundle, "live", quiet); S.dataAt = (S.bundle?.meta?.cached_at || Date.now() / 1000) * 1000; renderChip(); } finally { busy(false); }
 }
 const EMPTY_BUNDLE = { integration: {}, legacy: {}, v2: {}, meta: {} };

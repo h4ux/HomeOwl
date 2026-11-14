@@ -87,6 +87,7 @@ type App struct {
 	appBlocks    *appBlocks
 	privateRelay *privateRelay
 	approval     *approvalStore
+	archive      *archiveStore
 	cert         tls.Certificate
 	handler      http.Handler
 	started      time.Time
@@ -122,7 +123,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}, appLogos: newAppLogos(dataDir),
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
-		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir)}
+		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir), archive: newArchiveStore(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
@@ -165,6 +166,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.presenceLoop(ctx)
 	go a.setupWatchLoop(ctx)
 	go a.mdmLoop(ctx)
+	go a.archiveLoop(ctx)
 	go a.appBlocksLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)

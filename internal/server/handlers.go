@@ -127,7 +127,7 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, nextdnsTest())
 		return
 	case "client-types": // the device types admins chose (they set the icons), for everyone signed in
-		send(w, 200, map[string]any{"types": a.cliTypes.All()})
+		send(w, 200, map[string]any{"types": a.cliTypes.All(), "archived": a.archive.MACs()})
 		return
 	case "analytics/query":
 		params, _ := body["params"].(map[string]any)
@@ -369,6 +369,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.ownersAPI(strings.TrimPrefix(p, "owners/"), body)
 	case p == "appblocks":
 		res = a.appBlocksView()
+	case p == "archive":
+		res, err = a.archiveView()
+	case strings.HasPrefix(p, "archive/"):
+		res, err = a.archiveAPI(strings.TrimPrefix(p, "archive/"), body, by)
 	case p == "approval":
 		res = a.approvalView()
 	case strings.HasPrefix(p, "approval/"):
@@ -1139,5 +1143,5 @@ func orStr(v ...string) string {
 // getOK: the admin routes that only read, so a GET may run them. Every other admin route changes something and
 // needs a POST, which carries the session token (X-Audit-Token) and passes the same-origin check: a link, an
 // <img> or a page on another site can't make HomeOwl act.
-var getOK = map[string]bool{"approval": true, "appblocks": true, "privaterelay": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
+var getOK = map[string]bool{"approval": true, "archive": true, "appblocks": true, "privaterelay": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
 	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "cameras/discover": true}

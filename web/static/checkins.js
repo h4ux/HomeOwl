@@ -124,8 +124,8 @@ async function renderDevTypes() {
     <p class="fine">Each approved device's setup profile carries its NextDNS profile and, with a type, Wi-Fi networks (they join by themselves) and a VPN. Wi-Fi passwords are read from UniFi when a device downloads its profile; VPN secrets are kept in HomeOwl's secret store and never shown again. Android and Windows get the NextDNS setup, and the home Wi-Fi's name and password on their check-in page.</p>
     ${r.wlan_error ? `<div class="msg warn">Wi-Fi networks: ${esc(r.wlan_error)}</div>` : ""}
     ${r.types.length ? table("devtypes", [
-      { k: "name", label: "Type", fmt: t => `<b>${esc(t.name)}</b>` },
-      { k: "people", label: "People", fmt: t => arr(t.people).length ? esc(t.people.map(pname).join(", ")) : `<span class="muted">nobody yet</span>` },
+      { k: "name", label: "Type", fmt: t => `<b>${esc(t.name)}</b>${t.default ? ` <span class="tag">everyone else</span>` : ""}` },
+      { k: "people", label: "People", fmt: t => arr(t.people).length ? esc(t.people.map(pname).join(", ")) + (t.default ? ` <span class="muted">+ everyone else</span>` : "") : t.default ? "everyone" : `<span class="muted">nobody yet</span>` },
       { k: "wifi", label: "Wi-Fi", fmt: t => `${arr(t.wifi).length ? esc(t.wifi.map(wname).join(", ")) : "–"}${t.no_other_wifi ? `<div class="fine muted">others: don't join by themselves</div>` : ""}` },
       { k: "vpn", label: "VPN", fmt: t => t.vpn ? `${esc(t.vpn.name || "Home VPN")} <span class="fine muted">${esc(VPN_TYPES.find(v => v[0] === t.vpn.type)?.[1] || t.vpn.type)}${t.vpn.on_demand ? " · on when away" : ""}</span>` : "–" },
       { k: "icon", label: "Home Screen", fmt: t => t.icon === "app" ? "HomeOwl" : t.icon === "none" ? `<span class="muted">no icon</span>` : "check-in page" },
@@ -150,31 +150,64 @@ async function renderDevTypes() {
 function setupWiFiBlock(r) {
   const exists = r.onboard_ssid && r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase());
   const canMake = S.source === "live" && S.model?.hasLegacy && S.role === "admin" && !S.readOnly;
-  const links = arr(r.setup_links);
-  if (exists) return links.length ? `<div class="dt-setuplink"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
-      <div><p class="fine">On “${esc(r.onboard_ssid)}” there's no internet. People open the check-in page here (print the code or show it on a screen). Phones need Mobile Data off while they're on it, or they load the page over mobile data and can't reach HomeOwl; the page tells them.</p>
-      ${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}</div></div>` : "";
-  return canMake ? `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-setup-make">Create a setup Wi-Fi on the console…</button></div>` : "";
+  const links = arr(r.setup_links), n = r.setup_net;
+  const moves = r.types.some(t => t.default && arr(t.wifi).length);
+  const noMove = r.onboard_ssid && !moves ? `<p class="fine warn-t">Devices from the setup Wi-Fi only move to the home Wi-Fi if their profile has it. Make a profile type with the home Wi-Fi ticked (and “Don't join our other Wi-Fi networks”) and tick <b>Everyone else too</b>.</p>` : "";
+  if (!exists) return noMove + (canMake ? `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-setup-make">Create a setup Wi-Fi on the console…</button></div>` : "");
+  let net = "";
+  if (n) {
+    const on = n.homeowl_ip, iso = n.isolated;
+    net = `<ul class="dt-netstate fine">
+      <li>${n.internet ? "✓ Internet on: phones stay on this Wi-Fi." : `✗ No internet: phones soon send the check-in page over mobile data and lose it, unless Mobile Data is off.${canMake ? ` <button class="btn sm" data-setupnet="internet">Turn internet on…</button>` : ""}`}</li>
+      <li>${on ? `✓ HomeOwl has its own address on it (${esc(on)}), so the page loads directly.` : `✗ HomeOwl has no address on ${esc(n.subnet || "this network")} (VLAN ${esc(String(n.vlan ?? "?"))}), so the page goes through the router. <button class="btn sm ghost" id="dt-setup-vlanhow">How to add one</button>`}</li>
+      <li>${iso === undefined ? `– This console has no “isolate network” switch (zone-based firewall): in UniFi › Settings › Security, put ${esc(n.name)} in its own zone with no access to your home network.` : iso ? "✓ Isolated: devices on it can't reach your home network." : on ? `✗ Not isolated: devices on it can reach your home network.${canMake ? ` <button class="btn sm" data-setupnet="isolate">Isolate it…</button>` : ""}` : "✗ Not isolated: devices on it can reach your home network. Isolate it once HomeOwl has its own address on it (isolating cuts off HomeOwl's home address)."}</li></ul>`;
+  }
+  return noMove + net + (links.length ? `<div class="dt-setuplink"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
+      <div><p class="fine">People open the check-in page on “${esc(r.onboard_ssid)}” here (print the code or show it on a screen).${n && !n.internet && !n.homeowl_ip ? " Phones need Mobile Data off while they're on it; the page tells them." : ""}</p>
+      ${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}</div></div>` : "");
 }
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-setupnet]");
+  if (b) {
+    const n = S.devTypes?.setup_net; if (!n) return;
+    const iso = b.dataset.setupnet === "isolate";
+    runActions([{ kind: "rest", resource: "networkconf", id: n.id, fields: iso ? { network_isolation_enabled: true } : { internet_access_enabled: true },
+      description: iso ? `Setup Wi-Fi: isolate ${n.name} from the home network` : `Setup Wi-Fi: internet on for ${n.name}` }], iso ? "Isolate the setup network" : "Internet on the setup network");
+    return;
+  }
+  if (e.target.id === "dt-setup-vlanhow") {
+    const n = S.devTypes?.setup_net || {};
+    openModal({ title: "Give HomeOwl an address on the setup network", wide: true, body: `
+      <p>The computer running HomeOwl joins VLAN ${esc(String(n.vlan ?? "30"))} as well as your home network, over the same cable. It gets an address on ${esc(n.subnet || "the setup network")} from UniFi, and the check-in page loads directly from there, even with the setup network isolated or without internet.</p>
+      <ol>
+        <li><b>UniFi:</b> the switch port of HomeOwl's computer must carry VLAN ${esc(String(n.vlan ?? "30"))} tagged. Ports allow all VLANs unless you changed it (UniFi › Devices › the switch › Ports › that port › Tagged VLAN Management: Allow All). A computer on Wi-Fi can't do this — it needs a cable.</li>
+        <li><b>Mac:</b> System Settings › Network › ⋯ › Manage Virtual Interfaces › + › New VLAN: tag ${esc(String(n.vlan ?? "30"))} on the Ethernet port, Configure IPv4 Using DHCP. Then in the VLAN's Details › TCP/IP, make sure it isn't the default route (drag Ethernet above it in Set Service Order).</li>
+        <li><b>Linux:</b> <span class="mono">sudo nmcli con add type vlan con-name homeowl-setup dev eth0 id ${esc(String(n.vlan ?? "30"))} ipv4.method auto ipv4.never-default yes ipv6.method disabled</span> (use your Ethernet interface for eth0).</li>
+        <li>Come back here: this list shows ✓ with the new address, the link and QR code switch to it, and you can isolate the network.</li>
+      </ol>
+      <p class="fine">HomeOwl answers on every address of the computer, so nothing changes in HomeOwl. Devices on the setup network can then reach HomeOwl's sign-in page, as on the home network.</p>` });
+  }
+});
 async function makeSetupWiFi() {
   let sg; try { sg = await api("/api/setupwifi/suggest", {}); } catch (err) { return toast(err.message, "err"); }
   const cur = S.devTypes?.onboard_ssid || "";
   openModal({ title: "Create a setup Wi-Fi", body: `
-    <p class="fine">HomeOwl adds a network with no internet on its own VLAN and a Wi-Fi on it with its own password, modelled on your home network and Wi-Fi. Nothing is sent until you've seen the preview.</p>
+    <p class="fine">HomeOwl adds a network on its own VLAN and a Wi-Fi on it with its own password, modelled on your home network and Wi-Fi. Nothing is sent until you've seen the preview.</p>
     <label>Wi-Fi name<input id="sw-ssid" maxlength="32" value="${esc(cur || "Home Setup")}" autocomplete="off"></label>
     <label>Password (what you give guests to set up)<input id="sw-pw" maxlength="63" value="${esc(sg.password)}" autocomplete="off" spellcheck="false" class="mono"></label>
     <label>VLAN<input id="sw-vlan" type="number" min="2" max="4009" value="${esc(String(sg.vlan))}"></label>
-    <label>Network name in UniFi<input id="sw-net" maxlength="32" value="${esc(sg.network)}" autocomplete="off"></label>`,
+    <label>Network name in UniFi<input id="sw-net" maxlength="32" value="${esc(sg.network)}" autocomplete="off"></label>
+    <label class="check"><input type="checkbox" id="sw-inet" checked> <span>Internet on the setup Wi-Fi <span class="fine muted">Phones keep using a Wi-Fi with internet. Without it they send the check-in page over mobile data and lose it, unless Mobile Data is off. Anyone with this password gets internet (not your home network, once it's isolated).</span></span></label>`,
     buttons: [{ label: "Cancel" }, { label: "Preview", cls: "primary", onClick: previewSetupWiFi }] });
 }
 async function previewSetupWiFi() {
-  const body = { ssid: $("#sw-ssid").value.trim(), password: $("#sw-pw").value, vlan: +$("#sw-vlan").value, network: $("#sw-net").value.trim() };
+  const body = { ssid: $("#sw-ssid").value.trim(), password: $("#sw-pw").value, vlan: +$("#sw-vlan").value, network: $("#sw-net").value.trim(), internet: $("#sw-inet").checked };
   let pv; try { pv = await api("/api/setupwifi/preview", body); } catch (err) { return toast(err.message, "err"); }
   openModal({ title: "Create a setup Wi-Fi", wide: true, body: `<p class="muted">Review exactly what will be sent to the console. ${S.write ? "" : `<b>Change mode is locked</b> — applying will unlock it for this session.`}</p>` +
     arr(pv.steps).map(p => `<div class="pv"><div class="pv-h"><b>${esc(p.description)}</b> <span class="muted">${esc(p.target || "")}</span></div>
       <table class="pv-t"><tr><th>Setting</th><th>New</th></tr>${Object.keys(p.after || {}).map(k => `<tr><td class="mono">${esc(k)}</td><td><b>${esc(fmtVal(p.after[k]))}</b></td></tr>`).join("")}</table>
       <div class="fine mono">${esc(p.method)} ${esc(p.path)}</div><div class="fine">↩ Can be undone from the Changes page (it deletes what was made).</div></div>`).join("") +
-    `<p class="fine">The setup network has no internet, but until you add a firewall rule in UniFi it can reach your home network. It becomes HomeOwl's setup Wi-Fi.</p>`,
+    `<p class="fine">Until it's isolated, devices on the setup network can reach your home network; Settings shows how to isolate it afterwards. It becomes HomeOwl's setup Wi-Fi.</p>`,
     buttons: [{ label: "Cancel" }, { label: S.write ? "Create" : "Unlock & create", cls: "primary", onClick: async () => {
       try { if (!S.write) await setWrite(true); S.devTypes = await api("/api/setupwifi/apply", body); closeModal(); toast(`Created ${body.ssid}`, "ok"); renderDevTypes(); }
       catch (err) { toast(err.message, "err"); } } }] });
@@ -225,6 +258,7 @@ function editDevType(id) {
     <label>Name<input id="dt-name" maxlength="40" value="${esc(t.name)}" placeholder="e.g. Kids, Adults"></label>
     <h3>People</h3><p class="fine muted">Their devices get this type. A person has one type; ticking them here moves them.</p>
     <div class="dt-checks">${S.devTypePeople.length ? S.devTypePeople.map(p => `<label class="check"><input type="checkbox" data-dtp="${esc(p.id)}" ${arr(t.people).includes(p.id) ? "checked" : ""}> <span>${esc(p.name)}</span></label>`).join("") : `<span class="fine muted">Add people in Family › People & groups.</span>`}</div>
+    <label class="check" style="margin-top:8px"><input type="checkbox" id="dt-default" ${t.default ? "checked" : ""}> <span>Everyone else too <span class="fine muted">Devices whose person has no type of their own (or no person yet, like devices from the setup Wi-Fi) get this type. One type can be the default.</span></span></label>
     <h3>Wi-Fi networks</h3><p class="fine muted">The device joins them by itself. The password goes into the device's profile.</p>
     <div class="dt-checks">${r.wlans.length ? r.wlans.map(w => `<label class="check"><input type="checkbox" data-dtw="${esc(w.id)}" ${arr(t.wifi).includes(w.id) ? "checked" : ""} ${w.usable ? "" : "disabled"}> <span>${esc(w.ssid)}${w.guest ? ` <span class="fine muted">guest</span>` : ""}${w.usable ? "" : ` <span class="fine muted">enterprise — not possible</span>`}</span></label>`).join("") : `<span class="fine muted">No Wi-Fi networks from UniFi.</span>`}</div>
     <label class="check"><input type="checkbox" id="dt-noother" ${t.no_other_wifi ? "checked" : ""}> <span>Don't join our other Wi-Fi networks by themselves <span class="fine muted">The profile lists the console's other networks (guest, IoT, the setup Wi-Fi…) as “don't join automatically”, without their passwords, so the device stays on the ones ticked above. Someone can still join one by hand if they know its password.</span></span></label>
@@ -254,7 +288,7 @@ function editDevType(id) {
     buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
       const kind = $("#dt-vpn").value;
       const body = { id, name: $("#dt-name").value.trim(), people: $$("[data-dtp]").filter(c => c.checked).map(c => c.dataset.dtp), wifi: $$("[data-dtw]").filter(c => c.checked).map(c => c.dataset.dtw),
-        icon: $("input[name=dt-icon]:checked")?.value || "checkin", private_mac: !$("#dt-fixed").checked, no_other_wifi: $("#dt-noother").checked,
+        icon: $("input[name=dt-icon]:checked")?.value || "checkin", private_mac: !$("#dt-fixed").checked, no_other_wifi: $("#dt-noother").checked, default: $("#dt-default").checked,
         other_wifi: $("input[name=dt-other]:checked")?.value || "on", skip_wifi: $("#dt-skipt").value.split("\n").map(s => s.trim()).filter(Boolean),
         vpn: kind ? { type: kind, name: $("#dt-vname").value.trim(), server: $("#dt-server").value.trim(), remote_id: $("#dt-rid").value.trim(), local_id: $("#dt-lid").value.trim(), auth: $("#dt-auth").value, user: $("#dt-user").value.trim(), on_demand: $("#dt-od").checked } : null,
         secret: $("#dt-secret").value, password: $("#dt-pass").value };

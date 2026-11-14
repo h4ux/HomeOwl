@@ -4,6 +4,21 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.59] — 2026-11-14
+
+- Archive old device addresses: a phone or laptop shows up once per Wi-Fi address it ever used. Network › Clients
+  suggests archiving older copies of a device that is now on a newer address (same UniFi name, or the same specific
+  host name) and private addresses unused for 90 days, and can give the newer address to the same person. Archived
+  addresses leave Clients, Who's home and the device pickers; UniFi, the logs and the history keep them, an Archived
+  tab restores them, and one that comes back online shows again. A weekly alert says when there's a pile to archive.
+- Setup Wi-Fi: created with internet by default (phones keep using it). Settings shows whether its network has
+  internet, whether HomeOwl has its own address on it and whether it's isolated from the home network, with
+  previewed, undoable buttons to turn internet on and to isolate it, and how to give HomeOwl's computer an address
+  on the setup VLAN. The check-in link prefers that address.
+- Profile types: "Everyone else too" makes one type the default for devices whose person has no type (and devices
+  from the setup Wi-Fi), so its Wi-Fi networks and "don't join our other Wi-Fi networks" reach every profile.
+  Settings warns when no default type moves setup devices to the home Wi-Fi.
+
 ## [0.1.58] — 2026-11-14
 
 - Setup Wi-Fi: on a network with no internet, phones soon send everything outside it (HomeOwl included) over

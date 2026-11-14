@@ -55,6 +55,8 @@ type ProfileType struct {
 	// the home Wi-Fi and mobile data (dnsskip.go)
 	SkipWiFi  []string `json:"skip_wifi,omitempty"`
 	OtherWiFi string   `json:"other_wifi,omitempty"`
+	// Default: the type for every device whose person has no type of their own (one type at most)
+	Default bool `json:"default,omitempty"`
 }
 
 type profileTypes struct {
@@ -122,6 +124,11 @@ func (a *App) typeFor(x CheckIn) (ProfileType, bool) {
 			if p != "" && p == x.PersonID {
 				return t, true
 			}
+		}
+	}
+	for _, t := range l {
+		if t.Default {
+			return t, true
 		}
 	}
 	return ProfileType{}, false
@@ -495,7 +502,7 @@ func (a *App) devTypesView() (map[string]any, error) {
 			"usable": sec == "open" || sec == "wpapsk", "security": sec}) // never the password
 	}
 	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID,
-		"setup_links": a.setupLinks(), "skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}
+		"setup_links": a.setupLinks(), "setup_net": a.setupNetView(), "skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}
 	if err != nil {
 		res["wlan_error"] = err.Error()
 	}
@@ -506,7 +513,7 @@ var vpnHostRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9]
 
 // saveDevType adds or changes a type. Secrets: "" keeps the saved one, "-" removes it.
 func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
-	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon"), PrivateMAC: b(body, "private_mac"), NoOtherWiFi: b(body, "no_other_wifi")}
+	t := ProfileType{ID: s(body, "id"), Name: strings.TrimSpace(s(body, "name")), Icon: s(body, "icon"), PrivateMAC: b(body, "private_mac"), NoOtherWiFi: b(body, "no_other_wifi"), Default: b(body, "default")}
 	if s(body, "other_wifi") == "off" {
 		t.OtherWiFi = "off"
 	}
@@ -587,6 +594,12 @@ func (a *App) saveDevType(body map[string]any) (map[string]any, error) {
 		}
 		if !found {
 			return nil, errors.New("that profile type is gone")
+		}
+	}
+	// one default type: making this one the default takes it off the others
+	for i := range l {
+		if t.Default && l[i].ID != t.ID {
+			l[i].Default = false
 		}
 	}
 	// a person has one type: attaching them here takes them off the others

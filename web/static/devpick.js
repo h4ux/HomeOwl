@@ -19,6 +19,7 @@ function dpFromMeta(meta) {
   arr(meta.clients).forEach(c => {
     const name = c.name || c.hostname || arr(S.model?.clients).find(x => x.mac === c.mac)?.label || c.mac;
     const it = { id: `mac|${c.mac}`, name, keys: [`mac|${c.mac}`], mac: c.mac, ip: c.ip, vendor: c.vendor, network: c.network, online: online.has(c.mac), hostname: c.hostname, wifi: true, last: c.last_seen };
+    it.archived = S.archived instanceof Set && S.archived.has(c.mac) && !it.online; // an old copy: kept for chips already picked, not offered
     items.push(it); byMac.set(c.mac, it);
     [c.name, c.hostname].filter(Boolean).forEach(n => byName.set(n.toLowerCase(), it));
     if (c.ip) byIp.set(c.ip, byIp.has(c.ip) ? null : it);
@@ -63,10 +64,10 @@ function devPicker(el, o) {
   const row = (it, why) => `<div class="dp-row${st.sel.has(it.id) ? " on" : ""}">${ico(it)}<span class="dp-name"><b>${esc(it.name)}</b>${owner(it)}<span class="fine">${esc(why ? `${why} · ${sub(it)}` : sub(it))}</span></span>
     ${st.sel.has(it.id) && !o.single ? `<button type="button" class="btn sm" data-dpdel="${esc(it.id)}">Remove</button>` : `<button type="button" class="btn sm${why ? " primary" : ""}" data-dpadd="${esc(it.id)}">${o.single ? "Choose" : "Add"}</button>`}</div>`;
   const draw = () => {
-    const sug = [...(o.suggest?.() || new Map())].filter(([id]) => !st.sel.has(id) && !o.ownerOf?.(o.items.find(i => i.id === id))).map(([id, why]) => [o.items.find(i => i.id === id), why]).filter(([it]) => it);
+    const sug = [...(o.suggest?.() || new Map())].filter(([id]) => !st.sel.has(id) && !o.items.find(i => i.id === id)?.archived && !o.ownerOf?.(o.items.find(i => i.id === id))).map(([id, why]) => [o.items.find(i => i.id === id), why]).filter(([it]) => it);
     const q = st.q.toLowerCase().trim();
     const sugIds = new Set(q ? [] : sug.slice(0, 8).map(([it]) => it.id));
-    const hits = o.items.filter(it => !sugIds.has(it.id)).filter(it => !q || `${it.name} ${it.hostname || ""} ${it.ip || ""} ${it.mac || ""} ${it.vendor || ""} ${it.model || ""} ${it.dns || ""} ${ICON_LABEL[clientKind(it)]}`.toLowerCase().includes(q))
+    const hits = o.items.filter(it => !sugIds.has(it.id) && !it.archived).filter(it => !q || `${it.name} ${it.hostname || ""} ${it.ip || ""} ${it.mac || ""} ${it.vendor || ""} ${it.model || ""} ${it.dns || ""} ${ICON_LABEL[clientKind(it)]}`.toLowerCase().includes(q))
       .sort((a, b) => ((o.rank?.(b) || 0) - (o.rank?.(a) || 0)) || (b.online - a.online) || ((b.queries || 0) - (a.queries || 0)) || String(a.name).localeCompare(b.name));
     const max = q || st.more ? 200 : 6;
     const sel = o.items.filter(it => st.sel.has(it.id));

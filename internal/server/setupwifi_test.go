@@ -64,7 +64,10 @@ func TestCreateSetupWiFi(t *testing.T) {
 	if _, err := a.UniFi.Connect(console.URL, "test-key", false, "default"); err != nil {
 		t.Fatal(err)
 	}
-	body := map[string]any{"ssid": "Home Setup", "password": "setup-pass-42", "vlan": float64(30), "network": "HomeOwl Setup"}
+	body := map[string]any{"ssid": "Home Setup", "password": "setup-pass-42", "vlan": float64(30), "network": "HomeOwl Setup", "internet": false}
+	if na, _ := setupActions(map[string]any{"ssid": "x"}, "new"); na["internet"] != "on" {
+		t.Fatal("the setup network has internet unless turned off")
+	}
 
 	// bad input is refused before anything is sent
 	for _, bad := range []map[string]any{
@@ -124,5 +127,35 @@ func TestCreateSetupWiFi(t *testing.T) {
 	}
 	if n2 != 2 {
 		t.Fatalf("both creates logged with undo: %d", n2)
+	}
+}
+
+func TestDefaultProfileType(t *testing.T) {
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []map[string]any{{"name": "Kids", "people": []any{"p1"}}, {"name": "Family", "default": true}, {"name": "Guests", "default": true}} {
+		if _, err := a.saveDevType(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	defs := 0
+	for _, x := range a.devTypes.List() {
+		if x.Default {
+			defs++
+		}
+	}
+	if defs != 1 {
+		t.Fatalf("one default type: %d", defs)
+	}
+	if ty, ok := a.typeFor(CheckIn{PersonID: "p1"}); !ok || ty.Name != "Kids" {
+		t.Fatalf("own type first: %v", ty.Name)
+	}
+	if ty, ok := a.typeFor(CheckIn{PersonID: "p2"}); !ok || ty.Name != "Guests" {
+		t.Fatalf("everyone else gets the default: %v", ty.Name)
+	}
+	if _, ok := a.typeFor(CheckIn{PersonID: "p2", TypeID: typeNone}); ok {
+		t.Fatal("no type stays no type")
 	}
 }

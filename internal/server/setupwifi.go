@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 	"net"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -27,7 +28,11 @@ func setupActions(body map[string]any, netID string) (unifi.Action, unifi.Action
 	if v, ok := body["vlan"].(float64); ok {
 		vlan = strconv.Itoa(int(v))
 	}
-	return unifi.Action{"kind": "setupnet", "name": netName, "vlan": vlan, "description": "Setup Wi-Fi: network " + netName + " (no internet)"},
+	internet, what := "on", " (with internet)"
+	if v, ok := body["internet"].(bool); ok && !v {
+		internet, what = "off", " (no internet)"
+	}
+	return unifi.Action{"kind": "setupnet", "name": netName, "vlan": vlan, "internet": internet, "description": "Setup Wi-Fi: network " + netName + what},
 		unifi.Action{"kind": "setupwlan", "ssid": ssid, "password": s(body, "password"), "network_id": netID, "description": "Setup Wi-Fi: " + ssid}
 }
 
@@ -42,19 +47,82 @@ func setupPassword() string {
 	return string(b[:4]) + "-" + string(b[4:8]) + "-" + string(b[8:])
 }
 
-// setupLinks: the check-in page by IP address — what a device on the setup Wi-Fi (no internet, no names) can open.
+// setupLinks: the check-in page by IP address — what a device on the setup Wi-Fi (no names) can open. An address
+// of HomeOwl's inside the setup network comes first: phones reach it directly, even when the network is isolated
+// or has no internet (then a phone sends anything outside its own network over mobile data).
 func (a *App) setupLinks() []string {
-	var out []string
+	var in, out []string
+	_, subnet := a.setupSubnet()
 	for _, l := range a.checkinLinks() {
 		h := strings.TrimPrefix(l, "http://")
 		if i := strings.IndexAny(h, ":/"); i > 0 {
 			h = h[:i]
 		}
 		if ip := net.ParseIP(h); ip != nil && ip.To4() != nil && ip.IsPrivate() {
-			out = append(out, l)
+			if subnet != nil && subnet.Contains(ip) {
+				in = append(in, l)
+			} else {
+				out = append(out, l)
+			}
 		}
 	}
-	return out
+	return append(in, out...)
+}
+
+// setupSubnet: the setup Wi-Fi's network on the console (from the Wi-Fi's network) and its subnet.
+func (a *App) setupSubnet() (map[string]any, *net.IPNet) {
+	ssid := a.Cfg.Get().Onboard.SSID
+	if ssid == "" || !a.UniFi.Connected() {
+		return nil, nil
+	}
+	all, err := a.wlans()
+	if err != nil {
+		return nil, nil
+	}
+	for _, w := range all {
+		if !strings.EqualFold(str(w, "name"), ssid) {
+			continue
+		}
+		id := str(w, "networkconf_id")
+		if id == "" {
+			return nil, nil
+		}
+		st, d := a.UniFi.Get(a.UniFi.SitePath("rest/networkconf/"+url.PathEscape(id), false))
+		l := unifi.List(d)
+		if len(l) == 0 {
+			return nil, nil
+		}
+		n := l[0]
+		if st != 200 {
+			return nil, nil
+		}
+		_, sn, _ := net.ParseCIDR(str(n, "ip_subnet"))
+		return n, sn
+	}
+	return nil, nil
+}
+
+// setupNetView: what Settings shows about the setup Wi-Fi's network: internet, isolation (missing on consoles
+// with zone-based firewall) and whether HomeOwl has an address of its own on it.
+func (a *App) setupNetView() map[string]any {
+	n, sn := a.setupSubnet()
+	if n == nil {
+		return nil
+	}
+	v := map[string]any{"id": str(n, "_id"), "name": str(n, "name"), "vlan": n["vlan"], "internet": n["internet_access_enabled"] != false}
+	if sn != nil {
+		v["subnet"] = sn.String()
+		_, ips := localNames()
+		for _, ip := range ips {
+			if sn.Contains(ip) {
+				v["homeowl_ip"] = ip.String()
+			}
+		}
+	}
+	if iso, ok := n["network_isolation_enabled"].(bool); ok {
+		v["isolated"] = iso
+	}
+	return v
 }
 
 func (a *App) setupWiFiAPI(op string, body map[string]any, by string) (map[string]any, error) {
