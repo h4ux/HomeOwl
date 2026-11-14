@@ -818,3 +818,5 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .dt-setuplink{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px}.dt-setuplink .mono{word-break:break-all}
 .dt-netstate{margin:8px 0;padding-left:18px}.dt-netstate li{margin:4px 0}
 .arch-hint{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}.arch-list{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto}.arch-list .check span .fine{display:block}
+.dt-qrtile{display:flex;gap:12px;align-items:center;flex:1;min-width:260px}.dt-qrtile .mono{word-break:break-all}
+.pill.arch-sug{color:var(--med);border-color:currentColor}

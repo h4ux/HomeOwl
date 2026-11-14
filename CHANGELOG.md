@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.69] — 2026-11-14
+
+- Archive suggestions cover more: any device unseen for 180 days (not only private addresses), and devices linked
+  to a person (the link stays). Suggested rows are marked in Clients › All known, with the reason on hover.
+- Setup Wi-Fi: the guest portal "Set up…" button shows again (the network status list hid it), and the section has
+  a join QR code with the password next to the check-in QR code.
+- Check-in page: "Open in Safari" uses HomeOwl's HTTPS name when there is one, and explains copy-and-paste when
+  Chrome blocks it.
+
 ## [0.1.68] — 2026-11-14
 
 - Private Relay tab: "Turn it off" and "Allow it again" did nothing after the move to their own tab (the click

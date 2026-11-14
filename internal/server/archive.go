@@ -22,9 +22,11 @@ import (
 // change), and UniFi keeps them all. Archiving hides an old address from HomeOwl's lists (Clients, Who's home, the
 // device picker) — nothing is deleted: UniFi, the logs and the history keep it, and it can be restored. An archived
 // address that comes back online shows again. HomeOwl suggests what to archive: older copies of a device that is
-// now on a newer address (same UniFi name, or the same specific host name), and private addresses unused for months.
+// now on a newer address (same UniFi name, or the same specific host name), private addresses unused for months, and
+// anything unseen for half a year.
 
-const staleDays = 90
+const staleDays = 90     // a private address unused this long has most likely been replaced
+const staleAnyDays = 180 // any device unseen this long is most likely gone
 
 type archivedDevice struct {
 	MAC    string `json:"mac"`
@@ -189,16 +191,24 @@ func (a *App) archiveSuggestions(known, online []map[string]any, archived map[st
 		}
 	}
 	for _, d := range devs {
-		if _, gone := archived[d.mac]; gone || seen[d.mac] || d.online || d.fixed || d.blocked || !privateMAC(d.mac) || d.last == 0 {
+		if _, gone := archived[d.mac]; gone || seen[d.mac] || d.online || d.fixed || d.blocked || d.last == 0 {
 			continue
 		}
-		if _, owned := owner[d.mac]; owned {
+		days := (now.Unix() - d.last) / 86400
+		var why string
+		switch {
+		case privateMAC(d.mac) && days >= staleDays:
+			why = "A private (changing) address not seen for " + strconv.FormatInt(days, 10) + " days: the device has most likely moved on to another one."
+		case days >= staleAnyDays:
+			why = "Not seen for " + strconv.FormatInt(days, 10) + " days: most likely gone."
+		default:
 			continue
 		}
-		if days := (now.Unix() - d.last) / 86400; days >= staleDays {
-			out = append(out, archiveCand{MAC: d.mac, Name: label(d), Vendor: d.vendor, LastSeen: d.last, Kind: "stale",
-				Reason: "A private (changing) address not seen for " + strconv.FormatInt(days, 10) + " days: the device has most likely moved on to another one."})
+		c := archiveCand{MAC: d.mac, Name: label(d), Vendor: d.vendor, LastSeen: d.last, Kind: "stale", Reason: why}
+		if o, owned := owner[d.mac]; owned {
+			c.Reason += " It stays linked to " + o[1] + "."
 		}
+		out = append(out, c)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Kind != out[j].Kind {
@@ -353,7 +363,7 @@ func (a *App) archiveNudge(now time.Time) {
 		}
 	}
 	a.Alerts.Add(alerts.Alert{Kind: "archive", Level: "info", Title: fmt.Sprintf("%d old device addresses to archive", len(l)),
-		Body: fmt.Sprintf("%d are older copies of devices now on a newer address; the rest are private addresses unused for months. Network › Clients › Review hides them from HomeOwl's lists (nothing is deleted).", dup),
+		Body: fmt.Sprintf("%d are older copies of devices now on a newer address; the rest haven't been seen for months. Network › Clients › Review hides them from HomeOwl's lists (nothing is deleted).", dup),
 		Data: map[string]any{"count": len(l)}})
 	last.At, last.N = now.Unix(), len(l)
 	b, _ := json.Marshal(last)

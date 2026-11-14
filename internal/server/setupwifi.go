@@ -184,3 +184,26 @@ func (a *App) setupWiFiAPI(op string, body map[string]any, by string) (map[strin
 	}
 	return nil, errors.New("not found")
 }
+
+// setupJoin: the setup Wi-Fi's name and password for its scan-to-join code in Settings (admins only). Its password
+// is the one you hand out for setting up, like the guest Wi-Fi card's.
+func (a *App) setupJoin() map[string]any {
+	ssid := a.Cfg.Get().Onboard.SSID
+	if ssid == "" {
+		return nil
+	}
+	all, err := a.wlans()
+	if err != nil {
+		return nil
+	}
+	for _, w := range all {
+		if strings.EqualFold(str(w, "name"), ssid) {
+			h, _ := w["hide_ssid"].(bool)
+			if str(w, "security") == "open" {
+				return map[string]any{"ssid": str(w, "name"), "security": "nopass", "hidden": h}
+			}
+			return map[string]any{"ssid": str(w, "name"), "password": str(w, "x_passphrase"), "security": "WPA", "hidden": h}
+		}
+	}
+	return nil
+}

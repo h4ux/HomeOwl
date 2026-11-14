@@ -498,7 +498,8 @@ V.clients = m => {
       { k: "ip", more: 1, fmt: r => r.fixedIp || r.ip ? `<span class="mono">${esc(r.fixedIp || r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
       { k: "vendor", label: "Vendor" }, { k: "network", label: "Network" }, { k: "blocked", label: "Blocked", fmt: r => r.blocked ? `<span class="tag bad">blocked</span>` : "" },
       { k: "firstSeen", label: "First seen", num: 1, fmt: r => fmtTime(r.firstSeen) },
-      ...(admin ? [{ k: "mac", label: "", sort: () => 0, fmt: r => r.online ? "" : `<button class="btn sm ghost" data-archive="${esc(r.mac)}" title="Hide this address from HomeOwl's lists (UniFi and the logs keep it)">Archive</button>` }] : []),
+      ...(admin ? [{ k: "mac", label: "", sort: () => 0, fmt: r => { if (r.online) return ""; const sg = arr(S.archiveSug?.suggestions).find(x => x.mac === String(r.mac).toLowerCase());
+        return `${sg ? `<span class="pill arch-sug" title="${esc(sg.reason)}">suggested</span> ` : ""}<button class="btn sm ${sg ? "" : "ghost"}" data-archive="${esc(r.mac)}" title="${esc(sg ? sg.reason + " Archiving hides it from HomeOwl's lists (UniFi and the logs keep it)." : "Hide this address from HomeOwl's lists (UniFi and the logs keep it)")}">Archive</button>`; } }] : []),
     ], tab === "blocked" ? m.known.filter(k => k.blocked) : m.known, { search: true, empty: tab === "blocked" ? "No blocked clients" : "No known-client list returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` });
   return `<div class="head"><div><h1>Clients</h1><div class="muted">${m.clients.length} active · ${m.known.length} known</div></div></div>
   ${admin ? `<div id="archive-hint">${archiveHint()}</div>` : ""}
@@ -524,7 +525,7 @@ function archiveHint() {
   const l = arr(S.archiveSug?.suggestions); if (!l.length) return "";
   const dup = l.filter(x => x.kind === "duplicate").length, old = l.length - dup;
   return `<div class="card section arch-hint"><div><b>HomeOwl suggests archiving ${plural(l.length, "old device address", "old device addresses")}</b>
-    <div class="fine muted">${[dup ? `${dup} older ${dup === 1 ? "copy" : "copies"} of devices now on a newer address` : "", old ? `${old} private ${old === 1 ? "address" : "addresses"} unused for months` : ""].filter(Boolean).join(" · ")}. Archiving hides them from HomeOwl's lists; UniFi, the logs and the history keep them, and you can restore them.</div></div>
+    <div class="fine muted">${[dup ? `${dup} older ${dup === 1 ? "copy" : "copies"} of devices now on a newer address` : "", old ? `${old} unused for months` : ""].filter(Boolean).join(" · ")}. Archiving hides them from HomeOwl's lists; UniFi, the logs and the history keep them, and you can restore them.</div></div>
     <button class="btn primary" id="arch-review">Review…</button></div>`;
 }
 function archiveName(mac) { const u = arr(S.bundle?.legacy?.known_clients).find(x => String(x.mac).toLowerCase() === mac); return u?.name || u?.hostname || u?.oui || ""; }

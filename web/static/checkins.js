@@ -156,17 +156,20 @@ function setupWiFiBlock(r) {
   if (!exists) return noMove + (canMake ? `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-setup-make">Create a setup Wi-Fi on the console…</button></div>` : "");
   let net = "";
   if (r.portal) net = `<ul class="dt-netstate fine"><li>✓ Guest portal: devices on it open the check-in page by themselves and reach nothing but HomeOwl (${esc(r.portal.ip)}). Guest Wi-Fi visitors sign in on HomeOwl's page (${r.portal.mode === "password" ? "with the portal's password" : "a Connect button"}). Undo it from Changes.</li></ul>`;
-  else if (canMake) net = `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-portal">Open the check-in page by itself (guest portal)…</button></div>`;
+  else if (canMake) net = `<div class="ap-block" style="margin-top:8px"><div><b>Guest portal: not set up</b><div class="fine muted">With it, phones that join the setup Wi-Fi open the check-in page by themselves and reach nothing else (no internet, no home network). Your guest Wi-Fi keeps working through HomeOwl's sign-in page.</div></div>
+    <button class="btn primary" id="dt-portal">Set up…</button></div>`;
   if (n && !r.portal) {
     const on = n.homeowl_ip, iso = n.isolated;
-    net = `<ul class="dt-netstate fine">
+    net += `<ul class="dt-netstate fine">
       <li>${n.internet ? (on ? `⚠ Internet on: anyone with its password (children who set up with it, too) can switch to it and get internet off the home Wi-Fi. HomeOwl has its own address on it now, so it works without internet.${canMake ? ` <button class="btn sm" data-setupnet="nointernet">Turn internet off…</button>` : ""}` : "✓ Internet on: phones stay on this Wi-Fi. Anyone with its password gets internet on it, so turn it off once HomeOwl has its own address on it (below).") : `✗ No internet: phones soon send the check-in page over mobile data and lose it, unless Mobile Data is off.${canMake ? ` <button class="btn sm" data-setupnet="internet">Turn internet on…</button>` : ""}`}</li>
       <li>${on ? `✓ HomeOwl has its own address on it (${esc(on)}), so the page loads directly.` : `✗ HomeOwl has no address on ${esc(n.subnet || "this network")} (VLAN ${esc(String(n.vlan ?? "?"))}), so the page goes through the router. <button class="btn sm ghost" id="dt-setup-vlanhow">How to add one</button>`}</li>
       <li>${iso === undefined ? `– This console has no “isolate network” switch (zone-based firewall): in UniFi › Settings › Security, put ${esc(n.name)} in its own zone with no access to your home network.` : iso ? "✓ Isolated: devices on it can't reach your home network." : on ? `✗ Not isolated: devices on it can reach your home network.${canMake ? ` <button class="btn sm" data-setupnet="isolate">Isolate it…</button>` : ""}` : "✗ Not isolated: devices on it can reach your home network. Isolate it once HomeOwl has its own address on it (isolating cuts off HomeOwl's home address)."}</li></ul>`;
   }
-  return noMove + net + (links.length ? `<div class="dt-setuplink"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
-      <div><p class="fine">People open the check-in page on “${esc(r.onboard_ssid)}” here (print the code or show it on a screen).${n && !n.internet && !n.homeowl_ip ? " Phones need Mobile Data off while they're on it; the page tells them." : ""}</p>
-      ${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}</div></div>` : "");
+  const join = r.setup_join ? `<div class="dt-qrtile"><div class="guest-qr">${QR.svg(QR.wifi(r.setup_join), { size: 130, label: `Join ${r.setup_join.ssid}` })}</div>
+      <div class="fine"><b>1. Join ${esc(r.setup_join.ssid)}</b><br>Scan with the phone's camera.${r.setup_join.password ? `<br>Password: <span class="mono">${esc(r.setup_join.password)}</span>` : ""}</div></div>` : "";
+  const open = links.length ? `<div class="dt-qrtile"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
+      <div class="fine"><b>2. ${r.portal ? "The check-in page opens by itself" : "Open the check-in page"}</b><br>${r.portal ? "If it doesn't, scan this or open:" : "Scan this or open:"}${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}${!r.portal && n && !n.internet && !n.homeowl_ip ? "Phones need Mobile Data off while they're on it; the page tells them." : ""}</div></div>` : "";
+  return noMove + net + (join || open ? `<div class="dt-setuplink">${join}${open}</div>` : "");
 }
 async function portalPreview() {
   let pv; try { pv = await api("/api/setupwifi/portal-preview", {}); } catch (err) { return toast(err.message, "err"); }

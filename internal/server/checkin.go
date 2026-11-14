@@ -308,6 +308,9 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		if a.onSetupWiFi(c) {
 			res["setup_wifi"] = a.Cfg.Get().Onboard.SSID
 		}
+		if u := a.certURL(); u != "" { // Chrome on iPhone can hand an https page to Safari (x-safari-https://)
+			res["safari"] = u + "/hi"
+		}
 		if x, ok := a.checkins.Registered(mac); ok {
 			res["registered"] = a.deviceSetup(x)
 		}

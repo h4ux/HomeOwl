@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,26 +23,30 @@ func TestArchiveSuggestions(t *testing.T) {
 		{"mac": "00:11:22:00:00:06", "hostname": "nas-box", "oui": "Raspberry", "last_seen": ts(1)},    //
 		{"mac": "12:00:00:00:00:07", "hostname": "Sam-laptop", "last_seen": ts(200)},                   // stale private
 		{"mac": "16:00:00:00:00:08", "hostname": "kitchen", "last_seen": ts(200), "use_fixedip": true}, // fixed IP: kept
-		{"mac": "00:11:22:00:00:09", "hostname": "printer", "last_seen": ts(400)},                      // not private: kept
+		{"mac": "00:11:22:00:00:09", "hostname": "printer", "last_seen": ts(400)},                      // not private, but half a year: stale
+		{"mac": "00:11:22:00:00:0c", "name": "Old phone", "last_seen": ts(120)},                        // not private, 4 months: kept
 		{"mac": "1a:00:00:00:00:0a", "name": "TV", "last_seen": ts(5)},                                 // archived already
 		{"mac": "1e:00:00:00:00:0b", "name": "TV", "last_seen": ts(0)},
 	}
 	online := []map[string]any{{"mac": "06:00:00:00:00:02", "name": "Alex's iPhone"}, {"mac": "1e:00:00:00:00:0b", "name": "TV"}}
-	owner := map[string][2]string{"02:00:00:00:00:01": {"p1", "Alex"}}
+	owner := map[string][2]string{"02:00:00:00:00:01": {"p1", "Alex"}, "12:00:00:00:00:07": {"p2", "Sam"}}
 	got := a.archiveSuggestions(known, online, map[string]archivedDevice{"1a:00:00:00:00:0a": {}}, owner, now)
 	by := map[string]archiveCand{}
 	for _, c := range got {
 		by[c.MAC] = c
 	}
-	if len(got) != 2 {
-		t.Fatalf("two suggestions: %+v", got)
+	if len(got) != 3 {
+		t.Fatalf("three suggestions: %+v", got)
 	}
 	d := by["02:00:00:00:00:01"]
 	if d.Kind != "duplicate" || d.KeptMAC != "06:00:00:00:00:02" || !d.KeptOnline || d.PersonID != "p1" {
 		t.Fatalf("old copy: %+v", d)
 	}
-	if by["12:00:00:00:00:07"].Kind != "stale" {
-		t.Fatalf("stale private address: %+v", got)
+	if c := by["12:00:00:00:00:07"]; c.Kind != "stale" || !strings.Contains(c.Reason, "linked to Sam") {
+		t.Fatalf("stale private address (Sam's): %+v", got)
+	}
+	if by["00:11:22:00:00:09"].Kind != "stale" {
+		t.Fatalf("printer unseen for 400 days: %+v", got)
 	}
 
 	// archive, then restore
