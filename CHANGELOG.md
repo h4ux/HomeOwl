@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.58] — 2026-11-14
+
+- Setup Wi-Fi: on a network with no internet, phones soon send everything outside it (HomeOwl included) over
+  mobile data, so the check-in page stopped loading and never saw the approval. The page now tells phones to
+  turn off Mobile Data until they're done, and says so when it loses HomeOwl while waiting.
+
 ## [0.1.57] — 2026-11-14
 
 - Settings › Device profiles › Setup Wi-Fi › "Create a setup Wi-Fi on the console…": HomeOwl creates a

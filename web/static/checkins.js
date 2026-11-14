@@ -152,7 +152,7 @@ function setupWiFiBlock(r) {
   const canMake = S.source === "live" && S.model?.hasLegacy && S.role === "admin" && !S.readOnly;
   const links = arr(r.setup_links);
   if (exists) return links.length ? `<div class="dt-setuplink"><div class="guest-qr">${QR.svg(links[0], { size: 130, label: "Link to the check-in page on the setup Wi-Fi" })}</div>
-      <div><p class="fine">On “${esc(r.onboard_ssid)}” there's no internet. People open the check-in page here (print the code or show it on a screen):</p>
+      <div><p class="fine">On “${esc(r.onboard_ssid)}” there's no internet. People open the check-in page here (print the code or show it on a screen). Phones need Mobile Data off while they're on it, or they load the page over mobile data and can't reach HomeOwl; the page tells them.</p>
       ${links.map(l => `<div class="mono">${esc(l)}</div>`).join("")}</div></div>` : "";
   return canMake ? `<div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-setup-make">Create a setup Wi-Fi on the console…</button></div>` : "";
 }

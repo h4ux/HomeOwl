@@ -25,17 +25,25 @@ async function call(method, body) {
 function done(again) {
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">Thanks! 🦉</h2>
     <p>An admin will approve it soon. After that, this device shows up with its new name in UniFi and in HomeOwl.</p>
-    <p class="fine hi-wait">Keep this page open: it moves on by itself once it's approved.</p>
+    <p class="fine hi-wait">Keep this page open: it moves on by itself once it's approved.</p>${cellTip()}
+    <div class="msg warn hi-lost" hidden>This page can't reach HomeOwl right now. Turn off <b>Mobile Data</b>, stay on this Wi-Fi and reload the page.</div>
     ${again ? `<p class="fine">This device is already waiting for approval — sending again replaces that request.</p><button class="btn" id="hi-again">Change my answer</button>` : ""}`;
   waitApproval();
 }
 
+// The setup Wi-Fi has no internet, so a phone soon sends everything outside the setup network (HomeOwl too) over
+// mobile data instead, and the page stops loading. Mobile data off keeps it on this Wi-Fi.
+function cellTip() {
+  return start.setup && /ios|android/.test(platform()) ? `<p class="fine"><b>Turn off Mobile Data</b> until you're done (${platform() === "ios" ? "Settings › Mobile Data" : "Settings › Network › Mobile data"}): this Wi-Fi has no internet, so otherwise the phone switches this page to mobile data and it stops loading. Turn it back on afterwards.</p>` : "";
+}
+waitApproval.fails = 0;
 // while waiting: look every few seconds, and go on to the setup once it's approved
 function waitApproval() {
   clearTimeout(waitApproval.t);
   waitApproval.t = setTimeout(async () => {
     if (!$(".hi-wait")) return;
-    try { const st = await call("GET"); if (st.registered) return registered(st); } catch { /* try again */ }
+    try { const st = await call("GET"); waitApproval.fails = 0; if (st.registered) return registered(st); }
+    catch { if (++waitApproval.fails >= 2 && $(".hi-lost")) $(".hi-lost").hidden = false; } // try again
     waitApproval();
   }, 5000);
 }
@@ -124,7 +132,7 @@ async function start() {
   if (st.waiting && !start.force) return done(true);
   if (st.registered && !start.force) return registered(st);
   const d = st.device, kind = guessKind();
-  $("#hi-box").innerHTML = `${start.setup ? `<div class="msg">You're on <b>${esc(start.setup)}</b>, the setup Wi-Fi. Check in here and keep this page open; once it's approved, it sets this device up for the home Wi-Fi.</div>` : ""}
+  $("#hi-box").innerHTML = `${start.setup ? `<div class="msg">You're on <b>${esc(start.setup)}</b>, the setup Wi-Fi. Check in here and keep this page open; once it's approved, it sets this device up for the home Wi-Fi.</div>${cellTip()}` : ""}
     <p class="muted">Tell HomeOwl what this device is and whose it is. An admin approves it, then it's named on the network.</p>
     <div class="hi-seen fine">The network sees this device as <b>${esc(d.name || d.hostname || "an unnamed device")}</b>${d.vendor ? ` (${esc(d.vendor)})` : ""}${d.network ? ` on ${esc(d.network)}` : ""}.</div>
     <form id="hi-form" autocomplete="off">
