@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.41] — 2026-11-14
+
+### Fixed
+- **Check-in address uses your domain.** Family › Check-ins shows (and puts in the QR code) the nicest address that works: the Cloudflare check-in link, then the home-domain name, then HomeOwl's certificate name, then the .local name. The IP addresses move to "Other addresses".
+
 ## [0.1.40] — 2026-11-13
 
 ### Added

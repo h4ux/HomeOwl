@@ -32,7 +32,8 @@ function checkinsBody(c) {
   const how = `<div class="card section ci-how">${link ? `<div class="guest-qr">${QR.svg(link, { size: 150, label: "Link to the check-in page" })}</div>` : ""}
     <div><h2>How family members check in</h2>
     <p>On the phone, tablet or laptop you want to name, connect to the home Wi-Fi and open:</p>
-    ${c.links.map(l => `<div class="cmd"><code>${esc(l)}</code><button class="btn sm" data-copy="${esc(l)}">Copy</button></div>`).join("") || `<p class="bad-t">No home-network address found.</p>`}
+    ${link ? `<div class="cmd"><code>${esc(link)}</code><button class="btn sm" data-copy="${esc(link)}">Copy</button></div>` : `<p class="bad-t">No home-network address found.</p>`}
+    ${c.links.length > 1 ? `<details class="ci-more"><summary class="fine">Other addresses (if that one doesn't open)</summary>${c.links.slice(1).map(l => `<div class="cmd"><code>${esc(l)}</code><button class="btn sm" data-copy="${esc(l)}">Copy</button></div>`).join("")}</details>` : ""}
     ${c.lan ? `<p class="fine">Or scan the code with the device's camera. HomeOwl recognises the device by its address on your network — nothing to install.</p>`
       : `<p class="bad-t">Home-network access is off (Settings › Access), so devices can't reach this page.</p>`}</div></div>`;
   const rows = pend.map(x => `<div class="card ci-row">

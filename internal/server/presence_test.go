@@ -8,6 +8,7 @@ import (
 
 	"github.com/h4ux/homeowl/internal/analytics"
 	"github.com/h4ux/homeowl/internal/auth"
+	"github.com/h4ux/homeowl/internal/config"
 )
 
 func TestPresenceAPI(t *testing.T) {
@@ -95,5 +96,25 @@ func TestAdminGetIsReadOnly(t *testing.T) {
 		if w := get("/api/" + p); strings.Contains(w.Body.String(), "use POST") {
 			t.Errorf("GET %s refused: %s", p, w.Body)
 		}
+	}
+}
+
+func TestCheckinLinks(t *testing.T) {
+	a := checkinApp(t)
+	_ = a.Cfg.Update(func(c *config.Config) {
+		c.LAN.Enabled, c.LAN.Port = true, 8555
+		c.Names.Checkin, c.Names.Domain = "hi", "home.example.com"
+	})
+	l := a.checkinLinks()
+	if len(l) == 0 || l[0] != "http://hi.home.example.com:8555" {
+		t.Fatalf("the home-domain name comes first: %v", l)
+	}
+	a.cfSave(cfState{Zone: "example.com", Names: []cfName{{Kind: "hi", Host: "hi.example.com"}, {Kind: "wifi", Host: "wifi.example.com"}}})
+	if l = a.checkinLinks(); l[0] != "https://hi.example.com" || l[1] != "http://hi.home.example.com:8555" || contains(l, "https://wifi.example.com") {
+		t.Fatalf("the Cloudflare link comes first: %v", l)
+	}
+	a.cfSave(cfState{Zone: "example.com", Names: []cfName{{Kind: "hi", Host: "hi.example.com", Check: "it didn't open"}}})
+	if l = a.checkinLinks(); l[0] == "https://hi.example.com" {
+		t.Fatalf("a link that doesn't work isn't offered: %v", l)
 	}
 }

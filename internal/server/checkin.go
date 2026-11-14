@@ -421,21 +421,58 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 	return map[string]any{"ok": true, "person_id": pid, "checkins": a.checkinView()}, nil
 }
 
-func (a *App) checkinView() map[string]any {
+// checkinLinks are the addresses of the check-in page, the nicest first (it's the one in the QR code): a name on
+// the family's domain (the Cloudflare link, the home-DNS name, HomeOwl's certificate name), then the .local name,
+// then the IP addresses, which always work.
+func (a *App) checkinLinks() []string {
 	c := a.Cfg.Get()
-	links := []string{}
-	_, ips := localNames()
-	for _, ip := range ips {
-		if ip.To4() != nil && ip.IsPrivate() {
-			links = append(links, "http://"+net.JoinHostPort(ip.String(), strconv.Itoa(c.LAN.Port))+"/hi")
+	var links []string
+	add := func(u string) {
+		if u != "" && !contains(links, u) {
+			links = append(links, u)
+		}
+	}
+	if c.LAN.Enabled {
+		for _, n := range a.cfLoad().Names {
+			if n.Kind == "hi" && !n.Stale && (n.Check == "" || n.Check == "ok") {
+				add("https://" + n.Host)
+			}
+		}
+		if d := strings.Trim(strings.ToLower(c.Names.Domain), "."); d != "" && c.Names.Checkin != "" {
+			a.mu.Lock()
+			p80 := a.port80 != nil
+			a.mu.Unlock()
+			u := "http://" + c.Names.Checkin + "." + d
+			if !p80 {
+				u += ":" + strconv.Itoa(c.LAN.Port)
+			}
+			add(u)
+		}
+		if u := a.certURL(); u != "" {
+			add(u + "/hi")
+		}
+		if u, ok := a.namesView()["checkin_url"].(string); ok {
+			add(u)
 		}
 	}
 	if c.LAN.ExtraHost != "" {
-		links = append([]string{"http://" + net.JoinHostPort(c.LAN.ExtraHost, strconv.Itoa(c.LAN.Port)) + "/hi"}, links...)
+		add("http://" + net.JoinHostPort(c.LAN.ExtraHost, strconv.Itoa(c.LAN.Port)) + "/hi")
 	}
-	if u, ok := a.namesView()["checkin_url"].(string); ok && c.LAN.Enabled {
-		links = append([]string{u}, links...)
+	_, ips := localNames()
+	for _, ip := range ips {
+		if ip.To4() != nil && ip.IsPrivate() {
+			add("http://" + net.JoinHostPort(ip.String(), strconv.Itoa(c.LAN.Port)) + "/hi")
+		}
 	}
+	if links == nil {
+		links = []string{}
+	}
+	return links
+}
+
+func (a *App) checkinView() map[string]any {
+	c := a.Cfg.Get()
+	links := a.checkinLinks()
 	items := a.checkins.List()
 	setup := map[string]any{}
 	for _, x := range items {
