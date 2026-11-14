@@ -13,6 +13,8 @@ import (
 )
 
 func TestOnboard(t *testing.T) {
+	resetWlans()
+	t.Cleanup(resetWlans)
 	sta := `[{"ip":"192.168.2.20","mac":"aa:bb:cc:00:00:20","hostname":"alexs-phone","oui":"Apple","essid":"Home Setup","is_guest":true},
 		{"ip":"192.168.2.21","mac":"aa:bb:cc:00:00:21","hostname":"guest-phone","essid":"Example Guests","is_guest":true}]`
 	console := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

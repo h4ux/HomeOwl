@@ -11,8 +11,16 @@ import (
 	"github.com/h4ux/homeowl/internal/analytics"
 )
 
+// resetWlans empties the minute-long Wi-Fi cache, so each test reads its own fake console.
+func resetWlans() {
+	wlanCache.Lock()
+	wlanCache.list = nil
+	wlanCache.Unlock()
+}
+
 func checkinApp(t *testing.T) *App {
 	t.Helper()
+	resetWlans()
 	console := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/integration/v1/info"):
