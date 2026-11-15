@@ -392,6 +392,17 @@ func (a *App) setupStatus(x CheckIn) map[string]any {
 	default:
 		st["state"] = "quiet"
 	}
+	// nothing under its name could also mean NextDNS logs aren't arriving at all: say which
+	if st["state"] == "stopped" || st["state"] == "not_seen" {
+		if t, err := ndLatest(a, x.NDProfile); err == nil && !t.IsZero() {
+			st["logs_at"] = t.Unix()
+			if time.Since(t) >= ndLogsFresh {
+				st["state"] = "logs_late"
+			}
+		} else if err == nil {
+			st["state"] = "logs_late"
+		}
+	}
 	if !last.IsZero() {
 		st["last_seen"] = last.Unix()
 		st["day"] = day

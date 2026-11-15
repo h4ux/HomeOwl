@@ -880,3 +880,20 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .hi-guest{margin:6px 0}.hi-guest>summary{cursor:pointer;padding:6px 0}.hi-guest[open]>summary{margin-bottom:6px}
 .hi-ver{text-align:center;margin:12px 0 0}
 @media (max-width:420px){.hi-row{grid-template-columns:80px 1fr}.hi-row .fine{grid-column:2}}
+/* the device's own page: folded sections */
+.hi-fold{border-top:1px solid var(--line);margin:0}
+.hi-fold>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:12px 0;font-weight:600;font-size:15px}
+.hi-fold>summary::-webkit-details-marker{display:none}
+.hi-fold>summary::before{content:"›";display:inline-block;width:10px;color:var(--muted);transition:transform .15s}
+.hi-fold[open]>summary::before{transform:rotate(90deg)}
+.hi-fold>summary>.fine{margin-left:auto;font-weight:400;text-align:right}
+.hi-fold-body{padding:0 0 12px}
+.hi-fold-body>.hi-sect:first-child,.hi-fold-body>.hi-row:first-child{border-top:0;margin-top:0;padding-top:0}
+.hi-fold+p.fine,.hi-sect+.hi-fold,#hi-guest+.hi-fold{margin-top:0}
+.hi-stat{align-items:flex-start}
+.hi-stat:not(.good):not(.warn) .hi-stat-ic{background:var(--muted)}
+.hi-fix{margin-top:8px}
+.hi-why{margin-top:8px}.hi-why>summary{cursor:pointer;color:var(--accent);font-size:13px}
+.hi-why ul{margin:6px 0;padding-left:18px;font-size:13px}.hi-why li{margin:4px 0}
+.hi-why b,.hi-stat .hi-why b{font-size:inherit}
+.hi-fold>summary>span:first-child{white-space:nowrap}

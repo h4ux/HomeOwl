@@ -116,7 +116,10 @@ Once a device is approved, its check-in page (the **HomeOwl** icon its setup pro
 that device's own page. There's no sign-in: HomeOwl recognises the device by its address on the home network, so the
 page shows that device and nothing about anyone else's:
 
-- **Is it OK?** Protected and in use, an update to install, or the setup stopped (with the steps to fix it).
+- **Is it OK?** Protected and in use, an update to install, or the setup stopped (with the usual reasons and the
+  steps to fix it). When NextDNS logs aren't arriving at all, it says it can't tell rather than "stopped".
+
+The status and the guest Wi-Fi are shown; the other sections are folded, each with a one-line summary.
 - **Right now.** The Wi-Fi and access point it's on, the signal (with a tip when it's weak), and whether the internet
   works, with the console's last speed test.
 - **Blocked on this device.** What NextDNS blocked under the device's name in the last day, and why. **Ask to allow**

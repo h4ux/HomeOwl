@@ -107,13 +107,14 @@ function registered(st) {
       ${nd && (pf === "ios" || pf === "mac") ? `<p class="fine">On a plane or in a hotel and the Wi-Fi sign-in page won't load? ${pf === "ios" ? "Open <b>Settings</b> › <b>General</b> › <b>VPN &amp; Device Management</b> › <b>DNS</b> and choose <b>Automatic</b>" : "Open <b>System Settings</b> › <b>Network</b> › <b>Filters</b> (or <b>VPN &amp; Filters</b>) and turn the NextDNS DNS setting off"}, sign in, then switch it back. Tell an admin the network's name so HomeOwl skips it next time.</p>` : ""}
       ${pf === "ios" || pf === "mac" ? `<p class="fine">If iCloud Private Relay is on, Safari's visits go through Apple instead and aren't seen by NextDNS.</p>` : ""}`;
   const mine = st.mine || {}, ss = mine.setup || {};
-  const settled = ss.state === "active" && !r.update && !ss.update; // set up and in use: the steps can wait in a fold
+  const settled = ss.state === "active" && !r.update && !ss.update;
+  // the status and the guest Wi-Fi up top; everything else folded
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
-    <p class="muted">${r.person ? `It belongs to <b>${esc(r.person)}</b>. ` : ""}HomeOwl knows this device.</p>
-    ${myStatus(mine, r)}${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
-    <div id="hi-guest"></div>
-    ${wifi.length && pf !== "ios" && pf !== "mac" ? `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>` : ""}
-    ${settled && setup ? `<details class="hi-again-setup"><summary>Set up this device again</summary>${setup}</details>` : setup}
+    ${r.person ? `<p class="muted">It belongs to <b>${esc(r.person)}</b>.</p>` : ""}
+    ${myStatus(mine, r)}<div id="hi-guest"></div>
+    ${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
+    ${wifi.length && pf !== "ios" && pf !== "mac" ? hiFold("Home Wi-Fi", `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>`) : ""}
+    ${setup ? hiFold(settled ? "Set up this device again" : r.update || ss.update ? "Install the update" : "Set up this device", setup, "hi-setup-fold") : ""}
     <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
   if ($("#hi-wifi")) homeWiFi();
   guestWiFi();
@@ -126,28 +127,44 @@ async function guestWiFi() {
   try { const res = await fetch("/api/hi/guest", { cache: "no-store" }); r = await res.json(); if (!res.ok) throw new Error(r.error); }
   catch { return; } // nothing to show: no guest network, or UniFi isn't reachable right now
   if (!el || !r.networks?.length || typeof QR !== "object") return;
-  el.innerHTML = `<div class="hi-sect"><h3>Guest Wi-Fi</h3>${r.networks.map(n => `<details class="hi-guest"><summary><b>${esc(n.ssid)}</b> <span class="fine muted">show the code for a visitor</span></summary>
+  el.innerHTML = `<div class="hi-sect"><h3>Guest Wi-Fi</h3>${r.networks.map((n, i) => `<details class="hi-guest"${i === 0 ? " open" : ""}><summary><b>${esc(n.ssid)}</b> <span class="fine muted">for a visitor</span></summary>
       <div class="wifi-qr">${QR.themed(QR.wifi(n), { theme: r.qr_theme || "rounded", size: 240, label: `Join ${n.ssid}`, caption: `${n.ssid} · scan to join` })}</div>
       ${n.security === "nopass" ? `<p class="fine">No password: it's open.</p>` : copyRow(n.password, "password")}
       <p class="fine muted">They point their phone's camera at the code and tap the Wi-Fi banner.</p></details>`).join("")}</div>`;
 }
 
+// a folded section (closed by default); extra is a short summary after the title
+const hiFold = (title, body, id, extra) => `<details class="hi-fold"${id ? ` id="${id}"` : ""}><summary><span>${esc(title)}</span>${extra ? `<span class="fine muted">${esc(extra)}</span>` : ""}</summary><div class="hi-fold-body">${body}</div></details>`;
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-hifix]")) return;
+  const f = $("#hi-setup-fold"); if (!f) return;
+  f.open = true; f.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
 // ---- "my device" (myhome.go): is it OK, how it's connected, what was blocked on it
 const agoS = t => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
 function myStatus(mine, r) {
   const ss = mine.setup || {};
-  const [ok, title, note] = {
+  const [ok, title, note, fix] = {
     active: [true, "All good", `Protected and recognised by name${ss.where === "away" ? " (away from home right now)" : ""}.`],
     quiet: [true, "All good", `Set up. Not used in the last day${ss.last_seen ? ` (last ${agoS(ss.last_seen)})` : ""}.`],
-    stopped: [false, "Protection stopped", `It worked, then stopped${ss.last_seen ? ` (NextDNS last saw it ${agoS(ss.last_seen)})` : ""} — the profile was probably removed. Install it again below.`],
-    not_seen: [false, "Not installed yet", "The profile was downloaded but isn't in use. Finish installing it below."],
-    offered: [false, "Not set up yet", "Set it up below so it's protected and recognised by name everywhere."],
+    stopped: [false, "Protection stopped", `This device stopped sending its DNS to NextDNS${ss.last_seen ? ` (last ${agoS(ss.last_seen)})` : ""}, while NextDNS logs for the rest of the home${ss.logs_at ? ` arrive (latest ${agoS(ss.logs_at)})` : " arrive"}.`, true],
+    not_seen: [false, "Not installed yet", "The profile was downloaded but isn't in use. Finish installing it under Set up this device.", true],
+    logs_late: [null, "Can't tell right now", `${ss.logs_at ? `NextDNS logs last reached HomeOwl ${agoS(ss.logs_at)}` : "NextDNS logs haven't reached HomeOwl yet"}, so it can't see whether this device is protected. An admin can check Settings › NextDNS.`],
+    offered: [false, "Not set up yet", "Set it up under Set up this device, so it's protected and recognised by name everywhere.", true],
   }[ss.state] || [null, "", ""];
   const upd = r.update || ss.update;
-  if (ok === null && !upd) return "";
-  const good = ok && !upd;
-  return `<div class="hi-stat ${good ? "good" : "warn"}"><span class="hi-stat-ic" aria-hidden="true">${good ? "✓" : "!"}</span>
-    <div><b>${esc(upd && ok !== false ? "Update ready" : title)}</b><div class="fine">${esc(upd && ok !== false ? "Its settings changed. Install the profile again below — it replaces the old one." : note)}</div></div></div>`;
+  if (!title && !upd) return "";
+  const good = ok && !upd, unsure = ok === null && !upd;
+  // stopped: the usual reasons on an iPhone, iPad or Mac
+  const why = ss.state === "stopped" ? `<details class="hi-why"><summary>Why, and how to fix it</summary><ul>
+      <li>Open <b>Settings</b> › <b>General</b> › <b>VPN &amp; Device Management</b> › <b>DNS</b>: <b>HomeOwl</b> should be there and selected (not <b>Automatic</b>). If it's missing, install the profile again under <b>Set up this device</b>.</li>
+      <li>A VPN app that brings its own DNS takes over while it's on (Tailscale with <b>Use Tailscale DNS</b>, other VPNs, ad blockers). Turn that DNS option off, or the VPN off, and check again in a few minutes.</li>
+      <li><b>iCloud Private Relay</b> and <b>Limit IP Address Tracking</b> send some traffic past NextDNS, but not all of it.</li></ul>
+      <p class="fine">This clears by itself within about 15 minutes of NextDNS seeing the device again.</p></details>` : "";
+  return `<div class="hi-stat ${good ? "good" : unsure ? "" : "warn"}"><span class="hi-stat-ic" aria-hidden="true">${good ? "✓" : unsure ? "?" : "!"}</span>
+    <div><b>${esc(upd && ok !== false ? "Update ready" : title)}</b><div class="fine">${esc(upd && ok !== false ? "Its settings changed. Install the profile again under Install the update — it replaces the old one." : note)}</div>
+    ${fix || upd ? `<button class="btn sm hi-fix" type="button" data-hifix>${upd ? "Install the update" : "Set up this device"}</button>` : ""}${why}</div></div>`;
 }
 function myConnection(c) {
   if (!c) return "";
@@ -159,7 +176,8 @@ function myConnection(c) {
     : `<div class="hi-row"><span>Wi-Fi</span><b>${esc(c.ssid || "–")}</b><span class="fine muted">${[c.band, c.ap ? `via ${c.ap}` : ""].filter(Boolean).map(esc).join(" · ")}</span></div>
       ${q ? `<div class="hi-row"><span>Signal</span><b class="${q[1]}">${q[0]}</b><span class="fine muted">${c.signal} dBm${c.rate ? ` · ${Math.round(c.rate / 1000)} Mbps link` : ""}</span></div>` : ""}
       ${c.quality === "weak" || c.quality === "poor" ? `<p class="fine">Weak signal: move closer to an access point${c.ap ? ` (it's on ${esc(c.ap)})` : ""}, or turn Wi-Fi off and on to pick a nearer one.</p>` : ""}`;
-  return `<div class="hi-sect"><h3>Right now</h3>${link}${net}</div>`;
+  const sum = [c.wired ? "wired" : q ? `${q[0].toLowerCase()} signal` : "", i.status ? (i.status === "ok" ? "internet working" : "internet trouble") : ""].filter(Boolean).join(" · ");
+  return hiFold("Right now", link + net, "", sum);
 }
 const ASKED = { pending: ["asked · waiting", ""], allowed: ["allowed", "good-t"], denied: ["not allowed", "bad-t"], removed: ["allowed for a while, then blocked again", "muted"] };
 function myBlocked(mine) {
@@ -167,11 +185,15 @@ function myBlocked(mine) {
   const bl = mine.blocked || [], reqs = mine.requests || [];
   const row = b => `<div class="hi-bl"><div><b>${esc(b.domain)}</b><div class="fine muted">${[b.reasons ? `blocked by ${b.reasons}` : "blocked", `${b.n}×`, agoS(b.last)].map(esc).join(" · ")}</div></div>
     ${b.asked && ASKED[b.asked] && b.asked !== "removed" ? `<span class="fine ${ASKED[b.asked][1]}">${ASKED[b.asked][0]}</span>` : `<button class="btn sm" type="button" data-hiask="${esc(b.domain)}">Ask to allow</button>`}</div>`;
-  return `<div class="hi-sect"><h3>Blocked on this device</h3>
+  const waiting = reqs.filter(q => q.status === "pending").length;
+  const sum = [bl.length ? `${bl.length} site${bl.length === 1 ? "" : "s"} today` : "nothing today", waiting ? `${waiting} waiting` : ""].filter(Boolean).join(" · ");
+  return `<details class="hi-fold" id="hi-blocked-fold"${hiBlockedOpen ? " open" : ""}><summary><span>Blocked on this device</span><span class="fine muted">${esc(sum)}</span></summary><div class="hi-fold-body">
     ${bl.length ? `<p class="fine muted">Sites NextDNS stopped in the last day. Something you need? Ask, and an admin decides.</p>${bl.map(row).join("")}` : `<p class="fine muted">Nothing blocked in the last day.</p>`}
     <form class="hi-ask-other" id="hi-ask-form"><input id="hi-ask-domain" placeholder="Another site, e.g. example.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Site to ask for"><button class="btn sm" type="submit">Ask</button></form>
-    ${reqs.length ? `<p class="fine" style="margin:12px 0 4px"><b>Your requests</b></p>${reqs.map(q => `<div class="hi-req"><span>${esc(q.domain)}</span><span class="fine ${ASKED[q.status]?.[1] || ""}">${esc(ASKED[q.status]?.[0] || q.status)}</span></div>`).join("")}` : ""}</div>`;
+    ${reqs.length ? `<p class="fine" style="margin:12px 0 4px"><b>Your requests</b></p>${reqs.map(q => `<div class="hi-req"><span>${esc(q.domain)}</span><span class="fine ${ASKED[q.status]?.[1] || ""}">${esc(ASKED[q.status]?.[0] || q.status)}</span></div>`).join("")}` : ""}</div></details>`;
 }
+let hiBlockedOpen = false; // stays open when the list redraws after asking
+document.addEventListener("toggle", e => { if (e.target.id === "hi-blocked-fold") hiBlockedOpen = e.target.open; }, true);
 async function askSite(domain, note) {
   const r = await fetch("/api/hi/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain, note }), cache: "no-store" });
   const j = await r.json().catch(() => ({}));

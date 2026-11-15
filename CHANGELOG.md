@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.88] — 2026-11-15
+
+### Changed
+- **The device's own page is shorter.** It shows the status and the guest Wi-Fi; *Right now*, *Blocked on this
+  device*, *Set up this device* and the home Wi-Fi are folded, each with a one-line summary.
+- **Protection stopped** explains itself: when NextDNS last saw the device while logs for the rest of the home keep
+  arriving, a **Set up this device** button, and *Why, and how to fix it* (the DNS entry in Settings, a VPN with its
+  own DNS such as Tailscale's, Private Relay).
+- When NextDNS logs aren't reaching HomeOwl at all, the page says **Can't tell right now** instead of blaming the
+  device.
+
 ## [0.1.87] — 2026-11-15
 
 ### Fixed
