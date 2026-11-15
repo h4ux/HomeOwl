@@ -192,6 +192,20 @@ func (a *App) presenceTag(body map[string]any) error {
 	return nil
 }
 
+// movePresenceTag: a device got a new address (fixedmac.go, merge.go); Who's home follows it there.
+func (a *App) movePresenceTag(from, to string) {
+	pid := a.Cfg.Get().Presence.Devices[from]
+	if pid == "" || from == to || to == "" {
+		return
+	}
+	_ = a.Cfg.Update(func(c *config.Config) {
+		delete(c.Presence.Devices, from)
+		c.Presence.Devices[to] = pid
+	})
+	a.presence.Forget(from)
+	a.kickPresence()
+}
+
 func (a *App) presenceSettings(body map[string]any) error {
 	return a.Cfg.Update(func(c *config.Config) {
 		if has(body, "history") {

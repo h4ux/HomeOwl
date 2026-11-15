@@ -98,5 +98,6 @@ func (a *App) fixedMove(x CheckIn, mac string) {
 	a.checkins.Edit(x.ID, func(y *CheckIn) {
 		y.MAC, y.Fixed, y.FixedFrom, y.FixedHost, y.FixedAt = mac, !privateMACAddr(mac), "", "", 0
 	})
+	a.movePresenceTag(x.MAC, mac)
 	log.Printf("check-in: %s moved to its home Wi-Fi address", x.Name)
 }

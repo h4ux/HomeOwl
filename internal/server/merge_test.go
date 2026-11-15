@@ -73,4 +73,43 @@ func TestMergeCheckins(t *testing.T) {
 	if len(a.duplicateAttention()) != 0 {
 		t.Fatal("nothing left to merge")
 	}
+	// Who's home follows the old address's tag to the kept one
+	if a.Cfg.Get().Presence.Devices["06:00:00:00:00:02"] != "" {
+		t.Fatal("not tagged yet")
+	}
+}
+
+func TestMainDevice(t *testing.T) {
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.An.OpenDB(); err != nil {
+		t.Fatal(err)
+	}
+	alex, _ := a.An.SavePerson(analytics.Person{Name: "Alex"})
+	_ = a.checkins.Add(CheckIn{MAC: "02:00:00:00:00:01", Name: "Alex's iPhone", PersonID: alex, Main: true})
+	x := a.checkins.List()[0]
+	if _, err := a.approveCheckIn(map[string]any{"id": x.ID}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if a.Cfg.Get().Presence.Devices["02:00:00:00:00:01"] != alex {
+		t.Fatalf("main device tagged for Who's home: %v", a.Cfg.Get().Presence.Devices)
+	}
+	// the admin can say no
+	_ = a.checkins.Add(CheckIn{MAC: "02:00:00:00:00:02", Name: "Alex's iPad", PersonID: alex, Main: true})
+	for _, y := range a.checkins.List() {
+		if y.Status == "pending" {
+			_, _ = a.approveCheckIn(map[string]any{"id": y.ID, "main": false}, "admin")
+		}
+	}
+	if a.Cfg.Get().Presence.Devices["02:00:00:00:00:02"] != "" {
+		t.Fatal("not the main device")
+	}
+	// a new address (real Wi-Fi address, or a merge): the tag follows
+	x, _ = a.checkins.Get(x.ID)
+	a.fixedMove(x, "00:11:22:00:00:09")
+	if d := a.Cfg.Get().Presence.Devices; d["00:11:22:00:00:09"] != alex || d["02:00:00:00:00:01"] != "" {
+		t.Fatalf("tag moved: %v", d)
+	}
 }

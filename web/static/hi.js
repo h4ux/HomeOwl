@@ -167,10 +167,13 @@ async function start() {
       <label id="hi-newwrap" hidden>Name<input id="hi-newname" maxlength="40" placeholder="e.g. Alex"></label>
       <label>What is it?<select id="hi-kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === kind ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label>Name for this device<input id="hi-name" maxlength="40" required placeholder="e.g. Alex's iPad"></label>
+      <label class="check hi-main" id="hi-mainwrap" hidden><input type="checkbox" id="hi-main"> <span><b id="hi-mainq">Is this your main phone?</b><br><span class="fine muted">HomeOwl uses it to see when you're home (Who's home). Only for the phone you carry with you.</span></span></label>
       <button class="btn primary" type="submit">Send to HomeOwl</button>
       <div id="hi-msg" class="msg" role="status"></div>
     </form>`;
   if (!st.people.length) { $("#hi-person").value = "__new"; $("#hi-newwrap").hidden = false; }
+  start.groups = new Set(st.people.filter(p => p.kind === "group").map(p => p.id));
+  mainAsk();
 }
 
 function suggestName() {
@@ -182,7 +185,8 @@ function suggestName() {
 
 document.addEventListener("change", e => {
   if (e.target.id === "hi-person") { $("#hi-newwrap").hidden = e.target.value !== "__new"; if (e.target.value === "__new") $("#hi-newname").focus(); }
-  if (e.target.id === "hi-person" || e.target.id === "hi-kind") suggestName();
+  if (e.target.id === "hi-person" || e.target.id === "hi-kind") { suggestName(); mainAsk(); }
+  if (e.target.id === "hi-main") $("#hi-main").dataset.touched = "1";
 });
 document.addEventListener("input", e => {
   if (e.target.id === "hi-name") e.target.dataset.typed = "1";
@@ -196,13 +200,22 @@ document.addEventListener("click", async e => {
     catch { const r = document.createRange(); r.selectNodeContents(c.previousElementSibling); getSelection().removeAllRanges(); getSelection().addRange(r); c.textContent = "Selected"; }
   }
 });
+// "is this your main device?": for a person's own device (not a shared one); ticked for a phone unless they chose
+function mainAsk() {
+  const sel = $("#hi-person")?.value || "", kind = $("#hi-kind")?.value || "", box = $("#hi-main"); if (!box) return;
+  const own = sel && !start.groups?.has(sel), ask = own && ["phone", "watch", "tablet", "laptop"].includes(kind);
+  $("#hi-mainwrap").hidden = !ask;
+  const what = { phone: "phone", watch: "watch", tablet: "tablet", laptop: "laptop" }[kind] || "device";
+  $("#hi-mainq").textContent = `Is this ${sel === "__new" ? "their" : "your"} main ${what}?`;
+  if (!box.dataset.touched) box.checked = ask && kind === "phone";
+}
 document.addEventListener("submit", async e => {
   if (e.target.id !== "hi-form") return;
   e.preventDefault();
   const msg = $("#hi-msg"), sel = $("#hi-person").value;
   msg.className = "msg"; msg.textContent = "Sending…";
   try {
-    await call("POST", { name: $("#hi-name").value, kind: $("#hi-kind").value, person_id: sel === "__new" ? "" : sel, person_name: sel === "__new" ? $("#hi-newname").value : "" });
+    await call("POST", { name: $("#hi-name").value, kind: $("#hi-kind").value, person_id: sel === "__new" ? "" : sel, person_name: sel === "__new" ? $("#hi-newname").value : "", main: !$("#hi-mainwrap").hidden && $("#hi-main").checked });
     done(false);
   } catch (err) { msg.className = "msg err"; msg.textContent = err.message; }
 });

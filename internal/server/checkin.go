@@ -53,6 +53,7 @@ type CheckIn struct {
 	// fixedmac.go: the device downloaded a profile that gives it its real Wi-Fi address. Until it's seen with it,
 	// FixedFrom is the private address it had then and FixedHost its host name; Fixed: it now uses the real one.
 	Onboard   bool   `json:"onboard,omitempty"` // checked in from the setup Wi-Fi (onboard.go)
+	Main      bool   `json:"main,omitempty"`    // the person's main device: Who's home follows it (presence.go)
 	FixedFrom string `json:"fixed_from,omitempty"`
 	FixedHost string `json:"fixed_host,omitempty"`
 	FixedAt   int64  `json:"fixed_at,omitempty"`
@@ -411,7 +412,7 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		seen = str(c, "hostname")
 	}
 	x := CheckIn{IP: ip, MAC: mac, UserID: uid, Seen: seen, Vendor: str(c, "oui"), Network: str(c, "network"), Name: name, Kind: kind,
-		PersonID: pid, PersonName: pname, Onboard: a.onSetupWiFi(c)}
+		PersonID: pid, PersonName: pname, Onboard: a.onSetupWiFi(c), Main: b(body, "main")}
 	if err := a.checkins.Add(x); err != nil {
 		fail(w, 400, err.Error())
 		return
@@ -483,8 +484,17 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 			return nil, err
 		}
 	}
-	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile, c.PersonID = x.Name, nd, pid }); err != nil {
+	main := x.Main
+	if has(body, "main") {
+		main = b(body, "main")
+	}
+	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile, c.PersonID, c.Main = x.Name, nd, pid, main }); err != nil {
 		return nil, err
+	}
+	if main && pid != "" && x.MAC != "" { // Who's home follows the person's main device (a group is never "home")
+		if err := a.presenceTag(map[string]any{"mac": x.MAC, "person": pid}); err != nil {
+			log.Printf("check-in: %s as %s's main device: %v", x.Name, pid, err)
+		}
 	}
 	return map[string]any{"ok": true, "person_id": pid, "checkins": a.checkinView()}, nil
 }

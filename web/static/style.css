@@ -845,3 +845,4 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .cim-opt{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
 .cim-opt:has(input:checked){border-color:var(--accent);background:var(--panel2)}
 .cim-opt input{width:auto;flex:none;margin:3px 0 0}.cim-opt>div{flex:1;font-size:13px;font-weight:400;color:var(--text)}.cim-opt{margin:0}
+.hi-main{align-items:flex-start}.hi-main input{margin-top:3px!important}

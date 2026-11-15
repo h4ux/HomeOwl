@@ -423,13 +423,14 @@ async function approveCheckin(id) {
   openModal({ title: "Approve device check-in", body: `
     <label>UniFi name (alias)<input id="ci-alias" maxlength="40" value="${esc(x.name)}"></label>
     <label>Belongs to<select id="ci-person">${x.person_name && !known ? `<option value="" selected>${esc(x.person_name)} (new person)</option>` : ""}${opts}<option value="-">Nobody</option></select></label>
+    <label class="check"><input type="checkbox" id="ci-main" ${x.main ? "checked" : ""}> <span>Their main device: Who's home follows it${x.main ? " <span class=\"fine muted\">(they said so)</span>" : ""}</span></label>
     ${ndPick}
     ${x.user_id ? "" : `<p class="bad-t">UniFi doesn't list this device as a known client, so its name can't be set — only the person is saved.</p>`}
     <p class="fine">Next you'll see exactly what is sent to UniFi. The name change is logged and can be undone from the Changes page.</p>`,
     buttons: [{ label: "Cancel" }, { label: x.user_id ? "Preview" : "Approve", cls: "primary", onClick: () => previewCheckin(x) }] });
 }
 async function previewCheckin(x) {
-  const alias = $("#ci-alias").value.trim(), person = $("#ci-person").value, ndp = $("#ci-nd")?.value || "";
+  const alias = $("#ci-alias").value.trim(), person = $("#ci-person").value, ndp = $("#ci-nd")?.value || "", main = !!$("#ci-main")?.checked;
   if (!alias) return toast("Give the device a name", "err");
   const act = x.user_id ? { kind: "rest", resource: "user", id: x.user_id, fields: { name: alias }, description: `Check-in: name ${x.mac} “${alias}”` } : null;
   let pv = null;
@@ -438,19 +439,19 @@ async function previewCheckin(x) {
   openModal({ title: "Approve device check-in", wide: true, body: `${pv ? `<div class="pv"><div class="pv-h"><b>UniFi client name</b> <span class="muted">${esc(pv.target)}</span></div>
       <table class="pv-t"><tr><th>Setting</th><th>Now</th><th>New</th></tr><tr><td class="mono">name</td><td>${esc(fmtVal(pv.before.name))}</td><td><b>${esc(alias)}</b></td></tr></table>
       <div class="fine mono">${esc(pv.method)} ${esc(pv.path)}</div><div class="fine">↩ Can be undone from the Changes page.</div></div>` : ""}
-    <p>Device <span class="mono">${esc(x.mac)}</span> → <b>${esc(who)}</b> in People.</p>
+    <p>Device <span class="mono">${esc(x.mac)}</span> → <b>${esc(who)}</b> in People${main && person !== "-" ? ", and Who's home follows it" : ""}.</p>
     ${ndp ? `<p class="fine">Its check-in page will offer a setup through NextDNS profile <b>${esc(S.ciND.profiles.find(p => p.id === ndp)?.name || ndp)}</b>, named “${esc(alias)}”.</p>` : ""}
     ${act && !S.write ? `<p class="muted"><b>Change mode is locked</b> — approving unlocks it for this session.</p>` : ""}`,
-    buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person, alias, ndp) }] });
+    buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person, alias, ndp, main) }] });
 }
-async function finishCheckin(x, act, person, alias, ndp) {
+async function finishCheckin(x, act, person, alias, ndp, main) {
   try {
     if (act) {
       if (!S.write) await setWrite(true);
       const r = (await api("/api/action", { action: act, dry_run: false })).result;
       if (!r.ok) throw new Error(`UniFi refused the name change: ${r.error || "unknown error"}`);
     }
-    await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp });
+    await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp, main });
     closeModal(); toast("Approved", "ok"); loadCheckins();
     setTimeout(() => collectLive(true, true).catch(() => { }), 2500);
   } catch (err) { toast(err.message, "err"); }

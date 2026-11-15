@@ -94,6 +94,24 @@ func (a *App) mergeCheckins(keepID string, dropIDs []string, by string) error {
 			}
 		}
 	}
+	main := keep.Main
+	for _, mac := range oldMACs { // Who's home followed an old address: it follows the one in use now
+		if a.Cfg.Get().Presence.Devices[mac] != "" {
+			if _, still := a.checkins.Registered(mac); !still {
+				a.movePresenceTag(mac, keep.MAC)
+				main = true
+			}
+		}
+	}
+	for _, x := range drops {
+		main = main || x.Main
+	}
+	if main != keep.Main {
+		a.checkins.Edit(keep.ID, func(y *CheckIn) { y.Main = main })
+	}
+	if main && keep.PersonID != "" && keep.MAC != "" && a.Cfg.Get().Presence.Devices[keep.MAC] == "" {
+		_ = a.presenceTag(map[string]any{"mac": keep.MAC, "person": keep.PersonID})
+	}
 	if len(oldMACs) > 0 {
 		a.archive.mu.Lock()
 		m := a.archive.load()

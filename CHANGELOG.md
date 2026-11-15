@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.74] — 2026-11-15
+
+- Check-in asks "Is this your main phone?" (ticked for a phone, not asked for shared devices). Approving it — the
+  admin can change the answer — makes Who's home follow that device, and the tag moves with the device when it gets
+  a new Wi-Fi address (its real address, or a merge).
+
 ## [0.1.73] — 2026-11-15
 
 - Merge check-ins: a device checked in twice under the same name (it got a new Wi-Fi address after a profile
