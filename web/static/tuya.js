@@ -4,6 +4,9 @@
 
 S.tuya = null;
 S.tuyaSet = false; // the settings card is open
+// the house and type the page is filtered to ("" = all; "-" = devices in no house), kept per browser
+try { S.tuyaHome = localStorage.getItem("homeowl-tuya-home") || ""; S.tuyaKind = localStorage.getItem("homeowl-tuya-kind") || ""; } catch { S.tuyaHome = S.tuyaKind = ""; }
+const tuyaKeep = () => { try { localStorage.setItem("homeowl-tuya-home", S.tuyaHome); localStorage.setItem("homeowl-tuya-kind", S.tuyaKind); } catch { } };
 
 V.tuya = () => `<div class="head"><div><h1>Tuya ${hint("Smart Life and Tuya plugs, switches, lights and sensors: online or not, their readings, and on/off. Through the Tuya Cloud or straight on the home network.")}</h1></div></div>
   <div id="tuya-body"><div class="empty">Loading…</div></div>`;
@@ -20,17 +23,51 @@ setInterval(() => { if (S.view === "tuya" && S.tuya?.mode && !document.hidden &&
 const tuyaAdmin = () => S.role === "admin";
 
 function tuyaBody(d) {
-  const devs = arr(d.devices), on = devs.filter(x => x.online).length;
-  const head = d.mode ? `<p class="muted">${devs.length ? `${on} of ${plural(devs.length, "device")} online` : "No devices yet"} · ${d.mode === "cloud" ? "through the Tuya Cloud" : "on the home network"}${d.synced ? ` · updated ${esc(ago(d.synced * 1000))}` : ""}
+  const all = arr(d.devices), homes = arr(d.homes).filter(h => !h.hidden), on = all.filter(x => x.online).length;
+  const head = d.mode ? `<p class="muted">${all.length ? `${on} of ${plural(all.length, "device")} online` : "No devices yet"} · ${d.mode === "cloud" ? "through the Tuya Cloud" : "on the home network"}${d.synced ? ` · updated ${esc(ago(d.synced * 1000))}` : ""}
       ${tuyaAdmin() ? ` <button class="btn sm ghost" data-tuya="sync">Refresh</button>` : ""}</p>${d.error ? `<div class="msg warn">${esc(d.error)}</div>` : ""}` : "";
-  const cards = devs.length ? `<div class="tuya-grid">${devs.map(tuyaCard).join("")}</div>` : d.mode ? `<div class="card"><p class="muted">${d.mode === "cloud" ? "The Tuya Cloud project has no devices yet. Link your Smart Life app account to the project (Devices › Link Tuya App Account), then Refresh." : "No devices yet. Scan the network below, or add one by hand."}</p></div>` : "";
+  if (S.tuyaHome && S.tuyaHome !== "-" && !homes.some(h => h.id === S.tuyaHome)) S.tuyaHome = "";
+  const noHouse = all.filter(x => !x.home).length;
+  const inHome = x => !S.tuyaHome || (S.tuyaHome === "-" ? !x.home : x.home === S.tuyaHome);
+  const here = all.filter(inHome);
+  const kinds = {}; here.forEach(x => { const k = x.kind || "Other"; kinds[k] = (kinds[k] || 0) + 1; });
+  if (S.tuyaKind && !kinds[S.tuyaKind]) S.tuyaKind = "";
+  const devs = here.filter(x => !S.tuyaKind || (x.kind || "Other") === S.tuyaKind);
+  const houseBar = homes.length ? `<div class="filters tuya-filter" role="group" aria-label="House"><button data-tuyahome="" class="${!S.tuyaHome ? "on" : ""}">All houses (${all.length})</button>
+      ${homes.map(h => `<button data-tuyahome="${esc(h.id)}" class="${S.tuyaHome === h.id ? "on" : ""}">${esc(h.name)} (${all.filter(x => x.home === h.id).length})</button>`).join("")}
+      ${noHouse ? `<button data-tuyahome="-" class="${S.tuyaHome === "-" ? "on" : ""}">No house (${noHouse})</button>` : ""}</div>` : "";
+  const kindBar = Object.keys(kinds).length > 1 ? `<div class="filters tuya-filter" role="group" aria-label="Type"><button data-tuyakind="" class="${!S.tuyaKind ? "on" : ""}">All types</button>
+      ${Object.entries(kinds).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, n]) => `<button data-tuyakind="${esc(k)}" class="${S.tuyaKind === k ? "on" : ""}">${esc(k)} (${n})</button>`).join("")}</div>` : "";
+  // one section per house (or just the chosen one), rooms inside
+  const groups = S.tuyaHome ? [{ id: S.tuyaHome, name: "", list: devs }]
+    : [...homes.map(h => ({ id: h.id, name: h.name, list: devs.filter(x => x.home === h.id) })), { id: "-", name: homes.length ? "No house" : "", list: devs.filter(x => !x.home) }];
+  const house = g => {
+    const h = homes.find(x => x.id === g.id), rooms = {};
+    g.list.forEach(x => { (rooms[x.room || ""] ||= []).push(x); });
+    const keys = Object.keys(rooms).sort((a, b) => (a === "") - (b === "") || a.localeCompare(b));
+    const scenes = h && !S.tuyaKind ? tuyaScenes(h) : "";
+    if (!g.list.length && !scenes) return "";
+    return `<section class="tuya-house">${g.name ? `<h2>${esc(g.name)} <span class="fine muted">${plural(g.list.length, "device")}</span></h2>` : ""}${scenes}
+      ${keys.map(r => `${keys.length > 1 || r ? `<h3 class="tuya-room">${esc(r || "No room")}</h3>` : ""}<div class="tuya-grid">${rooms[r].map(tuyaCard).join("")}</div>`).join("")}</section>`;
+  };
+  const cards = all.length ? houseBar + kindBar + (groups.map(house).join("") || `<div class="card"><p class="muted">Nothing here.</p></div>`)
+    : d.mode ? `<div class="card"><p class="muted">${d.mode === "cloud" ? "The Tuya Cloud project has no devices yet. Link your Smart Life app account to the project (Devices › Link Tuya App Account), then Refresh." : "No devices yet. Scan the network below, or add one by hand."}</p></div>` : "";
   return head + cards + (tuyaAdmin() ? tuyaSettings(d) : !d.mode ? `<div class="card"><p class="muted">Tuya isn't set up. An admin can set it up here.</p></div>` : "");
+}
+
+// a home's Tap-to-Run scenes (Run) and automations (on/off), from Smart Life
+function tuyaScenes(h) {
+  const sc = arr(h.scenes), au = arr(h.automations);
+  if (!sc.length && !au.length) return h.scene_error && tuyaAdmin() ? `<p class="fine muted">Scenes and automations can't be read: ${esc(h.scene_error)}. In the Tuya project, add the <b>Smart Home Scene Linkage</b> API service (Cloud › your project › Service API).</p>` : "";
+  return `<div class="card tuya-scenes">${sc.length ? `<div><span class="fine muted">Tap-to-Run</span><div class="tuya-sclist">${sc.map(x => `<button class="btn sm" data-tuyascene="${esc(x.id)}" data-home="${esc(h.id)}" ${tuyaAdmin() ? "" : "disabled title=\"Admins can run scenes\""}>▶ ${esc(x.name)}</button>`).join("")}</div></div>` : ""}
+    ${au.length ? `<div><span class="fine muted">Automations</span><div class="tuya-sclist">${au.map(x => `<button class="tuya-tog${x.enabled ? " on" : ""}" type="button" role="switch" aria-checked="${x.enabled ? "true" : "false"}" ${tuyaAdmin() ? "" : "disabled"}
+      data-tuyaauto="${esc(x.id)}" data-home="${esc(h.id)}" data-on="${x.enabled ? "1" : ""}" title="${tuyaAdmin() ? `Turn ${x.enabled ? "off" : "on"}` : "Admins can switch it"}"><span class="tuya-knob"></span>${esc(x.name)}</button>`).join("")}</div></div>` : ""}</div>`;
 }
 
 function tuyaCard(x) {
   const sw = arr(x.switches), rd = arr(x.readings);
   return `<div class="card tuya-card${x.online ? "" : " off"}">
-    <div class="tuya-top">${onDot(x.online, x.seen * 1000)}<div class="tuya-name"><b>${esc(x.name)}</b><div class="fine muted">${esc([x.kind || x.product, x.unifi_name && x.unifi_name !== x.name ? `UniFi: ${x.unifi_name}` : "", x.ip].filter(Boolean).join(" · "))}</div></div>
+    <div class="tuya-top">${onDot(x.online, x.seen * 1000)}<div class="tuya-name"><b>${esc(x.name)}</b>${x.kind ? ` <span class="tuya-kind">${esc(x.kind)}</span>` : ""}<div class="fine muted">${esc([x.product !== x.kind ? x.product : "", x.unifi_name && x.unifi_name !== x.name ? `UniFi: ${x.unifi_name}` : "", x.ip].filter(Boolean).join(" · "))}</div></div>
       ${tuyaAdmin() ? `<button class="icon-btn" data-tuyaedit="${esc(x.id)}" title="Details" aria-label="Details of ${esc(x.name)}">✎</button>` : ""}</div>
     ${rd.length ? `<div class="tuya-read">${rd.map(r => `<div><b>${esc(r.value)}${r.unit ? `<span class="fine"> ${esc(r.unit)}</span>` : ""}</b><span class="fine muted">${esc(r.label)}</span></div>`).join("")}</div>` : ""}
     ${sw.length ? `<div class="tuya-sw">${sw.map(s => `<button class="tuya-tog${s.on ? " on" : ""}" type="button" role="switch" aria-checked="${s.on ? "true" : "false"}" ${tuyaAdmin() && x.online ? "" : "disabled"}
@@ -61,6 +98,7 @@ function tuyaSettings(d) {
         ${[...nets].filter(n => !un.some(u => u.subnet === n)).map(n => `<label class="check"><input type="checkbox" data-tuyanet="${esc(n)}" checked> <span class="mono">${esc(n)}</span></label>`).join("")}</div>
       <div class="btnrow"><input id="tuya-net-add" placeholder="Another network, e.g. 192.168.20.0/24" spellcheck="false" style="max-width:280px"><button class="btn sm" id="tuya-net-addbtn" type="button">Add</button></div>
       ${arr(d.marked).length ? `<p class="fine">Marked as Tuya: ${d.marked.map(m => `<span class="mono">${esc(m)}</span>`).join(", ")}</p>` : ""}</div>
+    ${d.mode ? tuyaHouses(d) : ""}
     <div class="btnrow" style="margin-top:12px"><button class="btn primary" id="tuya-save">Save</button>${d.mode ? `<button class="btn" data-tuya="scan">Scan the network now</button>` : ""}${d.mode === "local" ? `<button class="btn" id="tuya-add">Add a device by hand</button>` : ""}</div>
     ${d.scanned ? `<h3 style="margin-top:16px">Last scan <span class="fine muted">${esc(ago(d.scanned * 1000))}</span></h3>
       ${found.length ? `<div class="ap-blocks">${found.map(f => `<div class="ap-block"><div><b>${esc(f.unifi_name || f.ip)}</b> <span class="fine muted mono">${esc(f.ip)}</span>
@@ -73,27 +111,47 @@ function tuyaSettings(d) {
   </details>`;
 }
 
+function tuyaHouses(d) {
+  const homes = arr(d.homes);
+  return `<div id="tuya-houses"><h3>Houses</h3>
+    <p class="fine muted">${d.mode === "cloud" ? "Homes come from Smart Life (each linked app account), with their rooms, scenes and automations. Untick one to hide its devices here — for example a parent's home on the same account. " : ""}You can also make houses here and put devices in them (open a device, ✎).</p>
+    ${homes.length ? `<div class="tuya-netlist">${homes.map(h => `<div class="tuya-hrow"><label class="check"><input type="checkbox" data-tuyashow="${esc(h.id)}" ${h.hidden ? "" : "checked"}> ${esc(h.name)} <span class="fine muted">${plural(h.count, "device")}${h.custom ? " · made here" : " · Smart Life"}</span></label>
+      ${h.custom ? `<button class="btn sm ghost" data-tuyahedit="${esc(h.id)}">Rename</button><button class="btn sm ghost" data-tuyahdel="${esc(h.id)}">Remove</button>` : ""}</div>`).join("")}</div>` : ""}
+    <div class="btnrow"><input id="tuya-home-new" placeholder="New house, e.g. Beach house" maxlength="40" style="max-width:280px"><button class="btn sm" id="tuya-home-add" type="button">Add house</button></div></div>`;
+}
+
 async function tuyaDo(op, body, msg) {
   try { S.tuya = await api(`/api/tuya/${op}`, body || {}); if (msg) toast(msg, "ok"); if ($("#tuya-body")) $("#tuya-body").innerHTML = tuyaBody(S.tuya); return true; }
   catch (err) { toast(err.message, "err"); return false; }
 }
 
 function tuyaDeviceModal(x) {
-  const local = S.tuya?.mode === "local";
-  openModal({ title: x.id ? x.name || "Tuya device" : "Add a Tuya device", body: `${x.id && !local ? `<p class="fine muted">From the Tuya Cloud. ID <span class="mono">${esc(x.id)}</span>${x.version ? ` · protocol ${esc(x.version)}` : ""}${x.ip ? ` · ${esc(x.ip)}` : ""}</p>` : ""}
+  const local = S.tuya?.mode === "local", homes = arr(S.tuya?.homes), known = !!x.known;
+  const fromApp = known && x.home && !x.place ? homes.find(h => h.id === x.home) : null;
+  const rooms = [...new Set(homes.flatMap(h => arr(h.rooms)).concat(arr(S.tuya?.devices).map(d => d.room).filter(Boolean)))];
+  const tags = known ? `<h3>Where it is and what it is</h3><div class="grid g2">
+      <label>House<select id="td-place"><option value="">${fromApp ? `As in Smart Life (${esc(fromApp.name)})` : "No house"}</option>${homes.map(h => `<option value="${esc(h.id)}" ${x.place === h.id ? "selected" : ""}>${esc(h.name)}</option>`).join("")}</select></label>
+      <label>Room<input id="td-room" list="td-rooms" value="${esc(x.my_room || "")}" placeholder="${esc(x.room && !x.my_room ? x.room : "e.g. Kitchen")}" maxlength="40"><datalist id="td-rooms">${rooms.map(r => `<option value="${esc(r)}">`).join("")}</datalist></label>
+      <label>Type<input id="td-type" list="td-kinds" value="${esc(x.type || "")}" placeholder="${esc(x.auto_kind || "e.g. Boiler switch")}" maxlength="40"><datalist id="td-kinds">${arr(S.tuya?.kinds).map(k => `<option value="${esc(k)}">`).join("")}</datalist></label></div>
+    <p class="fine muted">Empty fields follow Smart Life. The type is what the page groups and filters by.</p>` : "";
+  openModal({ title: x.id ? x.name || "Tuya device" : "Add a Tuya device", body: `${x.id && !local ? `<p class="fine muted">From the Tuya Cloud. ID <span class="mono">${esc(x.id)}</span>${x.version ? ` · protocol ${esc(x.version)}` : ""}${x.ip ? ` · ${esc(x.ip)}` : ""}${x.product ? ` · ${esc(x.product)}` : ""}</p>` : ""}
     ${local ? `<div class="grid g2"><label>Name<input id="td-name" value="${esc(x.name || "")}" placeholder="Kitchen plug"></label>
-      <label>Device ID<input id="td-id" value="${esc(x.id || "")}" spellcheck="false" ${x.known ? "readonly" : ""}></label>
+      <label>Device ID<input id="td-id" value="${esc(x.id || "")}" spellcheck="false" ${known ? "readonly" : ""}></label>
       <label>Address on the home network<input id="td-ip" value="${esc(x.ip || "")}" placeholder="192.168.1.50" spellcheck="false"></label>
       <label>Protocol<select id="td-ver">${["3.3", "3.4", "3.5"].map(v => `<option ${v === (x.version || "3.3") ? "selected" : ""}>${v}</option>`).join("")}</select></label>
       <label>Local key<input id="td-key" type="password" autocomplete="new-password" placeholder="${x.has_key ? "saved — leave empty to keep" : "16 characters"}"></label></div>
-      <p class="fine">The device ID is in Smart Life › the device › ✎ › Device information (Virtual ID). Give the device a fixed address in UniFi so HomeOwl keeps finding it.</p>` : ""}`,
-    buttons: [{ label: "Close" }, ...(x.known ? [{ label: "Remove", onClick: async () => { if (await tuyaDo("remove", { id: x.id }, "Removed")) closeModal(); } }] : []),
-      ...(local ? [{ label: "Save", cls: "primary", onClick: async () => {
-        if (await tuyaDo("device", { id: $("#td-id").value, name: $("#td-name").value, ip: $("#td-ip").value, version: $("#td-ver").value, local_key: $("#td-key").value }, "Saved")) closeModal();
+      <p class="fine">The device ID is in Smart Life › the device › ✎ › Device information (Virtual ID). Give the device a fixed address in UniFi so HomeOwl keeps finding it.</p>` : ""}${tags}`,
+    buttons: [{ label: "Close" }, ...(known && local ? [{ label: "Remove", onClick: async () => { if (await tuyaDo("remove", { id: x.id }, "Removed")) closeModal(); } }] : []),
+      ...(local || known ? [{ label: "Save", cls: "primary", onClick: async () => {
+        if (local && !await tuyaDo("device", { id: $("#td-id").value, name: $("#td-name").value, ip: $("#td-ip").value, version: $("#td-ver").value, local_key: $("#td-key").value }, known ? "" : "Saved")) return;
+        if (known && !await tuyaDo("tag", { id: x.id, place: $("#td-place").value, room: $("#td-room").value, type: $("#td-type").value }, "Saved")) return;
+        closeModal();
       } }] : [])] });
 }
 
 document.addEventListener("change", e => {
+  const hs = e.target.closest?.("[data-tuyashow]");
+  if (hs) { tuyaDo("home-show", { id: hs.dataset.tuyashow, on: hs.checked }, hs.checked ? "Shown" : "Hidden"); return; }
   if (e.target.id !== "tuya-mode") return;
   const m = e.target.value;
   $("#tuya-cloud").hidden = m !== "cloud"; $("#tuya-local").hidden = m !== "local"; $("#tuya-nets").hidden = !m;
@@ -103,6 +161,17 @@ document.addEventListener("click", async e => {
   const t = e.target;
   const sw = t.closest("[data-tuyasw]");
   if (sw) { sw.disabled = true; const on = !sw.dataset.on; await tuyaDo("switch", { id: sw.dataset.tuyasw, code: sw.dataset.code, on }, `Turned ${on ? "on" : "off"}`); return; }
+  const hb = t.closest("[data-tuyahome]"); if (hb) { S.tuyaHome = hb.dataset.tuyahome; tuyaKeep(); $("#tuya-body").innerHTML = tuyaBody(S.tuya); return; }
+  const kb = t.closest("[data-tuyakind]"); if (kb) { S.tuyaKind = kb.dataset.tuyakind; tuyaKeep(); $("#tuya-body").innerHTML = tuyaBody(S.tuya); return; }
+  const sc = t.closest("[data-tuyascene]");
+  if (sc) { sc.disabled = true; await tuyaDo("scene", { home: sc.dataset.home, id: sc.dataset.tuyascene }, `Ran ${sc.textContent.replace("▶", "").trim()}`); return; }
+  const au = t.closest("[data-tuyaauto]");
+  if (au) { au.disabled = true; const on = !au.dataset.on; await tuyaDo("automation", { home: au.dataset.home, id: au.dataset.tuyaauto, on }, `Automation ${on ? "on" : "off"}`); return; }
+  if (t.id === "tuya-home-add") { const n = $("#tuya-home-new").value.trim(); if (!n) return toast("Give the house a name", "err"); t.disabled = true; await tuyaDo("home-add", { name: n }, "House added"); return; }
+  const he = t.closest("[data-tuyahedit]");
+  if (he) { const h = arr(S.tuya?.homes).find(x => x.id === he.dataset.tuyahedit); const n = prompt("New name", h?.name || ""); if (n && n.trim()) await tuyaDo("home-edit", { id: he.dataset.tuyahedit, name: n.trim() }, "Renamed"); return; }
+  const hd = t.closest("[data-tuyahdel]");
+  if (hd) { if (confirm("Remove this house? Its devices stay, in no house.")) await tuyaDo("home-remove", { id: hd.dataset.tuyahdel }, "Removed"); return; }
   const op = t.closest("[data-tuya]");
   if (op) {
     const o = op.dataset.tuya; op.disabled = true;

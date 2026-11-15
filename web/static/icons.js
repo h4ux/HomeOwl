@@ -94,6 +94,7 @@ const CLIENT_RULES = [
   [/hue|bulb|lifx|\bwiz\b|nanoleaf|light|lamp|govee/, "bulb"],
   [/ecobee|thermostat|tado|nest-?thermo|honeywell|sensibo|\bac\b|aircon/, "thermostat"],
   [/roomba|roborock|vacuum|ecovacs|deebot|irobot|dreame/, "vacuum"],
+  [/\bu?nvr\b|\bunvr|nvr-?pro|cloud-?key|\bdvr\b/, "nvr"],
   [/ring|wyze|arlo|blink|camera|\bcam\b|-cam|cam-|reolink|hikvision|eufy|ezviz|imou|tapo-?c|dahua/, "camera"],
   [/tesla|car\b|vehicle/, "car"],
   [/espressif|tuya|esp32|esp8266|esp-|\biot\b|smart/, "iot"],
@@ -104,6 +105,8 @@ function clientKind(c) {
   if (!c) return "unknown";
   const chosen = c.mac && typeof S !== "undefined" && S.cliTypes?.[String(c.mac).toLowerCase()]; // set by an admin (clienttypes.go)
   if (chosen && ICON_LABEL[chosen]) return chosen;
+  const found = c.mac && typeof S !== "undefined" && S.cliDetected?.[String(c.mac).toLowerCase()]; // a Protect camera, a Tuya device (devkinds.go)
+  if (found && ICON_LABEL[found]) return found;
   if (c.icon) return c.icon;
   const name = [c.name, c.label, c.hostname, c.device, c.model, c.device_model].filter(Boolean).join(" ").toLowerCase();
   const extra = [c.os_name, c.dev_family, c.dev_vendor, c.oui, c.vendor].filter(Boolean).join(" ").toLowerCase();
@@ -113,6 +116,13 @@ function clientKind(c) {
   if (/samsung|xiaomi|oppo|vivo|huawei|google/.test(extra)) return "phone";
   if (c.wired || c.is_wired) return "desktop";
   return "unknown";
+}
+
+/** Kind of a device seen in analytics: the UniFi client with that MAC when HomeOwl knows it, else its name and vendor. */
+function macKind(mac, name, vendor) {
+  const m = typeof S !== "undefined" ? S.model : null, k = String(mac || "").toLowerCase();
+  const c = k && (m?.clients?.find(x => x.mac === k) || m?.knownByMac?.[k]);
+  return clientKind(c ? { ...c, mac: k } : { mac: k, name, vendor });
 }
 
 function devIcon(d, size) { const k = unifiKind(d); return `<span class="dic" title="${ICON_LABEL[k]}">${iconSvg(k, size)}</span>`; }

@@ -4,6 +4,18 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.94] — 2026-11-15
+
+### Added
+- **Smart › Tuya: houses.** Cloud mode reads the Smart Life homes of each linked account, their rooms and which device
+  is where. The page filters by house and type and groups devices by room; homes can be hidden (another family's home
+  on the same account), and admins can make their own houses and put a device in a house and room, and give it a type.
+- **Smart › Tuya: scenes and automations.** Each home's Tap-to-Run scenes (Run) and automations (on/off), logged in
+  History › Changes. Needs the project's Smart Home Scene Linkage API service; the page says when it's missing.
+- **Analytics: what each device is.** Top data users, Most active devices, Online time and the device tables show the
+  device's icon and its type in brackets. UniFi Protect cameras (plain Ubiquiti clients to UniFi Network, often named
+  after a room) are recognised by their MAC, as are Tuya devices; video recorders get their own icon.
+
 ## [0.1.93] — 2026-11-15
 
 ### Added

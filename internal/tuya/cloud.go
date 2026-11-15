@@ -47,6 +47,8 @@ type Device struct {
 	Version  string   `json:"version,omitempty"`
 	Status   []Status `json:"status,omitempty"`
 	LocalKey string   `json:"-"`
+	UID      string   `json:"-"` // cloud: the app account it belongs to
+	Owner    string   `json:"-"` // cloud: the home it's in, when Tuya says
 }
 
 // Cloud is a Tuya Cloud API client (OpenAPI, HMAC-SHA256 signed requests).
@@ -183,13 +185,15 @@ func (c *Cloud) call(method, path string, body any) (json.RawMessage, error) {
 }
 
 type cloudDevice struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Category    string   `json:"category"`
-	ProductName string   `json:"product_name"`
-	Online      bool     `json:"online"`
-	LocalKey    string   `json:"local_key"`
-	Status      []Status `json:"status"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Category    string          `json:"category"`
+	ProductName string          `json:"product_name"`
+	Online      bool            `json:"online"`
+	LocalKey    string          `json:"local_key"`
+	Status      []Status        `json:"status"`
+	UID         string          `json:"uid"`
+	OwnerID     json.RawMessage `json:"owner_id"`
 }
 
 // Devices lists every device of the app accounts linked to the project, with their status and local keys.
@@ -210,7 +214,8 @@ func (c *Cloud) Devices() ([]Device, error) {
 			return nil, errors.New("couldn't read Tuya's device list")
 		}
 		for _, d := range r.Devices {
-			out = append(out, Device{ID: d.ID, Name: d.Name, Category: d.Category, Product: d.ProductName, Online: d.Online, Status: d.Status, LocalKey: d.LocalKey})
+			out = append(out, Device{ID: d.ID, Name: d.Name, Category: d.Category, Product: d.ProductName, Online: d.Online, Status: d.Status, LocalKey: d.LocalKey,
+				UID: d.UID, Owner: anyID(d.OwnerID)})
 		}
 		if !r.HasMore || r.LastRowKey == "" || r.LastRowKey == last {
 			break
@@ -256,4 +261,162 @@ func (c *Cloud) Spec(id string) (map[string]Unit, error) {
 		}
 	}
 	return out, nil
+}
+
+// anyID reads an ID Tuya sends as a number or as a string.
+func anyID(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var n json.Number
+	if json.Unmarshal(raw, &n) == nil {
+		return n.String()
+	}
+	return ""
+}
+
+// Home is one Smart Life home (the app's "home" switcher) with its rooms.
+type Home struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Rooms []Room `json:"rooms,omitempty"`
+}
+
+type Room struct {
+	ID      string   `json:"id"`
+	Name    string   `json:"name"`
+	Devices []string `json:"devices,omitempty"`
+}
+
+// Homes lists the homes of one linked app account.
+func (c *Cloud) Homes(uid string) ([]Home, error) {
+	res, err := c.call("GET", "/v1.0/users/"+url.PathEscape(uid)+"/homes", nil)
+	if err != nil {
+		return nil, err
+	}
+	var l []struct {
+		HomeID json.RawMessage `json:"home_id"`
+		Name   string          `json:"name"`
+	}
+	if err := json.Unmarshal(res, &l); err != nil {
+		return nil, errors.New("couldn't read Tuya's home list")
+	}
+	out := []Home{}
+	for _, h := range l {
+		if id := anyID(h.HomeID); id != "" {
+			out = append(out, Home{ID: id, Name: h.Name})
+		}
+	}
+	return out, nil
+}
+
+// HomeDevices: the IDs of the devices in a home.
+func (c *Cloud) HomeDevices(home string) ([]string, error) {
+	return c.deviceIDs("/v1.0/homes/" + url.PathEscape(home) + "/devices")
+}
+
+func (c *Cloud) deviceIDs(path string) ([]string, error) {
+	res, err := c.call("GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var l []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(res, &l); err != nil {
+		return nil, errors.New("couldn't read Tuya's device list")
+	}
+	out := []string{}
+	for _, d := range l {
+		out = append(out, d.ID)
+	}
+	return out, nil
+}
+
+// Rooms: a home's rooms and the devices in each.
+func (c *Cloud) Rooms(home string) ([]Room, error) {
+	res, err := c.call("GET", "/v1.0/homes/"+url.PathEscape(home)+"/rooms", nil)
+	if err != nil {
+		return nil, err
+	}
+	var r struct {
+		Rooms []struct {
+			RoomID json.RawMessage `json:"room_id"`
+			Name   string          `json:"name"`
+		} `json:"rooms"`
+	}
+	if err := json.Unmarshal(res, &r); err != nil {
+		return nil, errors.New("couldn't read Tuya's rooms")
+	}
+	out := []Room{}
+	for _, x := range r.Rooms {
+		id := anyID(x.RoomID)
+		if id == "" {
+			continue
+		}
+		devs, err := c.deviceIDs("/v1.0/homes/" + url.PathEscape(home) + "/rooms/" + url.PathEscape(id) + "/devices")
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, Room{ID: id, Name: x.Name, Devices: devs})
+	}
+	return out, nil
+}
+
+// Scene is a Smart Life "Tap-to-Run" scene or an automation.
+type Scene struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Enabled bool   `json:"enabled"`
+}
+
+func (c *Cloud) scenes(path, idKey string) ([]Scene, error) {
+	res, err := c.call("GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	var l []map[string]json.RawMessage
+	if err := json.Unmarshal(res, &l); err != nil {
+		return nil, errors.New("couldn't read Tuya's scenes")
+	}
+	out := []Scene{}
+	for _, m := range l {
+		var name string
+		_ = json.Unmarshal(m["name"], &name)
+		en := true
+		if raw, ok := m["enabled"]; ok {
+			_ = json.Unmarshal(raw, &en)
+		}
+		if id := anyID(m[idKey]); id != "" {
+			out = append(out, Scene{ID: id, Name: name, Enabled: en})
+		}
+	}
+	return out, nil
+}
+
+// Scenes: a home's Tap-to-Run scenes (needs the project's "Smart Home Scene Linkage" API service).
+func (c *Cloud) Scenes(home string) ([]Scene, error) {
+	return c.scenes("/v1.0/homes/"+url.PathEscape(home)+"/scenes", "scene_id")
+}
+
+// Automations: a home's automations (same API service).
+func (c *Cloud) Automations(home string) ([]Scene, error) {
+	return c.scenes("/v1.0/homes/"+url.PathEscape(home)+"/automations", "automation_id")
+}
+
+// RunScene runs a Tap-to-Run scene.
+func (c *Cloud) RunScene(home, id string) error {
+	_, err := c.call("POST", "/v1.0/homes/"+url.PathEscape(home)+"/scenes/"+url.PathEscape(id)+"/trigger", nil)
+	return err
+}
+
+// SetAutomation turns an automation on or off.
+func (c *Cloud) SetAutomation(home, id string, on bool) error {
+	act := "disable"
+	if on {
+		act = "enable"
+	}
+	_, err := c.call("PUT", "/v1.0/homes/"+url.PathEscape(home)+"/automations/"+url.PathEscape(id)+"/actions/"+act, nil)
+	return err
 }

@@ -926,3 +926,11 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .tuya-netlist{display:flex;flex-direction:column;gap:4px;margin:6px 0 10px}
 .tuya-fw{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:10px}.tuya-fw .btn{flex-shrink:0}
 @media (max-width:600px){.tuya-fw{flex-direction:column;align-items:flex-start}}
+.tuya-filter{margin-bottom:10px;flex-wrap:wrap}
+.tuya-house{margin-bottom:18px}.tuya-house>h2{margin:6px 0 10px}
+.tuya-room{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:12px 0 8px}
+.tuya-kind{display:inline-block;font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:99px;padding:1px 8px;margin-left:4px;vertical-align:1px}
+.tuya-scenes{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}.tuya-sclist{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.tuya-hrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.chart .lbl .kind{fill:var(--muted)}.chart .hb-ic{color:var(--muted)}
+.an-dev{display:inline-flex;align-items:center;gap:6px}.an-dev .dicon{color:var(--muted);flex-shrink:0}

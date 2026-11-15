@@ -143,7 +143,7 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		send(w, 200, nextdnsTest())
 		return
 	case "client-types": // the device types admins chose (they set the icons), for everyone signed in
-		send(w, 200, map[string]any{"types": a.cliTypes.All(), "archived": a.archive.MACs()})
+		send(w, 200, map[string]any{"types": a.cliTypes.All(), "archived": a.archive.MACs(), "detected": a.detectedKinds()})
 		return
 	case "analytics/query":
 		params, _ := body["params"].(map[string]any)

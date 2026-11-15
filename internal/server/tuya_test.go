@@ -189,3 +189,122 @@ func TestTuyaFirewall(t *testing.T) {
 		console.Close()
 	}
 }
+
+func TestTuyaHomes(t *testing.T) {
+	a := checkinApp(t)
+	var calls []string
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		mu.Lock()
+		calls = append(calls, r.Method+" "+p)
+		mu.Unlock()
+		ok := func(res string) { _, _ = w.Write([]byte(`{"success":true,"result":` + res + `}`)) }
+		switch {
+		case p == "/v1.0/token":
+			ok(`{"access_token":"tok","expire_time":7200}`)
+		case strings.HasSuffix(p, "/associated-users/devices"):
+			ok(`{"has_more":false,"devices":[{"id":"bf00000000000001","name":"Desk plug","category":"cz","online":true,"uid":"u1","status":[{"code":"switch_1","value":false}]},
+				{"id":"bf00000000000002","name":"Porch light","category":"dj","online":true,"uid":"u1","owner_id":"202"}]}`)
+		case p == "/v1.0/users/u1/homes":
+			ok(`[{"home_id":101,"name":"Example Home","role":"OWNER"},{"home_id":202,"name":"Beach house","role":"ADMIN"}]`)
+		case p == "/v1.0/homes/101/devices":
+			ok(`[{"id":"bf00000000000001"}]`)
+		case p == "/v1.0/homes/202/devices":
+			ok(`[{"id":"bf00000000000002"}]`)
+		case p == "/v1.0/homes/101/rooms":
+			ok(`{"home_id":101,"rooms":[{"room_id":7,"name":"Kitchen"}]}`)
+		case p == "/v1.0/homes/101/rooms/7/devices":
+			ok(`[{"id":"bf00000000000001"}]`)
+		case p == "/v1.0/homes/202/rooms":
+			ok(`{"rooms":[]}`)
+		case p == "/v1.0/homes/101/scenes":
+			ok(`[{"scene_id":"sc1","name":"Good night","enabled":true}]`)
+		case p == "/v1.0/homes/101/automations":
+			ok(`[{"automation_id":"au1","name":"Lights at sunset","enabled":false}]`)
+		case strings.HasPrefix(p, "/v1.0/homes/202/scenes"):
+			_, _ = w.Write([]byte(`{"success":false,"code":1106,"msg":"permission deny"}`))
+		case strings.HasSuffix(p, "/trigger"), strings.HasSuffix(p, "/actions/enable"):
+			ok(`true`)
+		default:
+			ok(`{}`)
+		}
+	}))
+	defer srv.Close()
+	tuya.Regions["test"] = srv.URL
+	defer delete(tuya.Regions, "test")
+
+	v, err := a.tuyaAPI(context.Background(), "settings", map[string]any{"mode": "cloud", "region": "test", "access_id": "cid", "access_secret": "sec"}, "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	homes := v["homes"].([]map[string]any)
+	if len(homes) != 2 || homes[0]["name"] != "Example Home" || homes[0]["count"] != 1 || len(homes[0]["scenes"].([]tuya.Scene)) != 1 || homes[1]["scene_error"] == "" {
+		t.Fatalf("homes: %v", homes)
+	}
+	where := map[string]string{}
+	for _, d := range v["devices"].([]map[string]any) {
+		where[d["name"].(string)] = d["home"].(string) + "/" + d["room"].(string)
+	}
+	if where["Desk plug"] != "101/Kitchen" || where["Porch light"] != "202/" {
+		t.Fatalf("where: %v", where)
+	}
+	// hide the beach house: its device leaves the page, the house stays listed (to show it again)
+	v, _ = a.tuyaAPI(context.Background(), "home-show", map[string]any{"id": "202", "on": false}, "admin")
+	if d := v["devices"].([]map[string]any); len(d) != 1 || d[0]["name"] != "Desk plug" || v["homes"].([]map[string]any)[1]["hidden"] != true {
+		t.Fatalf("hidden: %v", v)
+	}
+	_, _ = a.tuyaAPI(context.Background(), "home-show", map[string]any{"id": "202", "on": true}, "admin")
+	// a house made here, and a device put in it with a room and a type; they survive the next sync
+	v, _ = a.tuyaAPI(context.Background(), "home-add", map[string]any{"name": "Garage"}, "admin")
+	var gid string
+	for _, h := range v["homes"].([]map[string]any) {
+		if h["name"] == "Garage" {
+			gid = h["id"].(string)
+		}
+	}
+	if _, err := a.tuyaAPI(context.Background(), "tag", map[string]any{"id": "bf00000000000002", "place": gid, "room": "Door", "type": "Garage light"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "home-remove", map[string]any{"id": "101"}, "admin"); err == nil {
+		t.Fatal("a Smart Life home isn't removed here")
+	}
+	v, _ = a.tuyaAPI(context.Background(), "sync", nil, "admin")
+	for _, d := range v["devices"].([]map[string]any) {
+		if d["name"] == "Porch light" && (d["home"] != gid || d["room"] != "Door" || d["kind"] != "Garage light") {
+			t.Fatalf("tagged: %v", d)
+		}
+	}
+	if _, err := a.tuyaAPI(context.Background(), "home-remove", map[string]any{"id": gid}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if d := a.tuya.Devices[a.tuya.find("bf00000000000002")]; d.Place != "" {
+		t.Fatal("back in Smart Life's home")
+	}
+	// scenes and automations, logged
+	if _, err := a.tuyaAPI(context.Background(), "scene", map[string]any{"home": "101", "id": "sc1"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	v, err = a.tuyaAPI(context.Background(), "automation", map[string]any{"home": "101", "id": "au1", "on": true}, "admin")
+	if err != nil || !v["homes"].([]map[string]any)[0]["automations"].([]tuya.Scene)[0].Enabled {
+		t.Fatalf("automation: %v %v", v, err)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "scene", map[string]any{"home": "101", "id": "nope"}, "admin"); err == nil {
+		t.Fatal("unknown scene")
+	}
+	mu.Lock()
+	joined := strings.Join(calls, "\n")
+	mu.Unlock()
+	if !strings.Contains(joined, "POST /v1.0/homes/101/scenes/sc1/trigger") || !strings.Contains(joined, "PUT /v1.0/homes/101/automations/au1/actions/enable") {
+		t.Fatalf("calls: %s", joined)
+	}
+	n := 0
+	for _, c := range a.Changes.List() {
+		if strings.Contains(c.Description, "Good night") || strings.Contains(c.Description, "Lights at sunset") {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatal("scenes in History › Changes")
+	}
+}

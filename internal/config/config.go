@@ -167,6 +167,7 @@ type Tuya struct {
 	Region   string   `json:"region,omitempty"`
 	Networks []string `json:"networks,omitempty"`
 	Marked   []string `json:"marked,omitempty"`
+	Hidden   []string `json:"hidden,omitempty"` // Tuya homes (or HomeOwl houses) whose devices aren't shown
 }
 
 // UPSAction runs a script from the UPS scripts folder when an event happens.

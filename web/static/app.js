@@ -797,7 +797,7 @@ async function collectLive(quiet, fresh) {
   if (!quiet) busy(true, fresh || !S.dataAge ? "Collecting configuration… (15–40 s)" : "Loading…");
   try {
     const [bundle, types] = await Promise.all([api("/api/collect", { fresh: !!fresh }), api("/api/client-types").catch(() => null)]);
-    if (types) { S.cliTypes = types.types || {}; S.archived = new Set(arr(types.archived)); }
+    if (types) { S.cliTypes = types.types || {}; S.cliDetected = types.detected || {}; S.archived = new Set(arr(types.archived)); }
     load(bundle, "live", quiet); S.dataAt = (S.bundle?.meta?.cached_at || Date.now() / 1000) * 1000; renderChip(); } finally { busy(false); }
 }
 const EMPTY_BUNDLE = { integration: {}, legacy: {}, v2: {}, meta: {} };

@@ -29,6 +29,7 @@ const (
 	slotTuyaID     = "tuya-access-id"
 	slotTuyaSecret = "tuya-access-secret"
 	tuyaEvery      = 2 * time.Minute
+	tuyaHomesEvery = time.Hour
 )
 
 func tuyaKeySlot(id string) string { return "tuya-key-" + id }
@@ -43,8 +44,32 @@ type tuyaDev struct {
 	DPS    map[string]any       `json:"dps,omitempty"`   // local mode: the raw data points
 	Seen   int64                `json:"seen,omitempty"`
 	Err    string               `json:"error,omitempty"`
-	Manual bool                 `json:"manual,omitempty"` // added by hand (local mode)
+	Manual bool                 `json:"manual,omitempty"`  // added by hand (local mode)
+	Home   string               `json:"home,omitempty"`    // the Smart Life home it's in (cloud)
+	Room   string               `json:"room,omitempty"`    // its room there (cloud)
+	Place  string               `json:"place,omitempty"`   // the house an admin put it in (overrides Home)
+	MyRoom string               `json:"my_room,omitempty"` // the room an admin gave it (overrides Room)
+	Type   string               `json:"type,omitempty"`    // what an admin says it is (overrides the category)
 }
+
+// tuyaHome: a Smart Life home from the cloud, or a house an admin made (Custom) to group devices.
+type tuyaHome struct {
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Custom      bool         `json:"custom,omitempty"`
+	Rooms       []tuya.Room  `json:"rooms,omitempty"`
+	Scenes      []tuya.Scene `json:"scenes,omitempty"`
+	Automations []tuya.Scene `json:"automations,omitempty"`
+	SceneErr    string       `json:"scene_error,omitempty"`
+}
+
+// where: the house and room a device shows under.
+func (d tuyaDev) where() (home, room string) {
+	return orStr(d.Place, d.Home), orStr(d.MyRoom, d.Room)
+}
+
+// kind: what the device is, in words.
+func (d tuyaDev) kind() string { return orStr(d.Type, tuyaCategory[d.Category]) }
 
 type tuyaStore struct {
 	mu      sync.Mutex
@@ -55,6 +80,17 @@ type tuyaStore struct {
 	Error   string       `json:"error,omitempty"`
 	Scanned int64        `json:"scanned,omitempty"`
 	Nets    []string     `json:"nets,omitempty"` // the networks the last scan tried
+	Homes   []tuyaHome   `json:"homes,omitempty"`
+	HomesAt int64        `json:"homes_at,omitempty"` // when the cloud's homes, rooms and scenes were read
+}
+
+func (t *tuyaStore) home(id string) int {
+	for i, h := range t.Homes {
+		if h.ID == id {
+			return i
+		}
+	}
+	return -1
 }
 
 func newTuyaStore(dir string) *tuyaStore {
@@ -88,7 +124,10 @@ func (a *App) tuyaCloud() (*tuya.Cloud, error) {
 }
 
 // tuyaSync refreshes every device: the device list and status from the cloud, or each device on the network.
-func (a *App) tuyaSync() error {
+func (a *App) tuyaSync() error { return a.tuyaSyncNow(false) }
+
+// tuyaSyncNow: force also reads the homes, rooms and scenes again (they're read hourly otherwise).
+func (a *App) tuyaSyncNow(force bool) error {
 	c := a.Cfg.Get().Tuya
 	switch c.Mode {
 	case "cloud":
@@ -115,9 +154,13 @@ func (a *App) tuyaSync() error {
 			for _, o := range keep {
 				if o.ID == d.ID {
 					n.MAC, n.Units, n.IP, n.Version = o.MAC, o.Units, o.IP, o.Version
+					n.Home, n.Room, n.Place, n.MyRoom, n.Type = o.Home, o.Room, o.Place, o.MyRoom, o.Type
 				}
 			}
-			n.LocalKey = ""
+			n.LocalKey, n.UID, n.Owner = "", "", ""
+			if n.Home == "" && d.Owner != "" {
+				n.Home = d.Owner
+			}
 			if n.Units == nil {
 				need = append(need, d.ID)
 			}
@@ -126,6 +169,9 @@ func (a *App) tuyaSync() error {
 		s.Synced, s.Error = time.Now().Unix(), ""
 		s.saveLocked()
 		s.mu.Unlock()
+		if force || time.Since(time.Unix(s.HomesAt, 0)) > tuyaHomesEvery {
+			a.tuyaHomes(cl, list)
+		}
 		for i, id := range need { // units once per device, a few at a time (the API has a quota)
 			if i == 5 {
 				break
@@ -414,6 +460,7 @@ func (a *App) tuyaView(admin bool) map[string]any {
 	s := a.tuya
 	s.mu.Lock()
 	devs := append([]tuyaDev{}, s.Devices...)
+	homes := append([]tuyaHome{}, s.Homes...)
 	res := map[string]any{"mode": c.Mode, "region": c.Region, "synced": s.Synced, "error": s.Error}
 	if admin {
 		res["found"], res["scanned"] = nz(s.Found), s.Scanned
@@ -428,9 +475,23 @@ func (a *App) tuyaView(admin bool) map[string]any {
 			}
 		}
 	}
+	hidden := map[string]bool{}
+	for _, h := range c.Hidden {
+		hidden[h] = true
+	}
+	count := map[string]int{}
 	out := []map[string]any{}
 	for _, d := range devs {
-		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "category": d.Category, "kind": tuyaCategory[d.Category], "product": d.Product,
+		home, room := d.where()
+		if a.tuyaHomeIdx(homes, home) < 0 {
+			home = ""
+		}
+		count[home]++
+		if hidden[home] {
+			continue
+		}
+		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "category": d.Category, "kind": d.kind(), "auto_kind": tuyaCategory[d.Category],
+			"home": home, "room": room, "place": d.Place, "my_room": d.MyRoom, "type": d.Type, "product": d.Product,
 			"online": d.Online, "ip": d.IP, "version": d.Version, "mac": d.MAC, "unifi_name": names[d.MAC], "seen": d.Seen, "error": d.Err,
 			"switches": tuyaSwitches(d), "readings": tuyaReadings(d), "has_key": admin && a.Sec.Get(tuyaKeySlot(d.ID)) != ""})
 	}
@@ -438,6 +499,21 @@ func (a *App) tuyaView(admin bool) map[string]any {
 		return strings.ToLower(out[i]["name"].(string)) < strings.ToLower(out[j]["name"].(string))
 	})
 	res["devices"] = out
+	hl := []map[string]any{}
+	for _, h := range homes {
+		x := map[string]any{"id": h.ID, "name": h.Name, "custom": h.Custom, "hidden": hidden[h.ID], "count": count[h.ID]}
+		if !hidden[h.ID] {
+			x["scenes"], x["automations"], x["scene_error"] = nz(h.Scenes), nz(h.Automations), h.SceneErr
+			rooms := []string{}
+			for _, r := range h.Rooms {
+				rooms = append(rooms, r.Name)
+			}
+			x["rooms"] = rooms
+		}
+		hl = append(hl, x)
+	}
+	res["homes"], res["unplaced"], res["homes_at"] = hl, count[""], s.HomesAt
+	res["kinds"] = tuyaKinds()
 	if admin {
 		res["cloud_ready"] = a.Sec.Get(slotTuyaID) != "" && a.Sec.Get(slotTuyaSecret) != ""
 		res["networks"], res["marked"] = nz(c.Networks), nz(c.Marked)
@@ -504,7 +580,75 @@ func (a *App) tuyaAPI(ctx context.Context, op string, body map[string]any, by st
 		a.Sec.Delete(slotTuyaID)
 		a.Sec.Delete(slotTuyaSecret)
 	case "sync":
-		if err := a.tuyaSync(); err != nil {
+		if err := a.tuyaSyncNow(true); err != nil {
+			return nil, err
+		}
+	case "home-add":
+		name := clean(s(body, "name"), 40)
+		if name == "" {
+			return nil, errors.New("give the house a name")
+		}
+		st := a.tuya
+		st.mu.Lock()
+		st.Homes = append(st.Homes, tuyaHome{ID: "c" + strconv.FormatInt(time.Now().UnixNano(), 36), Name: name, Custom: true})
+		st.saveLocked()
+		st.mu.Unlock()
+	case "home-edit", "home-remove": // houses made in HomeOwl only; Smart Life homes are renamed in the app
+		st := a.tuya
+		st.mu.Lock()
+		i := st.home(s(body, "id"))
+		if i < 0 || !st.Homes[i].Custom {
+			st.mu.Unlock()
+			return nil, errors.New("that house comes from Smart Life: rename or remove it in the app")
+		}
+		if op == "home-edit" {
+			if name := clean(s(body, "name"), 40); name != "" {
+				st.Homes[i].Name = name
+			}
+		} else {
+			id := st.Homes[i].ID
+			st.Homes = append(st.Homes[:i], st.Homes[i+1:]...)
+			for j := range st.Devices {
+				if st.Devices[j].Place == id {
+					st.Devices[j].Place = ""
+				}
+			}
+		}
+		st.saveLocked()
+		st.mu.Unlock()
+	case "home-show": // hide a house's devices (another family's home on the same account) or show them again
+		id, on := s(body, "id"), b(body, "on")
+		if err := a.Cfg.Update(func(c *config.Config) {
+			l := []string{}
+			for _, h := range c.Tuya.Hidden {
+				if h != id {
+					l = append(l, h)
+				}
+			}
+			if !on {
+				l = append(l, id)
+			}
+			c.Tuya.Hidden = l
+		}); err != nil {
+			return nil, err
+		}
+	case "tag": // put a device in a house and room, and say what it is
+		st := a.tuya
+		st.mu.Lock()
+		j := st.find(s(body, "id"))
+		place := s(body, "place")
+		if j < 0 || (place != "" && st.home(place) < 0) {
+			st.mu.Unlock()
+			return nil, errors.New("that device or house is gone")
+		}
+		st.Devices[j].Place, st.Devices[j].MyRoom, st.Devices[j].Type = place, clean(s(body, "room"), 40), clean(s(body, "type"), 40)
+		if n := clean(s(body, "name"), 60); n != "" && a.Cfg.Get().Tuya.Mode == "local" {
+			st.Devices[j].Name = n
+		}
+		st.saveLocked()
+		st.mu.Unlock()
+	case "scene", "automation":
+		if err := a.tuyaScene(op, s(body, "home"), s(body, "id"), b(body, "on"), by); err != nil {
 			return nil, err
 		}
 	case "scan": // the networks ticked on screen (kept for next time), else the saved ones
@@ -815,4 +959,153 @@ func (a *App) tuyaFwPlan(subnet string) (map[string]any, []unifi.Action, error) 
 		{"kind": "fwportgroup", "ports": "6668", "name": "HomeOwl Tuya port", "description": "Tuya: the port Tuya devices answer on"},
 		{"kind": "fwrule", "network_id": src.ID, "ip": dst.Subnet, "protocol": "tcp", "ports": "6668", "name": label, "from": src.Name,
 			"description": desc, "port_group": portGroupPending}}, nil
+}
+
+// tuyaHomeIdx: where a home is in the list (-1: not there).
+func (a *App) tuyaHomeIdx(homes []tuyaHome, id string) int {
+	for i, h := range homes {
+		if id != "" && h.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+// tuyaKinds: the device types an admin can pick, in words.
+func tuyaKinds() []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, k := range tuyaCategory {
+		if !seen[k] {
+			seen[k] = true
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// tuyaHomes reads the Smart Life homes of every linked app account: their rooms, which device is where, and their
+// scenes and automations. A home whose scenes can't be read (the project lacks that API service) says why.
+func (a *App) tuyaHomes(cl *tuya.Cloud, list []tuya.Device) {
+	uids := []string{}
+	for _, d := range list {
+		if d.UID != "" && !contains(uids, d.UID) {
+			uids = append(uids, d.UID)
+		}
+	}
+	var homes []tuyaHome
+	devHome, devRoom := map[string]string{}, map[string]string{}
+	for _, uid := range uids {
+		hl, err := cl.Homes(uid)
+		if err != nil {
+			log.Printf("tuya: homes: %v", err)
+			continue
+		}
+		for _, h := range hl {
+			th := tuyaHome{ID: h.ID, Name: h.Name}
+			if ids, err := cl.HomeDevices(h.ID); err == nil {
+				for _, id := range ids {
+					devHome[id] = h.ID
+				}
+			}
+			if rooms, err := cl.Rooms(h.ID); err == nil {
+				th.Rooms = rooms
+				for _, r := range rooms {
+					for _, id := range r.Devices {
+						devHome[id], devRoom[id] = h.ID, r.Name
+					}
+				}
+			}
+			var serr error
+			if th.Scenes, serr = cl.Scenes(h.ID); serr == nil {
+				th.Automations, serr = cl.Automations(h.ID)
+			}
+			if serr != nil {
+				th.SceneErr = serr.Error()
+			}
+			homes = append(homes, th)
+		}
+	}
+	s := a.tuya
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(uids) > 0 && len(homes) == 0 { // couldn't read them now: keep what was there
+		s.HomesAt = time.Now().Unix()
+		s.saveLocked()
+		return
+	}
+	for _, h := range s.Homes {
+		if h.Custom {
+			homes = append(homes, h)
+		}
+	}
+	s.Homes = homes
+	for i, d := range s.Devices {
+		if h, ok := devHome[d.ID]; ok {
+			s.Devices[i].Home, s.Devices[i].Room = h, devRoom[d.ID]
+		}
+	}
+	s.HomesAt = time.Now().Unix()
+	s.saveLocked()
+}
+
+// tuyaScene runs a Tap-to-Run scene or turns an automation on or off, logged in History › Changes.
+func (a *App) tuyaScene(kind, home, id string, on bool, by string) error {
+	st := a.tuya
+	st.mu.Lock()
+	name := ""
+	if i := st.home(home); i >= 0 {
+		l := st.Homes[i].Scenes
+		if kind == "automation" {
+			l = st.Homes[i].Automations
+		}
+		for _, x := range l {
+			if x.ID == id {
+				name = x.Name
+			}
+		}
+	}
+	st.mu.Unlock()
+	if name == "" {
+		return errors.New("that scene is gone — refresh")
+	}
+	cl, err := a.tuyaCloud()
+	if err != nil {
+		return err
+	}
+	desc := "Run the scene " + name
+	if kind == "automation" {
+		desc = map[bool]string{true: "Turn on", false: "Turn off"}[on] + " the automation " + name
+	}
+	pub := unifi.Preview{Method: "POST", Path: "/tuya/" + kind + "/" + id, Target: "Tuya · " + name, Description: desc}
+	if _, lerr := a.Changes.External("Tuya cloud", by, pub, false, func() (int, any) {
+		if kind == "automation" {
+			err = cl.SetAutomation(home, id, on)
+		} else {
+			err = cl.RunScene(home, id)
+		}
+		if err != nil {
+			return 502, map[string]any{"error": err.Error()}
+		}
+		return 200, nil
+	}); lerr != nil {
+		return lerr
+	}
+	if err != nil {
+		return err
+	}
+	if kind == "automation" {
+		st.mu.Lock()
+		if i := st.home(home); i >= 0 {
+			for k := range st.Homes[i].Automations {
+				if st.Homes[i].Automations[k].ID == id {
+					st.Homes[i].Automations[k].Enabled = on
+				}
+			}
+		}
+		st.saveLocked()
+		st.mu.Unlock()
+	}
+	return nil
 }

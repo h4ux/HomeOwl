@@ -118,8 +118,8 @@ const loaders = {
     })();
     into("an-dns-tl", async () => { const r = await aq("dns_timeline"); return lineChart([{ name: "All queries", color: "var(--c1)", fill: true, points: series(r, "total") }, { name: "Blocked", color: "var(--crit)", points: series(r, "blocked") }], { fmt: v => fmtNum(Math.round(v)), height: 180 }); });
     into("an-wan-tl", async () => { const r = await aq("traffic_timeline"); return lineChart([{ name: "Download", color: "var(--c2)", fill: true, points: series(r, "download") }, { name: "Upload", color: "var(--c3)", points: series(r, "upload") }], { fmt: fmtBytes, height: 180 }); });
-    into("an-top-dev", async () => hbar((await aq("dns_devices")).slice(0, 10).map(r => ({ label: r.device, value: r.queries, color: "var(--c1)" })), { fmt: fmtNum }));
-    into("an-top-talk", async () => hbar((await aq("traffic_clients")).slice(0, 10).map(r => ({ label: r.client, value: r.total, color: "var(--c2)" })), { fmt: fmtBytes }));
+    into("an-top-dev", async () => hbar((await aq("dns_devices")).slice(0, 10).map(r => ({ label: r.device, kind: macKind("", r.device), value: r.queries, color: "var(--c1)" })), { fmt: fmtNum }));
+    into("an-top-talk", async () => hbar((await aq("traffic_clients")).slice(0, 10).map(r => ({ label: r.client, kind: macKind(r.mac, r.client, r.vendor), value: r.total, color: "var(--c2)" })), { fmt: fmtBytes }));
     into("an-top-blk", async () => hbar((await aq("dns_top_blocked")).slice(0, 10).map(r => ({ label: r.domain, value: r.queries, color: "var(--crit)" })), { fmt: fmtNum }));
     into("an-threats", async () => { const r = await aq("threat_top"); return r.length ? hbar(r.slice(0, 8).map(x => ({ label: x.signature, value: x.hits, color: "var(--high)" }))) : `<div class="empty">No threats recorded in this period.</div>`; });
   },
@@ -147,9 +147,9 @@ const loaders = {
       { k: "queries", label: "Queries", num: 1, fmt: r => fmtNum(r.queries) }, { k: "blocked", label: "Blocked", num: 1, fmt: r => fmtNum(r.blocked) },
       { k: "block_pct", label: "Blocked %", num: 1, fmt: r => `${r.block_pct ?? 0}%` }, { k: "profiles", label: "Profiles", fmt: r => `<span class="mono">${esc(r.profiles || "")}</span>` },
     ], await aq("dns_devices"), { search: true, empty: "No DNS devices yet — check NextDNS import in Settings" }));
-    into("an-talk", async () => table("an-talk-t", [{ k: "client", label: "Device", fmt: r => `<a href="#" data-anmac="${esc(r.mac)}">${esc(r.client)}</a>` }, { k: "network", label: "Network" },
+    into("an-talk", async () => table("an-talk-t", [{ k: "client", label: "Device", fmt: r => anDevCell(r) }, { k: "network", label: "Network" },
       { k: "download", label: "Down", num: 1, fmt: r => fmtBytes(r.download) }, { k: "upload", label: "Up", num: 1, fmt: r => fmtBytes(r.upload) }], await aq("traffic_clients"), { search: true, empty: "No traffic data yet" }));
-    into("an-online", async () => hbar((await aq("online_time")).slice(0, 15).map(r => ({ label: r.client, value: r.hours_online, color: "var(--c4)" })), { unit: " h" }));
+    into("an-online", async () => hbar((await aq("online_time")).slice(0, 15).map(r => ({ label: r.client, kind: macKind(r.mac, r.client), value: r.hours_online, color: "var(--c4)" })), { unit: " h" }));
     into("an-new", async () => table("an-new-t", [{ k: "client", label: "Device" }, { k: "vendor", label: "Vendor" }, { k: "network", label: "Network" }, { k: "ip", label: "IP", fmt: r => `<span class="mono">${esc(r.ip || "")}</span>` },
       { k: "first_seen", label: "First seen", num: 1, fmt: r => fmtTime(r.first_seen) }, { k: "mac", label: "MAC", fmt: r => `<span class="mono">${esc(r.mac)}</span>` }], await aq("new_clients"), { empty: "No new devices in this period" }));
   },
@@ -164,7 +164,7 @@ const loaders = {
     into("an-wan", async () => { const r = await aq("traffic_timeline"); return lineChart([{ name: "Download", color: "var(--c2)", fill: true, points: series(r, "download") }, { name: "Upload", color: "var(--c3)", points: series(r, "upload") }], { fmt: fmtBytes }); });
     into("an-nets", async () => hbar((await aq("traffic_networks")).map((r, i) => ({ label: `${r.network} (${r.clients})`, value: r.total, color: PAL[i % PAL.length] })), { fmt: fmtBytes }));
     into("an-apps", async () => hbar((await aq("apps")).map(r => ({ label: DPI_CAT[r.cat] || `Category ${r.cat}`, value: r.total, color: "var(--c1)" })), { fmt: fmtBytes }));
-    into("an-clients", async () => table("an-cl-t", [{ k: "client", label: "Device", fmt: r => `<a href="#" data-anmac="${esc(r.mac)}">${esc(r.client)}</a>` }, { k: "network", label: "Network" }, { k: "vendor", label: "Vendor" },
+    into("an-clients", async () => table("an-cl-t", [{ k: "client", label: "Device", fmt: r => anDevCell(r) }, { k: "network", label: "Network" }, { k: "vendor", label: "Vendor" },
       { k: "download", label: "Down", num: 1, fmt: r => fmtBytes(r.download) }, { k: "upload", label: "Up", num: 1, fmt: r => fmtBytes(r.upload) }, { k: "total", label: "Total", num: 1, fmt: r => fmtBytes(r.total) }], await aq("traffic_clients"), { search: true }));
   },
   security() {
@@ -356,3 +356,9 @@ document.addEventListener("click", async e => {
 const _renderSet = render;
 render = function () { _renderSet(); if (S.view === "settings") setTimeout(loadAnSettings, 50); };
 document.addEventListener("change", e => { if (e.target.id === "an-ndall") $$("[data-anprof]").forEach(x => { x.disabled = e.target.checked; if (e.target.checked) x.checked = true; }); });
+
+// a device in a table: its icon, name and (type)
+function anDevCell(r) {
+  const k = macKind(r.mac, r.client, r.vendor), what = k !== "unknown" ? ICON_LABEL[k] : "";
+  return `<span class="an-dev">${iconSvg(k, 16)}<a href="#" data-anmac="${esc(r.mac)}">${esc(r.client)}</a>${what ? `<span class="fine muted"> (${esc(what)})</span>` : ""}</span>`;
+}

@@ -604,11 +604,15 @@ function diagnoseDevice(d, m) {
 const PAL = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)"];
 function hbar(items, { unit = "", fmt = v => v, max } = {}) {
   if (!items.length) return `<div class="empty">No data</div>`;
-  const W = 520, rowH = 26, lw = 160, H = items.length * rowH + 6, mx = max || Math.max(...items.map(i => i.value), 1);
+  const icons = items.some(i => i.kind), W = 520, rowH = 26, lw = icons ? 230 : 160, H = items.length * rowH + 6, mx = max || Math.max(...items.map(i => i.value), 1);
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" role="img">${items.map((it, i) => {
     const w = Math.max(2, (W - lw - 74) * it.value / mx), y = i * rowH + 4;
-    return `<text class="lbl" x="${lw - 8}" y="${y + 13}" text-anchor="end">${esc(String(it.label).slice(0, 24))}</text>
-      <rect x="${lw}" y="${y + 2}" width="${w}" height="16" rx="3" style="fill:${it.color || PAL[0]}"><title>${esc(it.label)}: ${esc(fmt(it.value))}${unit}</title></rect>
+    const what = it.kind && it.kind !== "unknown" && typeof ICON_LABEL !== "undefined" ? ICON_LABEL[it.kind] : "";
+    const name = String(it.label), short = name.length > 22 ? name.slice(0, 21) + "…" : name;
+    const lbl = icons ? `${esc(short)}${what ? `<tspan class="kind"> (${esc(what)})</tspan>` : ""}` : esc(name.slice(0, 24));
+    const ic = icons && typeof iconSvg === "function" ? iconSvg(it.kind || "unknown", 16).replace("<svg ", `<svg x="${lw - 24}" y="${y + 2}" class="dicon hb-ic" `) : "";
+    return `<text class="lbl" x="${lw - (icons ? 30 : 8)}" y="${y + 13}" text-anchor="end">${lbl}</text>${ic}
+      <rect x="${lw}" y="${y + 2}" width="${w}" height="16" rx="3" style="fill:${it.color || PAL[0]}"><title>${esc(name)}${what ? ` (${esc(what)})` : ""}: ${esc(fmt(it.value))}${unit}</title></rect>
       <text x="${lw + w + 6}" y="${y + 14}">${esc(fmt(it.value))}${unit}</text>`;
   }).join("")}</svg>`;
 }

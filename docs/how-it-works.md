@@ -190,6 +190,16 @@ voltage, temperature, humidity, battery), and on/off switches for admins. Every 
 - **Home network only.** HomeOwl talks to each device on port 6668 with its local key (protocol 3.3, 3.4 or 3.5), with
   no cloud at run time. Battery sensors sleep and can't be reached this way.
 
+**Houses, rooms and types.** In Cloud mode HomeOwl reads the Smart Life homes of every linked app account, their
+rooms and which device is where (hourly, or on **Refresh**). The page filters by house and by type and groups the
+devices by room. In **Houses** (Tuya settings) untick a home to hide its devices — another family's home on the same
+account, say — or make your own houses. Opening a device (✎) puts it in a house and room and says what it is (a
+"Boiler switch" rather than "Switch"); empty fields follow Smart Life, and the choices survive every sync.
+
+**Scenes and automations.** Each Smart Life home's Tap-to-Run scenes show with **Run**, its automations with an
+on/off switch, for admins, logged in **History › Changes**. They need the **Smart Home Scene Linkage** API service in
+the Tuya project; without it the page says so.
+
 **Where to look for devices.** Devices on HomeOwl's own network announce themselves. For other networks (an IoT
 VLAN), tick them and **Scan the network now** tries Tuya's port on each address (up to a /22). In
 **Devices › All devices**, opening a device offers **It's a Tuya device**, so the scan looks for it at its address.
