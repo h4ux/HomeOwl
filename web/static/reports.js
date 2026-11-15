@@ -1,4 +1,4 @@
-/* HomeOwl — Records › Reports: printable reports built from what HomeOwl already knows. Pick one, pick a period,
+/* HomeOwl — Family › Reports: printable reports built from what HomeOwl already knows. Pick one, pick a period,
    then print it, save it as PDF (from the print dialog) or download it as a web page (or CSV for the inventory).
    Depends on core.js, app.js, analytics.js, explore.js, presence.js, alerts.js. */
 "use strict";

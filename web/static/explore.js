@@ -321,7 +321,7 @@ async function ppSetup() {
     card.querySelector(".pp-body").insertAdjacentHTML("beforebegin", `<div class="pp-setup fine">
       <span class="tag ${miss.length ? (miss.some(d => d.state === "stopped") ? "bad" : "warn") : "good"}" title="Devices that use the NextDNS setup from their check-in page, so filtering and names work on any network">${ok} of ${mine.length} set up</span>
       ${miss.map(d => `<span class="muted">${esc(d.name)}: ${PP_SETUP_MISS[d.state]}</span>`).join(" · ")}
-      ${miss.length ? `<a href="#" data-goto="checkins">Check-ins ›</a>` : ""}</div>`);
+      ${miss.length ? `<a href="#" data-goto="checkins">New devices ›</a>` : ""}</div>`);
   });
 }
 

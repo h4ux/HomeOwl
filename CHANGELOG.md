@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.81] — 2026-11-15
+
+- A reorganised menu. **Home**: Today, Who's home, Alerts. **Devices** (new): All devices and New devices (check-ins,
+  approval, grace period, merging, setup — no longer a hidden page). **Network**: Overview, Suggestions, Wi-Fi (now
+  with Guest Wi-Fi), Networks, UniFi gear, Firmware. **Family**: People & groups, Apps, Reports. **Smart home** (new):
+  Cameras, Doors, UPS. **History** (was Records): Changes, Config history, Events. Analytics and System are unchanged,
+  and every page keeps its address.
+
 ## [0.1.80] — 2026-11-15
 
 - Changes: everything HomeOwl changed on the console — and how to revert it — now survives restarts and updates

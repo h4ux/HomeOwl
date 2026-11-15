@@ -8,35 +8,41 @@ const NAV_ICON = {
   home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
   family: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5 6-5s6 1.7 6 5"/><path d="M16 5.2a3 3 0 0 1 0 5.6M21 20c0-2.6-1.4-4.2-3.6-4.8"/>',
   analytics: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 6-7"/>',
+  devices: '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/>',
+  smart: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
   records: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   system: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
 };
 
 // area → pages; a page with several views shows them as tabs. pill = id of a counter badge other scripts fill in.
 const NAV = [
+  { id: "home", name: "Home", pages: [
+    { label: "Today", views: [["today", "Today"]] },
+    { label: "Who's home", views: [["presence", "Who's home"]] },
+    { label: "Alerts", views: [["alerts", "Alerts"]], pill: "nav-alerts" },
+  ] },
+  { id: "devices", name: "Devices", pages: [
+    { label: "All devices", views: [["clients", "All devices"]] },
+    { label: "New devices", views: [["checkins", "New devices"]], pill: "nav-checkins", hidden: true },
+  ] },
   { id: "network", name: "Network", pages: [
     { label: "Overview", views: [["overview", "Overview"]] },
     { label: "Suggestions", views: [["findings", "Suggestions"]], pill: "nav-findings" },
-    { label: "Devices", views: [["devices", "Devices"], ["topology", "Topology"], ["ports", "Switch ports"]], pill: "nav-devices" },
-    { label: "Firmware", views: [["firmware", "Firmware"]], pill: "nav-firmware" },
-    { label: "Clients", views: [["clients", "Clients"]] },
-    { label: "Wi-Fi", views: [["wifi", "Wi-Fi & radios"], ["neighbors", "Neighbour Wi-Fi"]] },
+    { label: "Wi-Fi", views: [["wifi", "Wi-Fi & radios"], ["guest", "Guest Wi-Fi"], ["neighbors", "Neighbour Wi-Fi"]] },
     { label: "Networks", views: [["networks", "Networks & VLANs"], ["security", "Security & exposure"], ["dns", "NextDNS & Tailscale"]] },
+    { label: "UniFi gear", views: [["devices", "UniFi devices"], ["topology", "Topology"], ["ports", "Switch ports"]], pill: "nav-devices" },
+    { label: "Firmware", views: [["firmware", "Firmware"]], pill: "nav-firmware" },
   ] },
-  { id: "home", name: "Home", pages: [
-    { label: "Today", views: [["today", "Today"]] },
+  { id: "family", name: "Family", pages: [
+    { label: "People & groups", views: [["an-people", "People & groups"]] },
+    { label: "Apps", views: [["apps", "Apps"], ["relay", "Private Relay"]] },
+    { label: "Reports", views: [["reports", "Reports"]] },
+  ] },
+  { id: "smart", name: "Smart home", pages: [
     { label: "Cameras", views: [["cameras", "Cameras"]] },
     { label: "Doors", views: [["doors", "Doors"]] },
     { label: "UPS", views: [["ups", "UPS"]] },
-    { label: "Guest Wi-Fi", views: [["guest", "Guest Wi-Fi"]] },
   ] },
-  { id: "family", name: "Family", pages: [
-    { label: "Who's home", views: [["presence", "Who's home"]] },
-    { label: "People & groups", views: [["an-people", "People & groups"]] },
-    { label: "Apps", views: [["apps", "Apps"], ["relay", "Private Relay"]] },
-    { label: "Check-ins", views: [["checkins", "Check-ins"]], pill: "nav-checkins", hidden: true },
-  ] },
-  // every Analytics page is one view of analytics.js (S.an.tab follows the view; see anTabOf)
   { id: "analytics", name: "Analytics", pages: [
     { label: "Overview", views: [["analytics", "Overview"]] },
     { label: "Explore", views: [["an-explore", "Explore"]] },
@@ -48,12 +54,10 @@ const NAV = [
     { label: "Logs", views: [["an-logs", "Logs"]] },
     { label: "SQL", views: [["an-sql", "SQL"]], id: "nav-ansql", hidden: true },
   ] },
-  { id: "records", name: "Records", pages: [
-    { label: "Alerts", views: [["alerts", "Alerts"]], pill: "nav-alerts" },
-    { label: "Reports", views: [["reports", "Reports"]] },
-    { label: "History & events", views: [["history", "History & events"]] },
+  { id: "records", name: "History", pages: [
     { label: "Changes", views: [["changes", "Changes"]] },
     { label: "Config history", views: [["confighistory", "Config history"]] },
+    { label: "Events", views: [["history", "History & events"]] },
   ] },
   { id: "system", name: "System", pages: [
     { label: "Settings", views: [["settings", "Settings"]], id: "nav-settings", hidden: true },

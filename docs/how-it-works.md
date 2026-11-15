@@ -132,7 +132,7 @@ flowchart LR
 ## Keeping the lists tidy
 
 Phones and laptops use a private Wi-Fi address per network, and change it now and then. UniFi keeps every address it
-has seen, so one phone can show up several times. **Network › Clients** suggests archiving older copies of a device
+has seen, so one phone can show up several times. **Devices › All devices** suggests archiving older copies of a device
 that is now on a newer address, and private addresses unused for 90 days. Archived addresses leave HomeOwl's lists;
 UniFi, the logs and the history keep them, and they can be restored. A device that comes back online shows again.
 

@@ -363,7 +363,7 @@ func (a *App) archiveNudge(now time.Time) {
 		}
 	}
 	a.Alerts.Add(alerts.Alert{Kind: "archive", Level: "info", Title: fmt.Sprintf("%d old device addresses to archive", len(l)),
-		Body: fmt.Sprintf("%d are older copies of devices now on a newer address; the rest haven't been seen for months. Network › Clients › Review hides them from HomeOwl's lists (nothing is deleted).", dup),
+		Body: fmt.Sprintf("%d are older copies of devices now on a newer address; the rest haven't been seen for months. Devices › All devices › Review hides them from HomeOwl's lists (nothing is deleted).", dup),
 		Data: map[string]any{"count": len(l)}})
 	last.At, last.N = now.Unix(), len(l)
 	b, _ := json.Marshal(last)

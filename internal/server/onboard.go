@@ -54,7 +54,7 @@ func (a *App) checkinAlert(x CheckIn) {
 			}
 		}
 	}
-	body := "Approve it in Family › Check-ins."
+	body := "Approve it in Devices › New devices."
 	if who != "" {
 		body = "For " + who + ". " + body
 	}

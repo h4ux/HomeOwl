@@ -1,4 +1,4 @@
-/* HomeOwl — Records › Alerts: what HomeOwl noticed (a new device joined, the guest password changed…), with the
+/* HomeOwl — Home › Alerts: what HomeOwl noticed (a new device joined, the guest password changed…), with the
    buttons to act on it, and Settings › Alerts: what to alert about and where to send it (macOS, ntfy, webhook).
    Depends on core.js, app.js. */
 "use strict";
@@ -49,7 +49,7 @@ function alList(items, people) {
       : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button>${a.data.grace ? `<button class="btn sm" data-alapvblock="${esc(a.data.mac)}">Block</button>` : `<button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`}`
       : a.kind === "archive" && S.role === "admin" ? `<button class="btn sm" data-goto="clients">Review</button>`
       : a.kind === "approval_flood" && S.role === "admin" ? `<button class="btn sm" data-goto="settings">Settings</button>`
-      : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "Check-ins"}</button>` : "";
+      : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "New devices"}</button>` : "";
     return `${head}<div class="al-row${a.read ? "" : " unread"}${a.level === "warn" ? " warn" : ""}">
       <span class="al-ic">${iconSvg(AL_ICON[a.kind] || "iot", 18)}</span>
       <div class="al-main"><b>${esc(a.title)}</b>${a.body ? `<span class="fine muted">${esc(a.body)}</span>` : ""}${mac ? `<span class="fine mono muted">${esc(mac)}</span>` : ""}</div>
@@ -102,7 +102,7 @@ async function renderAlertSettings() {
     <label class="check"><input type="checkbox" id="al-setup" ${st.setup !== false ? "checked" : ""}> <span>Tell me when a device stops using its NextDNS setup</span></label>
     <p class="fine muted">For devices set up from their check-in page: HomeOwl notices when one was on the home network for hours (or away for three days) without NextDNS seeing it by name — usually the profile was removed or Private DNS switched off.</p>
     <h3>Where alerts go</h3>
-    <p class="fine">Always to <a href="#" data-goto="alerts">Records › Alerts</a>. Also:</p>
+    <p class="fine">Always to <a href="#" data-goto="alerts">Home › Alerts</a>. Also:</p>
     ${st.macos_possible ? `<label class="check"><input type="checkbox" id="al-mac" ${st.macos ? "checked" : ""}> <span>A notification on this Mac</span></label>` : ""}
     <label>Phone push with ntfy ${saved("ntfy", "not set")}<span class="al-ntfy-row"><input id="al-ntfy" placeholder="https://ntfy.sh/a-long-secret-topic-name" autocomplete="off"><button class="btn sm" id="al-ntfy-gen" type="button">Generate a private topic</button></span></label>
     <div id="al-ntfy-how" hidden></div>

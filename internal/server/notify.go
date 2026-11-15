@@ -19,7 +19,7 @@ import (
 	"github.com/h4ux/homeowl/internal/unifi"
 )
 
-// Alerts (Records › Alerts): a device HomeOwl has never seen joins, the guest password changed on its schedule…
+// Alerts (Home › Alerts): a device HomeOwl has never seen joins, the guest password changed on its schedule…
 // The list lives in alerts.json; ntfy and webhook addresses live in the secrets store (they work like passwords).
 
 var isMac = runtime.GOOS == "darwin"

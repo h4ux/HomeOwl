@@ -3,7 +3,7 @@
 "use strict";
 
 S.checkins = null;
-V.checkins = () => `<div class="head"><div><h1>Device check-ins ${hint("Family members name their own devices; you approve.")}</h1></div>
+V.checkins = () => `<div class="head"><div><h1>New devices ${hint("Family members name their own devices on the check-in page; you approve. Approval, grace period, merging and setup are here too.")}</h1></div>
   <button class="btn" id="ci-reload">Refresh</button></div><div id="ci-body"><div class="empty">Loading…</div></div>`;
 
 const CI_KIND = { phone: "📱", tablet: "📱", laptop: "💻", computer: "🖥", tv: "📺", console: "🎮", speaker: "🔊", watch: "⌚", camera: "📷", printer: "🖨", other: "❔" };
@@ -172,7 +172,7 @@ async function renderDevTypes() {
   try { [r, people] = await Promise.all([api("/api/devtypes"), api("/api/analytics/meta", {}).then(m => m.people || []).catch(() => [])]); } catch (e) { el.innerHTML = `<div class="empty bad-t">${esc(e.message)}</div>`; return; }
   S.devTypes = r; S.devTypePeople = people;
   const pname = id => people.find(p => p.id === id)?.name || "?", wname = id => r.wlans.find(w => w.id === id)?.ssid || "?";
-  el.innerHTML = `<h2>Device profiles ${hint("Profile types add Wi-Fi networks and a VPN to the setup profile that devices install from their check-in page (iPhone, iPad, Mac). Attach a type to people; their devices get it. A device can get another type in Family › Check-ins › Change….")}</h2>
+  el.innerHTML = `<h2>Device profiles ${hint("Profile types add Wi-Fi networks and a VPN to the setup profile that devices install from their check-in page (iPhone, iPad, Mac). Attach a type to people; their devices get it. A device can get another type in Devices › New devices › Change….")}</h2>
     <p class="fine">Each approved device's setup profile carries its NextDNS profile and, with a type, Wi-Fi networks (they join by themselves) and a VPN. Wi-Fi passwords are read from UniFi when a device downloads its profile; VPN secrets are kept in HomeOwl's secret store and never shown again. Android and Windows get the NextDNS setup, and the home Wi-Fi's name and password on their check-in page.</p>
     ${r.wlan_error ? `<div class="msg warn">Wi-Fi networks: ${esc(r.wlan_error)}</div>` : ""}
     ${r.types.length ? table("devtypes", [
@@ -403,7 +403,7 @@ function editDevType(id) {
       <label data-dtv="ikev2-eap l2tp">Password ${t.password_set ? `<span class="tag good">saved</span>` : ""}<input id="dt-pass" type="password" autocomplete="new-password" placeholder="${keep(t.password_set)}"></label>
       <label class="check" data-dtv="ikev2 wireguard"><input type="checkbox" id="dt-od" ${v.on_demand ? "checked" : ""}> <span>Connect by itself when not on the home Wi-Fi</span></label>
       <p class="fine muted" data-dtv="l2tp">iPhone and Mac connect L2TP by hand (Settings › VPN). UniFi gateways can run an L2TP server.</p>
-      <p class="fine muted" data-dtv="wireguard">Each device needs its own WireGuard config: paste it in Family › Check-ins › Change… for that device. Devices need the WireGuard app.</p>
+      <p class="fine muted" data-dtv="wireguard">Each device needs its own WireGuard config: paste it in Devices › New devices › Change… for that device. Devices need the WireGuard app.</p>
       <p class="fine muted" data-dtv="ikev2 l2tp">The same user name and password go to every device with this type. Secrets are stored in HomeOwl's secret store and go only into device profiles.</p>
     </div>`,
     buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {

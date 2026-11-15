@@ -537,7 +537,7 @@ V.clients = m => {
       ...(admin ? [{ k: "mac", label: "", sort: () => 0, fmt: r => { if (r.online) return ""; const sg = arr(S.archiveSug?.suggestions).find(x => x.mac === String(r.mac).toLowerCase());
         return `${sg ? `<span class="pill arch-sug" title="${esc(sg.reason)}">suggested</span> ` : ""}<button class="btn sm ${sg ? "" : "ghost"}" data-archive="${esc(r.mac)}" title="${esc(sg ? sg.reason + " Archiving hides it from HomeOwl's lists (UniFi and the logs keep it)." : "Hide this address from HomeOwl's lists (UniFi and the logs keep it)")}">Archive</button>`; } }] : []),
     ], tab === "blocked" ? m.known.filter(k => k.blocked) : m.known, { search: true, empty: tab === "blocked" ? "No blocked clients" : "No known-client list returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` });
-  return `<div class="head"><div><h1>Clients</h1><div class="muted">${m.clients.length} active · ${m.known.length} known</div></div></div>
+  return `<div class="head"><div><h1>All devices</h1><div class="muted">${m.clients.length} active · ${m.known.length} known</div></div></div>
   ${admin ? `<div id="archive-hint">${archiveHint()}</div>` : ""}
   <div class="filters">${Object.entries(tabs).map(([k, [l, n]]) => `<button data-ctab="${k}" class="${tab === k ? "on" : ""}">${l} (${n})</button>`).join("")}</div>${tbl}
   ${insights("clients", `<div class="grid g2"><div class="card"><h2>Wireless signal strength (dBm)</h2>${columns(bins)}<p class="fine">Green ≥ −67 (good for calls/video) · amber −67…−75 · red &lt; −75 (weak)</p></div>
