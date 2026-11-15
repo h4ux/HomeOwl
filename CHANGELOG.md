@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.89] — 2026-11-15
+
+### Added
+- **"This is me" for NextDNS names.** A profile installed before HomeOwl kept track of the name it used can report
+  another name to NextDNS ("Alex iPhone Duo" for "Alex's iPhone Duo"). When the device's page says it isn't
+  protected, it lists the names NextDNS saw lately in its profile that share a word with it (never another device's)
+  and **This is me** links one. The status, the sites blocked on it and Analytics then follow that name too; *not me*
+  under *Set up this device* unlinks it.
+- **Online or not in Devices › All devices**: a dot next to each name (filled = online, hollow = offline, with when it
+  was last seen).
+
 ## [0.1.88] — 2026-11-15
 
 ### Changed

@@ -306,14 +306,14 @@ func TestNDDeviceBlocked(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	l, err := e.NDDeviceBlocked([]string{"abc123", "def456"}, "Sam's iPad", now.Add(-24*time.Hour), 10)
+	l, err := e.NDDeviceBlocked([]string{"abc123", "def456"}, []string{"Sam's iPad"}, now.Add(-24*time.Hour), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(l) != 2 || l[0].Domain != "www.example.com" || l[0].N != 2 || l[0].Reasons != "Denylist" || l[1].Domain != "games.example.net" {
 		t.Fatalf("blocked for one device, latest first: %+v", l)
 	}
-	if l, _ := e.NDDeviceBlocked(nil, "Sam's iPad", now.Add(-24*time.Hour), 10); len(l) != 0 {
+	if l, _ := e.NDDeviceBlocked(nil, []string{"Sam's iPad"}, now.Add(-24*time.Hour), 10); len(l) != 0 {
 		t.Fatal("no profiles: nothing")
 	}
 }

@@ -46,6 +46,8 @@ type CheckIn struct {
 	// the device name the installed profile reports to NextDNS: it stays what it was at download when the device is
 	// renamed later
 	ProfileName string `json:"profile_name,omitempty"`
+	// NextDNS device names confirmed to be this device (ndnames.go): older profiles, other spellings
+	NDNames []string `json:"nd_names,omitempty"`
 	// setupwatch.go: the last query NextDNS logged under the device's name, when the setup last changed, and when
 	// HomeOwl noticed it stopped being used (0 = it works)
 	SetupSeen    int64  `json:"setup_seen,omitempty"`

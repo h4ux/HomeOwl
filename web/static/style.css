@@ -897,3 +897,11 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .hi-why ul{margin:6px 0;padding-left:18px;font-size:13px}.hi-why li{margin:4px 0}
 .hi-why b,.hi-stat .hi-why b{font-size:inherit}
 .hi-fold>summary>span:first-child{white-space:nowrap}
+.hi-ndc{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}
+.hi-ndc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0}
+.hi-link{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;text-decoration:underline}
+.on-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:middle;flex:none}
+.on-dot.on{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 22%,transparent)}
+.on-dot.off{background:transparent;border:1.5px solid var(--muted)}
+.hi-stat .hi-ndc b{font-size:14px}.hi-stat .hi-ndc p b{font-size:inherit}
+.hi-ndc-row .btn{white-space:nowrap;flex:none}

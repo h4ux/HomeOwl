@@ -5,6 +5,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/h4ux/homeowl/internal/analytics"
 )
 
 type fakeAllow struct{ calls []string }
@@ -159,5 +162,80 @@ func TestHiGuest(t *testing.T) {
 	}
 	if code, _ := get("203.0.113.5"); code == 200 {
 		t.Fatal("from outside")
+	}
+}
+
+// "This is me": a NextDNS name from an older profile is linked to the device, and "stopped" clears.
+func TestLinkNDName(t *testing.T) {
+	a := checkinApp(t)
+	now := time.Now()
+	logged := []analytics.NDName{
+		{Name: "Alex iPhone Duo", Last: now.Add(-2 * time.Minute), Day: 300},
+		{Name: "Alex's MacBook Air", Last: now.Add(-time.Hour), Day: 50},
+		{Name: "Sam's iPad", Last: now.Add(-time.Hour), Day: 20},
+		{Name: "Old Phone", Last: now.Add(-20 * 24 * time.Hour)},
+	}
+	ndNames = func(_ *App, nd string, since time.Time) ([]analytics.NDName, error) {
+		out := []analytics.NDName{}
+		for _, n := range logged {
+			if nd == "abc123" && n.Last.After(since) {
+				out = append(out, n)
+			}
+		}
+		return out, nil
+	}
+	ndSeen = func(a *App, nd, name string) (analytics.NDSeen, error) {
+		var s analytics.NDSeen
+		for _, n := range logged {
+			if nd == "abc123" && analytics.SameDeviceName(n.Name) == analytics.SameDeviceName(name) {
+				s.Last, s.Day = n.Last, n.Day
+			}
+		}
+		return s, nil
+	}
+	t.Cleanup(func() {
+		ndNames = func(a *App, nd string, since time.Time) ([]analytics.NDName, error) {
+			return a.An.NDDeviceNames(nd, since)
+		}
+		ndSeen = func(a *App, nd, name string) (analytics.NDSeen, error) { return a.An.NDDeviceSeen(nd, name) }
+	})
+	approve := func(mac, ip, name string) string {
+		_ = a.checkins.Add(CheckIn{MAC: mac, IP: ip, Name: name, PersonName: "Alex"})
+		l := a.checkins.List()
+		id := l[len(l)-1].ID
+		_ = a.checkins.Decide(id, "approved", "admin")
+		a.checkins.Edit(id, func(c *CheckIn) { c.NDProfile = "abc123" })
+		return id
+	}
+	approve("aa:bb:cc:00:00:41", "192.168.1.41", "Sam's iPad") // someone else's: never offered
+	id := approve("aa:bb:cc:00:00:40", "192.168.1.40", "Alex's iPhone Duo")
+	a.checkins.Edit(id, func(c *CheckIn) { c.SetupSeen, c.SetupLost = now.Add(-21*time.Hour).Unix(), now.Add(-time.Hour).Unix() })
+
+	x, _ := a.checkins.Get(id)
+	names := []string{}
+	for _, c := range a.ndCandidates(x) {
+		names = append(names, c["name"].(string))
+	}
+	if strings.Join(names, "|") != "Alex iPhone Duo|Alex's MacBook Air" {
+		t.Fatalf("candidates: %v", names)
+	}
+	if err := a.linkNDName(x, "Sam's iPad", "link"); err == nil {
+		t.Fatal("another device's name")
+	}
+	if err := a.linkNDName(x, "Alex iPhone Duo", "link"); err != nil {
+		t.Fatal(err)
+	}
+	x, _ = a.checkins.Get(id)
+	if len(x.NDNames) != 1 || x.SetupLost != 0 {
+		t.Fatalf("linked, and no longer stopped: %+v", x)
+	}
+	if m := a.ndMatched(x); len(m) != 1 || m[0] != "Alex iPhone Duo" {
+		t.Fatalf("blocked lookups use it: %v", m)
+	}
+	if err := a.linkNDName(x, "Alex iPhone Duo", "unlink"); err != nil {
+		t.Fatal(err)
+	}
+	if x, _ = a.checkins.Get(id); len(x.NDNames) != 0 {
+		t.Fatalf("unlinked: %+v", x)
 	}
 }

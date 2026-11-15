@@ -51,6 +51,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiRequest(w, r)
 		return
 	}
+	if p == "hi/ndname" { // "this is me": link a NextDNS device name to this device (ndnames.go)
+		a.hiNDName(w, r)
+		return
+	}
 	if p == "hi/guest" { // the guest Wi-Fi, for an approved device to show a visitor (myhome.go)
 		a.hiGuest(w, r)
 		return

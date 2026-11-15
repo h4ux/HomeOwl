@@ -119,6 +119,10 @@ page shows that device and nothing about anyone else's:
 - **Is it OK?** Protected and in use, an update to install, or the setup stopped (with the usual reasons and the
   steps to fix it). When NextDNS logs aren't arriving at all, it says it can't tell rather than "stopped".
 
+When NextDNS logs the device under a name HomeOwl doesn't know (a profile installed under an older name), the page
+lists the names NextDNS saw lately in the device's profile that share a word with it, never another device's. **This
+is me** links one: the status, the blocked sites and Analytics follow it, and *not me* undoes it.
+
 The status and the guest Wi-Fi are shown; the other sections are folded, each with a one-line summary.
 - **Right now.** The Wi-Fi and access point it's on, the signal (with a tip when it's weak), and whether the internet
   works, with the console's last speed test.

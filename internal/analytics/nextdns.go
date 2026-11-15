@@ -669,22 +669,25 @@ type NDBlocked struct {
 	Last    time.Time `json:"last"`
 }
 
-// NDDeviceBlocked lists what was blocked under a device's name in its profiles since a time, the latest first.
-func (e *Engine) NDDeviceBlocked(profiles []string, name string, since time.Time, limit int) ([]NDBlocked, error) {
+// NDDeviceBlocked lists what was blocked under a device's names in its profiles since a time, the latest first.
+func (e *Engine) NDDeviceBlocked(profiles, names []string, since time.Time, limit int) ([]NDBlocked, error) {
 	if e.db == nil {
 		return nil, errors.New("analytics isn't running")
 	}
-	if len(profiles) == 0 || name == "" {
+	if len(profiles) == 0 || len(names) == 0 {
 		return nil, nil
 	}
-	ph := strings.TrimSuffix(strings.Repeat("?,", len(profiles)), ",")
+	ph := func(n int) string { return strings.TrimSuffix(strings.Repeat("?,", n), ",") }
 	args := []any{}
 	for _, p := range profiles {
 		args = append(args, p)
 	}
-	args = append(args, name, since.UTC(), limit)
+	for _, n := range names {
+		args = append(args, n)
+	}
+	args = append(args, since.UTC(), limit)
 	rows, err := e.db.Query(`SELECT domain, coalesce(arg_max(reasons, ts), ''), count(*), max(ts) FROM dns_queries
-		WHERE profile_id IN (`+ph+`) AND device_name = ? AND status = 'blocked' AND ts >= ? AND domain IS NOT NULL
+		WHERE profile_id IN (`+ph(len(profiles))+`) AND device_name IN (`+ph(len(names))+`) AND status = 'blocked' AND ts >= ? AND domain IS NOT NULL
 		GROUP BY domain ORDER BY max(ts) DESC LIMIT ?`, args...)
 	if err != nil {
 		return nil, err

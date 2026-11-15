@@ -198,8 +198,12 @@ func (a *App) myDevice(x CheckIn, c map[string]any) map[string]any {
 	res["requests"] = reqs
 	if x.NDProfile != "" {
 		res["can_request"] = true
+		res["nd_names"] = x.NDNames
+		if st, _ := res["setup"].(map[string]any); st != nil && st["state"] != "active" {
+			res["nd_candidates"] = a.ndCandidates(x)
+		}
 		if a.An.Open() {
-			bl, err := a.An.NDDeviceBlocked(ndProfilesOf(x), x.Name, time.Now().Add(-myBlockedSince), 15)
+			bl, err := a.An.NDDeviceBlocked(ndProfilesOf(x), a.ndMatched(x), time.Now().Add(-myBlockedSince), 15)
 			if err == nil {
 				out := []map[string]any{}
 				for _, b := range bl {
@@ -267,7 +271,7 @@ func (a *App) addRequest(x CheckIn, domain, note string) (SiteRequest, error) {
 	}
 	reasons := ""
 	if a.An.Open() {
-		if bl, err := a.An.NDDeviceBlocked(ndProfilesOf(x), x.Name, time.Now().Add(-7*24*time.Hour), 200); err == nil {
+		if bl, err := a.An.NDDeviceBlocked(ndProfilesOf(x), a.ndMatched(x), time.Now().Add(-7*24*time.Hour), 200); err == nil {
 			for _, b := range bl {
 				if b.Domain == d {
 					reasons = b.Reasons

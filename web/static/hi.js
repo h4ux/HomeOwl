@@ -114,7 +114,7 @@ function registered(st) {
     ${myStatus(mine, r)}<div id="hi-guest"></div>
     ${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
     ${wifi.length && pf !== "ios" && pf !== "mac" ? hiFold("Home Wi-Fi", `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>`) : ""}
-    ${setup ? hiFold(settled ? "Set up this device again" : r.update || ss.update ? "Install the update" : "Set up this device", setup, "hi-setup-fold") : ""}
+    ${setup ? hiFold(settled ? "Set up this device again" : r.update || ss.update ? "Install the update" : "Set up this device", myNDLinked(mine) + setup, "hi-setup-fold") : ""}
     <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
   if ($("#hi-wifi")) homeWiFi();
   guestWiFi();
@@ -164,8 +164,31 @@ function myStatus(mine, r) {
       <p class="fine">This clears by itself within about 15 minutes of NextDNS seeing the device again.</p></details>` : "";
   return `<div class="hi-stat ${good ? "good" : unsure ? "" : "warn"}"><span class="hi-stat-ic" aria-hidden="true">${good ? "✓" : unsure ? "?" : "!"}</span>
     <div><b>${esc(upd && ok !== false ? "Update ready" : title)}</b><div class="fine">${esc(upd && ok !== false ? "Its settings changed. Install the profile again under Install the update — it replaces the old one." : note)}</div>
-    ${fix || upd ? `<button class="btn sm hi-fix" type="button" data-hifix>${upd ? "Install the update" : "Set up this device"}</button>` : ""}${why}</div></div>`;
+    ${myNDCands(mine)}${fix || upd ? `<button class="btn sm hi-fix" type="button" data-hifix>${upd ? "Install the update" : "Set up this device"}</button>` : ""}${why}</div></div>`;
 }
+// names NextDNS sees that look like this device: "this is me" links one (ndnames.go)
+function myNDCands(mine) {
+  const l = mine.nd_candidates || [];
+  if (!l.length) return "";
+  return `<div class="hi-ndc"><p class="fine"><b>Is this device one of these in NextDNS?</b> An older profile may use another name.</p>
+    ${l.map(c => `<div class="hi-ndc-row"><div><b>${esc(c.name)}</b><div class="fine muted">last ${esc(agoS(c.last))}${c.day ? ` · ${c.day} today` : ""}</div></div><button class="btn sm" type="button" data-hind="${esc(c.name)}">This is me</button></div>`).join("")}</div>`;
+}
+function myNDLinked(mine) {
+  const l = mine.nd_names || [];
+  return l.length ? `<p class="fine" style="margin-top:0">Also known in NextDNS as: ${l.map(n => `<b>${esc(n)}</b> <button class="hi-link fine" type="button" data-hiunlink="${esc(n)}">not me</button>`).join(", ")}</p>` : "";
+}
+async function ndName(name, op) {
+  const r = await fetch("/api/hi/ndname", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, op }), cache: "no-store" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Something went wrong (HTTP ${r.status})`);
+  start();
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-hind], [data-hiunlink]"); if (!b) return;
+  b.disabled = true;
+  try { await ndName(b.dataset.hind || b.dataset.hiunlink, b.dataset.hind ? "link" : "unlink"); }
+  catch (err) { b.disabled = false; let m = b.parentElement.querySelector(".hi-ask-err"); if (!m) { m = document.createElement("p"); m.className = "fine bad-t hi-ask-err"; b.after(m); } m.textContent = err.message; }
+});
 function myConnection(c) {
   if (!c) return "";
   const i = c.internet || {}, mb = v => v >= 1 ? Math.round(v) : v ? v.toFixed(1) : "";

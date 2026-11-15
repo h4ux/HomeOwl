@@ -68,7 +68,7 @@ func (a *App) setupSeen(x CheckIn) (last, cur time.Time, ip string, day int, err
 		}
 	}
 	from := func(y CheckIn) {
-		for _, n := range []string{y.Name, y.ProfileName} {
+		for _, n := range append([]string{y.Name, y.ProfileName}, y.NDNames...) {
 			add(x.NDProfile, n)
 			add(y.ProfileND, n)
 		}

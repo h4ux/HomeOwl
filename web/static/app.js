@@ -513,6 +513,8 @@ function showClient(mac) {
 }
 document.addEventListener("click", e => { const r = e.target.closest("[data-client]"); if (!r || e.target.closest("a[data-act],button[data-act]")) return; e.preventDefault(); showClient(r.dataset.client); });
 document.addEventListener("click", e => { const t = e.target.closest("[data-ctab]"); if (!t) return; S.clientTab = t.dataset.ctab; render(); });
+// online or not, next to the name in the device lists
+const onDot = (on, seen) => `<span class="on-dot ${on ? "on" : "off"}" role="img" aria-label="${on ? "Online" : "Offline"}" title="${on ? "Online now" : `Offline${seen ? ` · seen ${ago(seen)}` : ""}`}"></span>`;
 V.clients = m => {
   const wl = m.clients.filter(c => !c.wired);
   const bins = []; for (let b = -90; b < -30; b += 5) bins.push({ label: String(b), value: wl.filter(c => c.signal !== null && c.signal >= b && c.signal < b + 5).length, color: b < -75 ? "var(--high)" : b < -67 ? "var(--med)" : "var(--ok)" });
@@ -523,7 +525,7 @@ V.clients = m => {
   const tab = S.clientTab === "archived" && !tabs.archived ? "known" : S.clientTab;
   if (admin) loadArchive();
   const tbl = tab === "archived" ? archivedTable() : tab === "active" ? table("clients", [
-    { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${m.knownByMac[r.mac]?.note ? `<div class="fine muted cl-note">${esc(m.knownByMac[r.mac].note)}</div>` : ""}` },
+    { k: "label", label: "Name", fmt: r => `${onDot(true)}${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${m.knownByMac[r.mac]?.note ? `<div class="fine muted cl-note">${esc(m.knownByMac[r.mac].note)}</div>` : ""}` },
     { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "Wi-Fi")} · ${bandLabel(r.band)}` },
     { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}" title="${r.signal < -75 ? "Weak" : r.signal < -67 ? "OK" : "Good"}">${r.signal} dBm</span>` },
     { k: "satisfaction", label: "Experience", num: 1, fmt: r => r.satisfaction === null || r.satisfaction === undefined ? "–" : r.satisfaction + "%" },
@@ -531,7 +533,7 @@ V.clients = m => {
     { k: "ip", more: 1, fmt: r => r.ip ? `<span class="mono">${esc(r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
   ], m.clients, { search: true, empty: "No clients returned", rowAttr: r => `data-client="${esc(r.mac)}" class="clickable"` })
     : table("known-" + tab, [
-      { k: "label", label: "Name", fmt: r => `${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${r.note ? `<div class="fine muted cl-note">${esc(r.note)}</div>` : ""}` }, { k: "online", label: "Status", fmt: r => r.online ? `<span class="tag good">online</span>` : `<span class="muted">seen ${ago(r.lastSeen)}</span>`, sort: r => r.online ? Infinity : (r.lastSeen || 0) },
+      { k: "label", label: "Name", fmt: r => `${onDot(r.online, r.lastSeen)}${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${r.note ? `<div class="fine muted cl-note">${esc(r.note)}</div>` : ""}` }, { k: "online", label: "Status", fmt: r => r.online ? `<span class="tag good">online</span>` : `<span class="muted">seen ${ago(r.lastSeen)}</span>`, sort: r => r.online ? Infinity : (r.lastSeen || 0) },
       { k: "ip", more: 1, fmt: r => r.fixedIp || r.ip ? `<span class="mono">${esc(r.fixedIp || r.ip)}</span>${r.fixedIp ? " (fixed)" : ""}` : "" },
       { k: "vendor", label: "Vendor" }, { k: "network", label: "Network" }, { k: "blocked", label: "Blocked", fmt: r => r.blocked ? `<span class="tag bad">blocked</span>` : "" },
       { k: "firstSeen", label: "First seen", num: 1, fmt: r => fmtTime(r.firstSeen) },

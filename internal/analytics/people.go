@@ -527,36 +527,57 @@ func (e *Engine) NDProfileLatest(profile string) (time.Time, error) {
 // name the device, so this shows whether one is installed and in use).
 func (e *Engine) NDDeviceSeen(profile, name string) (NDSeen, error) {
 	var s NDSeen
-	if e.db == nil {
-		return s, errors.New("analytics isn't running")
-	}
-	// NextDNS may log the name a little differently from how it was typed (a curly apostrophe from an iPhone
-	// keyboard, "--" or "-" for a space): every device name in the profile that reads the same counts
-	rows, err := e.db.Query(`SELECT device_name, max(ts), arg_max(client_ip, ts), count(*) FILTER (WHERE ts >= ?)
-		FROM dns_queries WHERE profile_id = ? AND ts >= ? AND device_name IS NOT NULL AND device_name <> '' GROUP BY device_name`,
-		utcnow().Add(-24*time.Hour), profile, utcnow().Add(-30*24*time.Hour))
+	names, err := e.NDDeviceNames(profile, utcnow().Add(-30*24*time.Hour))
 	if err != nil {
 		return s, err
 	}
-	defer rows.Close()
+	// NextDNS may log the name a little differently from how it was typed (a curly apostrophe from an iPhone
+	// keyboard, "--" or "-" for a space): every device name in the profile that reads the same counts
 	want := SameDeviceName(name)
-	for rows.Next() {
-		var dn string
-		var last sql.NullTime
-		var ip sql.NullString
-		var day sql.NullInt64
-		if err := rows.Scan(&dn, &last, &ip, &day); err != nil {
-			return s, err
-		}
-		if want == "" || SameDeviceName(dn) != want {
+	for _, n := range names {
+		if want == "" || SameDeviceName(n.Name) != want {
 			continue
 		}
-		s.Day += int(day.Int64)
-		if last.Valid && last.Time.After(s.Last) {
-			s.Last, s.ClientIP = last.Time, ip.String
+		s.Day += n.Day
+		if n.Last.After(s.Last) {
+			s.Last, s.ClientIP = n.Last, n.ClientIP
 		}
 	}
-	return s, rows.Err()
+	return s, nil
+}
+
+// NDName is a device name NextDNS logged in a profile.
+type NDName struct {
+	Name     string    `json:"name"`
+	Last     time.Time `json:"last"`
+	ClientIP string    `json:"-"`
+	Day      int       `json:"day"` // queries in the last 24 hours
+}
+
+// NDDeviceNames lists the device names logged in a profile since a time, the most recent first.
+func (e *Engine) NDDeviceNames(profile string, since time.Time) ([]NDName, error) {
+	if e.db == nil {
+		return nil, errors.New("analytics isn't running")
+	}
+	rows, err := e.db.Query(`SELECT device_name, max(ts), arg_max(client_ip, ts), count(*) FILTER (WHERE ts >= ?)
+		FROM dns_queries WHERE profile_id = ? AND ts >= ? AND device_name IS NOT NULL AND device_name <> ''
+		GROUP BY device_name ORDER BY max(ts) DESC`, utcnow().Add(-24*time.Hour), profile, since.UTC())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []NDName
+	for rows.Next() {
+		var n NDName
+		var ip sql.NullString
+		var day sql.NullInt64
+		if err := rows.Scan(&n.Name, &n.Last, &ip, &day); err != nil {
+			return nil, err
+		}
+		n.ClientIP, n.Day = ip.String, int(day.Int64)
+		out = append(out, n)
+	}
+	return out, rows.Err()
 }
 
 // SameDeviceName is a device name reduced to its letters and digits, lower case: two names that give the same
