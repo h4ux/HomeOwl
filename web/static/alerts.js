@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", approval_done: "unknown", archive: "unknown" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", approval_done: "unknown", archive: "unknown", site_request: "unknown" };
 
 // demo: two fictional new devices
 function alFromBundle() {
@@ -24,7 +24,7 @@ async function loadAlerts(markRead) {
   if (alLive()) { try { S.alerts = await api("/api/alerts"); } catch (e) { S.alerts = S.alerts || { items: [], unread: 0 }; const el = $("#al-body"); if (el) el.innerHTML = `<div class="empty bad-t">${esc(e.message)}</div>`; return; } }
   else S.alerts = alFromBundle();
   alBadge(S.alerts.unread);
-  if ((S.alerts.attention?.length || S.alerts.duplicates?.length) && !loadAlerts.drawn && (S.view === "today" || S.view === "overview")) { loadAlerts.drawn = true; render(); }
+  if ((S.alerts.attention?.length || S.alerts.duplicates?.length || S.alerts.requests?.length) && !loadAlerts.drawn && (S.view === "today" || S.view === "overview")) { loadAlerts.drawn = true; render(); }
   const el = $("#al-body"); if (!el || S.view !== "alerts") return;
   let people = [];
   if (S.source === "live" && S.role === "admin" && S.alerts.items.some(a => a.kind === "new_device" && a.data?.mac)) { try { people = (await api("/api/analytics/meta", {})).people || []; } catch { /* no analytics: no "Give to" */ } }
@@ -47,6 +47,7 @@ function alList(items, people) {
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
     ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
       : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button>${a.data.grace ? `<button class="btn sm" data-alapvblock="${esc(a.data.mac)}">Block</button>` : `<button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`}`
+      : a.kind === "site_request" && S.role === "admin" && a.data?.request ? siteReqBtns(a.data.request)
       : a.kind === "archive" && S.role === "admin" ? `<button class="btn sm" data-goto="clients">Review</button>`
       : a.kind === "approval_flood" && S.role === "admin" ? `<button class="btn sm" data-goto="settings">Settings</button>`
       : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "New devices"}</button>` : "";
@@ -58,9 +59,33 @@ function alList(items, people) {
   }).join("")}</div>`;
 }
 
+// a family member asked for a blocked site (myhome.go): allow puts it on the NextDNS allowlist of their device's profile
+const siteReqBtns = id => { const r = arr(S.alerts?.requests).find(x => x.id === id);
+  return r ? `<span class="btnrow"><button class="btn sm primary" data-sitereq="${esc(id)}" data-op="allow">Allow</button><button class="btn sm" data-sitereq="${esc(id)}" data-op="deny">Deny</button></span>` : ""; };
+async function decideSiteReq(id, op) {
+  try { S.siteReqs = await api("/api/site-requests/decide", { id, op }); toast({ allow: "Allowed — it works on that device in a minute", deny: "It stays blocked", remove: "Blocked again" }[op], "ok"); }
+  catch (err) { toast(err.message, "err"); }
+  loadAlerts(); if ($("#ci-reqs")) $("#ci-reqs").innerHTML = siteReqCard(S.siteReqs);
+}
+function siteReqCard(v) {
+  const l = arr(v?.items); if (!l.length) return "";
+  const st = { pending: `<span class="tag warn">waiting</span>`, allowed: `<span class="tag good">allowed</span>`, denied: `<span class="tag">denied</span>`, removed: `<span class="tag">blocked again</span>` };
+  return `<div class="card section"><h2>Site requests ${hint("From a device's own HomeOwl page (the check-in page), family members ask for a site NextDNS blocked. Allowing it puts it on the allowlist of that device's NextDNS profile, so for everyone on that profile, and logs it in History › Changes. “Stop allowing” takes it off again.")}</h2>${table("site-reqs", [
+    { k: "domain", label: "Site", fmt: r => `<b>${esc(r.domain)}</b>${r.note ? `<div class="fine">“${esc(r.note)}”</div>` : ""}${r.reasons ? `<div class="fine muted">blocked by ${esc(r.reasons)}</div>` : ""}` },
+    { k: "device", label: "Asked from", fmt: r => `${esc(r.device)}${r.person ? `<div class="fine muted">${esc(r.person)}</div>` : ""}` },
+    { k: "profile", label: "NextDNS profile", fmt: r => esc(v.profiles?.[r.profile] || r.profile) },
+    { k: "time", label: "When", fmt: r => ago(r.time * 1000), sort: r => -r.time },
+    { k: "status", label: "", fmt: r => `${st[r.status] || esc(r.status)}${r.by ? `<div class="fine muted">${esc(r.by)}</div>` : ""}` },
+    { k: "act", label: "", fmt: r => r.status === "pending" ? `<div class="btnrow"><button class="btn sm primary" data-sitereq="${esc(r.id)}" data-op="allow">Allow</button><button class="btn sm" data-sitereq="${esc(r.id)}" data-op="deny">Deny</button></div>`
+      : r.status === "allowed" ? `<button class="btn sm" data-sitereq="${esc(r.id)}" data-op="remove">Stop allowing</button>` : r.status === "denied" || r.status === "removed" ? `<button class="btn sm" data-sitereq="${esc(r.id)}" data-op="allow">Allow</button>` : "" },
+  ], l)}</div>`;
+}
+async function loadSiteReqs() { const el = $("#ci-reqs"); if (!el) return; try { S.siteReqs = await api("/api/site-requests"); el.innerHTML = siteReqCard(S.siteReqs); } catch { } }
+
 document.addEventListener("click", e => {
   if (e.target.id === "al-read") { if (alLive()) api("/api/alerts/read", { id: 0 }).then(() => loadAlerts()).catch(err => toast(err.message, "err")); return; }
   const sh = e.target.closest("[data-alshow]"); if (sh) { showClient(sh.dataset.alshow); return; }
+  const sr = e.target.closest("[data-sitereq]"); if (sr) { sr.disabled = true; decideSiteReq(sr.dataset.sitereq, sr.dataset.op); return; }
   const apv = e.target.closest("[data-alapv],[data-alapvkeep],[data-alapvblock]");
   if (apv) {
     const op = apv.dataset.alapvkeep ? "keep" : apv.dataset.alapvblock ? "block" : "approve", mac = apv.dataset.alapv || apv.dataset.alapvkeep || apv.dataset.alapvblock; apv.disabled = true;

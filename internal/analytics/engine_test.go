@@ -282,3 +282,31 @@ func TestAppsSeen(t *testing.T) {
 		t.Fatalf("unknown app should match nothing: %#v", d)
 	}
 }
+
+func TestNDDeviceBlocked(t *testing.T) {
+	e := openTestEngine(t)
+	now := utcnow()
+	q := `INSERT INTO dns_queries(ts, profile_id, domain, root, status, reasons, device_name) VALUES (?,?,?,?,?,?,?)`
+	for _, r := range [][]any{
+		{now.Add(-3 * time.Hour), "abc123", "www.example.com", "example.com", "blocked", "OISD", "Sam's iPad"},
+		{now.Add(-1 * time.Hour), "abc123", "www.example.com", "example.com", "blocked", "Denylist", "Sam's iPad"},
+		{now.Add(-2 * time.Hour), "def456", "games.example.net", "example.net", "blocked", "Parental control", "Sam's iPad"}, // its old profile
+		{now.Add(-2 * time.Hour), "abc123", "ok.example.org", "example.org", "default", "", "Sam's iPad"},
+		{now.Add(-2 * time.Hour), "abc123", "ads.example.org", "example.org", "blocked", "OISD", "Alex's Phone"},
+		{now.Add(-48 * time.Hour), "abc123", "old.example.com", "example.com", "blocked", "OISD", "Sam's iPad"},
+	} {
+		if _, err := e.db.Exec(q, r...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	l, err := e.NDDeviceBlocked([]string{"abc123", "def456"}, "Sam's iPad", now.Add(-24*time.Hour), 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(l) != 2 || l[0].Domain != "www.example.com" || l[0].N != 2 || l[0].Reasons != "Denylist" || l[1].Domain != "games.example.net" {
+		t.Fatalf("blocked for one device, latest first: %+v", l)
+	}
+	if l, _ := e.NDDeviceBlocked(nil, "Sam's iPad", now.Add(-24*time.Hour), 10); len(l) != 0 {
+		t.Fatal("no profiles: nothing")
+	}
+}

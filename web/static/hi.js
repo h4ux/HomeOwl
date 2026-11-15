@@ -106,13 +106,78 @@ function registered(st) {
       ${r.profile_at && (pf === "ios" || pf === "mac") ? `<p class="fine">Downloaded before on ${esc(new Date(r.profile_at * 1000).toLocaleDateString())}. Installing again replaces it.</p>` : ""}
       ${nd && (pf === "ios" || pf === "mac") ? `<p class="fine">On a plane or in a hotel and the Wi-Fi sign-in page won't load? ${pf === "ios" ? "Open <b>Settings</b> › <b>General</b> › <b>VPN &amp; Device Management</b> › <b>DNS</b> and choose <b>Automatic</b>" : "Open <b>System Settings</b> › <b>Network</b> › <b>Filters</b> (or <b>VPN &amp; Filters</b>) and turn the NextDNS DNS setting off"}, sign in, then switch it back. Tell an admin the network's name so HomeOwl skips it next time.</p>` : ""}
       ${pf === "ios" || pf === "mac" ? `<p class="fine">If iCloud Private Relay is on, Safari's visits go through Apple instead and aren't seen by NextDNS.</p>` : ""}`;
+  const mine = st.mine || {}, ss = mine.setup || {};
+  const settled = ss.state === "active" && !r.update && !ss.update; // set up and in use: the steps can wait in a fold
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
     <p class="muted">${r.person ? `It belongs to <b>${esc(r.person)}</b>. ` : ""}HomeOwl knows this device.</p>
+    ${myStatus(mine, r)}${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
     ${wifi.length && pf !== "ios" && pf !== "mac" ? `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>` : ""}
-    ${setup}
+    ${settled && setup ? `<details class="hi-again-setup"><summary>Set up this device again</summary>${setup}</details>` : setup}
     <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
   if ($("#hi-wifi")) homeWiFi();
 }
+
+// ---- "my device" (myhome.go): is it OK, how it's connected, what was blocked on it
+const agoS = t => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+function myStatus(mine, r) {
+  const ss = mine.setup || {};
+  const [ok, title, note] = {
+    active: [true, "All good", `Protected and recognised by name${ss.where === "away" ? " (away from home right now)" : ""}.`],
+    quiet: [true, "All good", `Set up. Not used in the last day${ss.last_seen ? ` (last ${agoS(ss.last_seen)})` : ""}.`],
+    stopped: [false, "Protection stopped", "It worked, then stopped — the profile was probably removed. Install it again below."],
+    not_seen: [false, "Not installed yet", "The profile was downloaded but isn't in use. Finish installing it below."],
+    offered: [false, "Not set up yet", "Set it up below so it's protected and recognised by name everywhere."],
+  }[ss.state] || [null, "", ""];
+  const upd = r.update || ss.update;
+  if (ok === null && !upd) return "";
+  const good = ok && !upd;
+  return `<div class="hi-stat ${good ? "good" : "warn"}"><span class="hi-stat-ic" aria-hidden="true">${good ? "✓" : "!"}</span>
+    <div><b>${esc(upd && ok !== false ? "Update ready" : title)}</b><div class="fine">${esc(upd && ok !== false ? "Its settings changed. Install the profile again below — it replaces the old one." : note)}</div></div></div>`;
+}
+function myConnection(c) {
+  if (!c) return "";
+  const i = c.internet || {}, mb = v => v >= 1 ? Math.round(v) : v ? v.toFixed(1) : "";
+  const net = i.status ? `<div class="hi-row"><span>Internet</span><b class="${i.status === "ok" ? "good-t" : "bad-t"}">${i.status === "ok" ? "Working" : "Having trouble"}</b>
+    <span class="fine muted">${[i.latency ? `${i.latency} ms` : "", i.xput_down ? `↓ ${mb(i.xput_down)} ↑ ${mb(i.xput_up)} Mbps` : "", i.speedtest_lastrun ? `tested ${agoS(i.speedtest_lastrun)}` : ""].filter(Boolean).join(" · ")}</span></div>` : "";
+  const q = { great: ["Great", "good-t"], good: ["Good", "good-t"], weak: ["Weak", "warn-t"], poor: ["Poor", "bad-t"] }[c.quality];
+  const link = c.wired ? `<div class="hi-row"><span>Connection</span><b>Wired</b><span class="fine muted">${esc(c.network || "")}</span></div>`
+    : `<div class="hi-row"><span>Wi-Fi</span><b>${esc(c.ssid || "–")}</b><span class="fine muted">${[c.band, c.ap ? `via ${c.ap}` : ""].filter(Boolean).map(esc).join(" · ")}</span></div>
+      ${q ? `<div class="hi-row"><span>Signal</span><b class="${q[1]}">${q[0]}</b><span class="fine muted">${c.signal} dBm${c.rate ? ` · ${Math.round(c.rate / 1000)} Mbps link` : ""}</span></div>` : ""}
+      ${c.quality === "weak" || c.quality === "poor" ? `<p class="fine">Weak signal: move closer to an access point${c.ap ? ` (it's on ${esc(c.ap)})` : ""}, or turn Wi-Fi off and on to pick a nearer one.</p>` : ""}`;
+  return `<div class="hi-sect"><h3>Right now</h3>${link}${net}</div>`;
+}
+const ASKED = { pending: ["asked · waiting", ""], allowed: ["allowed", "good-t"], denied: ["not allowed", "bad-t"], removed: ["allowed for a while, then blocked again", "muted"] };
+function myBlocked(mine) {
+  if (!mine.can_request) return "";
+  const bl = mine.blocked || [], reqs = mine.requests || [];
+  const row = b => `<div class="hi-bl"><div><b>${esc(b.domain)}</b><div class="fine muted">${[b.reasons ? `blocked by ${b.reasons}` : "blocked", `${b.n}×`, agoS(b.last)].map(esc).join(" · ")}</div></div>
+    ${b.asked && ASKED[b.asked] && b.asked !== "removed" ? `<span class="fine ${ASKED[b.asked][1]}">${ASKED[b.asked][0]}</span>` : `<button class="btn sm" type="button" data-hiask="${esc(b.domain)}">Ask to allow</button>`}</div>`;
+  return `<div class="hi-sect"><h3>Blocked on this device</h3>
+    ${bl.length ? `<p class="fine muted">Sites NextDNS stopped in the last day. Something you need? Ask, and an admin decides.</p>${bl.map(row).join("")}` : `<p class="fine muted">Nothing blocked in the last day.</p>`}
+    <form class="hi-ask-other" id="hi-ask-form"><input id="hi-ask-domain" placeholder="Another site, e.g. example.com" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Site to ask for"><button class="btn sm" type="submit">Ask</button></form>
+    ${reqs.length ? `<p class="fine" style="margin:12px 0 4px"><b>Your requests</b></p>${reqs.map(q => `<div class="hi-req"><span>${esc(q.domain)}</span><span class="fine ${ASKED[q.status]?.[1] || ""}">${esc(ASKED[q.status]?.[0] || q.status)}</span></div>`).join("")}` : ""}</div>`;
+}
+async function askSite(domain, note) {
+  const r = await fetch("/api/hi/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ domain, note }), cache: "no-store" });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `Something went wrong (HTTP ${r.status})`);
+  const st = await call("GET"); if (st.mine && $("#hi-blocked")) $("#hi-blocked").innerHTML = myBlocked(st.mine);
+}
+// "Ask to allow": a short reason, then send
+function askForm(domain, el) {
+  const row = el.closest(".hi-bl"); el.remove();
+  row.insertAdjacentHTML("afterend", `<form class="hi-ask" data-hidomain="${esc(domain)}"><input name="note" maxlength="200" placeholder="Why do you need it? (optional)" aria-label="Why you need ${esc(domain)}"><button class="btn sm primary" type="submit">Ask</button></form>`);
+  document.querySelector(`form.hi-ask[data-hidomain="${CSS.escape(domain)}"] input`)?.focus();
+}
+document.addEventListener("click", e => { const b = e.target.closest("[data-hiask]"); if (b) askForm(b.dataset.hiask, b); });
+document.addEventListener("submit", async e => {
+  const f = e.target.closest("form.hi-ask, #hi-ask-form"); if (!f) return;
+  e.preventDefault();
+  const domain = f.id === "hi-ask-form" ? $("#hi-ask-domain").value : f.dataset.hidomain, note = f.id === "hi-ask-form" ? "" : f.note.value;
+  const btn = f.querySelector("button"); btn.disabled = true;
+  try { await askSite(domain, note); }
+  catch (err) { btn.disabled = false; let m = f.querySelector(".hi-ask-err"); if (!m) { m = document.createElement("p"); m.className = "fine bad-t hi-ask-err"; f.after(m); } m.textContent = err.message; }
+});
 
 // Android, Windows and the rest take no profile: the home Wi-Fi's name and password to join by hand (or scan from
 // another phone), and the setup Wi-Fi to forget

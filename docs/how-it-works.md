@@ -110,6 +110,24 @@ app (or unifi.ui.com), open Client Devices, show the Blocked ones, open the devi
 again it sees the device connected and counts it as approved. A stopped HomeOwl blocks nothing new. Settings › Device
 profiles has these steps too, with a page to print and keep by the router.
 
+## The device's own page (and asking for a blocked site)
+
+Once a device is approved, its check-in page (the **HomeOwl** icon its setup profile puts on the Home Screen) becomes
+that device's own page. There's no sign-in: HomeOwl recognises the device by its address on the home network, so the
+page shows that device and nothing about anyone else's:
+
+- **Is it OK?** Protected and in use, an update to install, or the setup stopped (with the steps to fix it).
+- **Right now.** The Wi-Fi and access point it's on, the signal (with a tip when it's weak), and whether the internet
+  works, with the console's last speed test.
+- **Blocked on this device.** What NextDNS blocked under the device's name in the last day, and why. **Ask to allow**
+  (with an optional reason), or type another site. At most five requests wait per device.
+
+A request shows up on **Home › Today** and in **Home › Alerts** with **Allow** and **Deny**, and on
+**Devices › New devices** under *Site requests*. With ntfy set up, the push has Allow and Deny buttons that work the
+same way as the new-device ones (a signed one-time token posted to the private reply topic). Allowing puts the site
+on the **allowlist of the device's NextDNS profile**, so it's allowed for everyone using that profile, and it's
+logged in **History › Changes**. *Stop allowing* takes it off again. The device's page shows each answer.
+
 ## The setup Wi-Fi's network
 
 HomeOwl can create the setup Wi-Fi for you (Settings › Device profiles): a network on its own VLAN and a Wi-Fi on it

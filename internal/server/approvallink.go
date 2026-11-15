@@ -50,7 +50,7 @@ func linkSig(key []byte, payload string) string {
 	return base64.RawURLEncoding.EncodeToString(m.Sum(nil))
 }
 
-// approvalToken: op ("approve" or "block") for mac, until exp.
+// approvalToken: op ("approve" or "block") for mac — or ("allow" or "deny") for a site request's id — until exp.
 func (a *App) approvalToken(op, mac string, exp time.Time) string {
 	key := a.linkKey()
 	if key == nil {
@@ -76,7 +76,7 @@ func (a *App) checkToken(t string) (op, mac, sig string, exp int64, err error) {
 	if time.Now().Unix() > exp {
 		return "", "", "", 0, errors.New("that decision came after its two days — open HomeOwl to decide")
 	}
-	if (f[0] != "approve" && f[0] != "block") || !macRE.MatchString(f[1]) {
+	if !((f[0] == "approve" || f[0] == "block") && macRE.MatchString(f[1]) || (f[0] == "allow" || f[0] == "deny") && reqIDRE.MatchString(f[1])) {
 		return "", "", "", 0, errors.New("not a valid decision")
 	}
 	return f[0], f[1], sig, exp, nil
@@ -98,6 +98,14 @@ func (a *App) replyTopic() string {
 // pushActions: the buttons for a new-device push.
 func (a *App) pushActions(al alerts.Alert) []alerts.PushAction {
 	mac, _ := al.Data["mac"].(string)
+	if id, _ := al.Data["request"].(string); al.Kind == "site_request" && id != "" {
+		reply := a.replyTopic()
+		if reply == "" {
+			return nil
+		}
+		exp := time.Now().Add(linkTTL)
+		return []alerts.PushAction{{Label: "Allow", URL: reply, Body: a.approvalToken("allow", id, exp)}, {Label: "Deny", URL: reply, Body: a.approvalToken("deny", id, exp)}}
+	}
 	if al.Kind != "approval" || mac == "" || !a.Cfg.Get().Onboard.Approve {
 		return nil
 	}
@@ -130,6 +138,20 @@ func (a *App) useDecision(t string) error {
 		return errors.New("already done")
 	}
 	name := mac
+	if op == "allow" || op == "deny" {
+		st.Used[sig] = exp
+		_ = s.save(st)
+		s.mu.Unlock()
+		r, err := a.decideRequest(mac, op, "push")
+		what := orStr(r.Domain, "the site")
+		if err != nil {
+			a.Alerts.Add(alerts.Alert{Kind: "approval_done", Level: "warn", Title: "Couldn't " + op + " " + what, Body: err.Error()})
+			return err
+		}
+		a.Alerts.Add(alerts.Alert{Kind: "approval_done", Title: map[string]string{"allow": "✓ " + what + " allowed", "deny": what + " stays blocked"}[op],
+			Body: "For " + r.Device + ". Decided from a phone notification."})
+		return nil
+	}
 	for _, d := range []pendingDevice{st.Grace[mac], st.Blocked[mac]} {
 		if d.MAC != "" {
 			name = orStr(d.Name, orStr(d.Hostname, mac))
@@ -157,7 +179,7 @@ func (a *App) replyLoop(ctx context.Context) {
 	since := "10m"
 	for {
 		wait := time.Minute
-		if topic := a.replyTopic(); topic != "" && a.Cfg.Get().Onboard.Approve {
+		if topic := a.replyTopic(); topic != "" && (a.Cfg.Get().Onboard.Approve || a.requests.pending() > 0) {
 			last, err := listenReplies(ctx, topic, since, a.useDecisionLogged)
 			if last != "" {
 				since = last

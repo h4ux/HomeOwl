@@ -858,3 +858,21 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 #cl-issue{max-width:420px}
 .ap-grace{display:flex;gap:6px 12px;align-items:flex-end;flex-wrap:wrap;margin:8px 0}.ap-grace label{margin:0}.ap-grace select{width:auto}
 .al-ntfy-row{display:flex;gap:8px;align-items:center;margin-top:5px}.al-ntfy-row input{flex:1;margin:0}.al-ntfy-row .btn{white-space:nowrap}
+/* the check-in page for an approved device (myhome.go) */
+.hi-stat{display:flex;gap:12px;align-items:center;margin:14px 0;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel2)}
+.hi-stat-ic{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:18px;color:#fff;background:var(--ok)}
+.hi-stat.warn .hi-stat-ic{background:var(--med)}
+.hi-stat b{font-size:16px}
+.hi-sect{margin:16px 0;padding-top:12px;border-top:1px solid var(--line)}
+.hi-sect h3{margin:0 0 8px;font-size:15px}
+.hi-row{display:grid;grid-template-columns:90px auto 1fr;gap:4px 10px;align-items:baseline;margin:5px 0}
+.hi-row>span:first-child{color:var(--muted);font-size:13px}.hi-row .fine{min-width:0;overflow-wrap:anywhere}
+.hi-bl{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
+.hi-bl>div{min-width:0;overflow-wrap:anywhere}.hi-bl .btn{flex:none}
+.hi-ask,.hi-ask-other{display:flex;gap:8px;align-items:center;margin:8px 0 0}
+.hi-ask input,.hi-ask-other input{flex:1;min-width:0;margin:0}.hi-ask .btn,.hi-ask-other .btn{flex:none}
+.hi-ask{padding:0 0 10px;border-bottom:1px solid var(--line)}
+.connect-card .hi-ask .btn.primary{width:auto;padding:6px 16px}.connect-card form.hi-ask,.connect-card form.hi-ask-other{margin-top:8px}
+.hi-req{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:13px}
+.hi-again-setup{margin:16px 0}.hi-again-setup>summary{cursor:pointer;color:var(--accent);font-size:14px}
+@media (max-width:420px){.hi-row{grid-template-columns:80px 1fr}.hi-row .fine{grid-column:2}}

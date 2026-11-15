@@ -63,6 +63,13 @@ func (a *App) alertsView(admin bool) map[string]any {
 	if admin {
 		out["attention"] = a.setupAttention()      // device setups that stopped: Home lists them
 		out["duplicates"] = a.duplicateAttention() // the same device checked in twice (merge.go)
+		reqs := []SiteRequest{}
+		for _, r := range a.requests.List() {
+			if r.Status == "pending" {
+				reqs = append(reqs, r)
+			}
+		}
+		out["requests"] = reqs // blocked sites family members asked for (myhome.go)
 		c := a.Cfg.Get()
 		a.mu.Lock()
 		e := a.alertErr

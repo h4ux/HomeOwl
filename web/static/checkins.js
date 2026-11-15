@@ -69,6 +69,7 @@ async function loadCheckins() {
   } catch (err) { $("#ci-body").innerHTML = `<div class="empty bad-t">${esc(err.message)}</div>`; return; }
   renderCheckinBadge(S.checkins.items.filter(x => x.status === "pending").length);
   if ($("#ci-body")) $("#ci-body").innerHTML = checkinsBody(S.checkins);
+  loadSiteReqs();
 }
 function renderCheckinBadge(n) { const b = $("#nav-checkins"); if (b) { b.textContent = n || ""; b.classList.toggle("alert", !!n); } }
 
@@ -94,6 +95,7 @@ function checkinsBody(c) {
         <div class="fine">Now called <b>${esc(x.seen || "unnamed")}</b>${x.vendor ? ` · ${esc(x.vendor)}` : ""} · <span class="mono">${esc(x.mac)}</span> · ${esc(x.ip)}${x.network ? ` · ${esc(x.network)}` : ""} · ${ago(x.time * 1000)}</div></div>
       <div class="btnrow"><button class="btn sm primary" data-ciok="${esc(x.id)}">Approve…</button><button class="btn sm" data-cino="${esc(x.id)}">Reject</button></div></div>`).join("");
   return `${pend.length ? rows : `<div class="card"><p class="muted" style="margin:0">Nothing waiting. New check-ins show up here (and as a number in the menu).</p></div>`}
+    <div id="ci-reqs">${siteReqCard(S.siteReqs)}</div>
     ${setupCard(c)}
     ${how}
     ${past.length ? `<div class="card section"><h2>Recently decided</h2>${table("ci-past", [

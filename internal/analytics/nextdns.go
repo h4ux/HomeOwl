@@ -641,3 +641,71 @@ func (e *Engine) NDDenyRemove(profile, domain string) error {
 	_, err := e.ndSend("DELETE", "/profiles/"+profile+"/denylist/"+url.PathEscape(domain), nil, e.NDSlotFor(profile))
 	return err
 }
+
+// ---- a profile's allowlist (a family member asked for a blocked site, and an admin allowed it)
+
+// NDAllowAdd puts a domain on a profile's allowlist; NDAllowRemove takes it off.
+func (e *Engine) NDAllowAdd(profile, domain string) error {
+	if err := ndProfileOK(profile); err != nil {
+		return err
+	}
+	_, err := e.ndSend("POST", "/profiles/"+profile+"/allowlist", NDDeny{ID: domain, Active: true}, e.NDSlotFor(profile))
+	return err
+}
+
+func (e *Engine) NDAllowRemove(profile, domain string) error {
+	if err := ndProfileOK(profile); err != nil {
+		return err
+	}
+	_, err := e.ndSend("DELETE", "/profiles/"+profile+"/allowlist/"+url.PathEscape(domain), nil, e.NDSlotFor(profile))
+	return err
+}
+
+// NDBlocked: a domain NextDNS blocked for one device, and why.
+type NDBlocked struct {
+	Domain  string    `json:"domain"`
+	Reasons string    `json:"reasons"`
+	N       int       `json:"n"`
+	Last    time.Time `json:"last"`
+}
+
+// NDDeviceBlocked lists what was blocked under a device's name in its profiles since a time, the latest first.
+func (e *Engine) NDDeviceBlocked(profiles []string, name string, since time.Time, limit int) ([]NDBlocked, error) {
+	if e.db == nil {
+		return nil, errors.New("analytics isn't running")
+	}
+	if len(profiles) == 0 || name == "" {
+		return nil, nil
+	}
+	ph := strings.TrimSuffix(strings.Repeat("?,", len(profiles)), ",")
+	args := []any{}
+	for _, p := range profiles {
+		args = append(args, p)
+	}
+	args = append(args, name, since.UTC(), limit)
+	rows, err := e.db.Query(`SELECT domain, coalesce(arg_max(reasons, ts), ''), count(*), max(ts) FROM dns_queries
+		WHERE profile_id IN (`+ph+`) AND device_name = ? AND status = 'blocked' AND ts >= ? AND domain IS NOT NULL
+		GROUP BY domain ORDER BY max(ts) DESC LIMIT ?`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []NDBlocked
+	for rows.Next() {
+		var b NDBlocked
+		if err := rows.Scan(&b.Domain, &b.Reasons, &b.N, &b.Last); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// NDProfileName: the name NextDNS gives a profile, or "".
+func (e *Engine) NDProfileName(id string) string {
+	n := ""
+	if e.db != nil {
+		_ = e.db.QueryRow("SELECT coalesce(name,'') FROM nextdns_profiles WHERE id = ?", id).Scan(&n)
+	}
+	return n
+}

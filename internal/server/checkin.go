@@ -365,6 +365,7 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		if x, ok := a.checkins.Registered(mac); ok {
 			res["registered"] = a.deviceSetup(x)
+			res["mine"] = a.myDevice(x, c)
 		}
 		send(w, 200, res)
 		return

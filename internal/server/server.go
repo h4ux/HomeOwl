@@ -45,7 +45,9 @@ const cookieName = "homeowl_session"
 const unifiKeySlot = "unifi-api-key"
 
 type App struct {
-	sta      staCache // who's online, shared by the check-in page and the guest portal
+	hiNet    hiNetCache    // access point names and the internet's state, for the check-in page (myhome.go)
+	requests *siteRequests // blocked sites family members asked for (myhome.go)
+	sta      staCache      // who's online, shared by the check-in page and the guest portal
 	DataDir  string
 	Cfg      *config.Store
 	Sec      *secrets.Store
@@ -124,7 +126,8 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}, appLogos: newAppLogos(dataDir),
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
-		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir), archive: newArchiveStore(dataDir)}
+		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir), archive: newArchiveStore(dataDir),
+		requests: newSiteRequests(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
@@ -482,7 +485,7 @@ func (a *App) routes() http.Handler {
 
 // The device check-in page also works over plain HTTP, so a phone can open it without a certificate warning.
 // It only shows the device itself and the family's first names, and only queues a request for an admin.
-var plainHTTPOK = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true,
+var plainHTTPOK = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/api/hi/request": true,
 	"/wifi": true, "/wifi.js": true, "/qr.js": true, "/api/wifi": true} // the guest card (Settings › Access › Easy names)
 
 // guard applies the Host check and sends plain-HTTP visitors from other devices to HTTPS.

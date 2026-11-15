@@ -47,6 +47,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.welcomeAPI(w, r)
 		return
 	}
+	if p == "hi/request" { // an approved device asks for a blocked site (myhome.go)
+		a.hiRequest(w, r)
+		return
+	}
 	if p == "hi/wifi" { // the home Wi-Fi for an approved Android or Windows device (onboard.go)
 		a.hiWiFi(w, r)
 		return
@@ -421,6 +425,12 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.issueAPI("check", body, remoteIP(r), by)
 	case p == "device-issue/fix":
 		res, err = a.issueAPI("fix", body, remoteIP(r), by)
+	case p == "site-requests":
+		res = a.requestsView()
+	case p == "site-requests/decide":
+		if _, err = a.decideRequest(s(body, "id"), s(body, "op"), by); err == nil {
+			res = a.requestsView()
+		}
 	case p == "checkins/merge-dismiss":
 		var ids []string
 		if l, ok := body["ids"].([]any); ok {

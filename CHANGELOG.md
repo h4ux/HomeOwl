@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.83] — 2026-11-15
+
+- The device's own page. Once a device is approved, its check-in page (the HomeOwl icon on the Home Screen) shows:
+  whether the device is OK (protected and in use, an update ready, or setup stopped); its connection right now
+  (Wi-Fi, access point, signal with a tip when it's weak, and whether the internet works, with the last speed test);
+  and what NextDNS blocked on it in the last day. The setup steps fold away once the device is set up and in use.
+- Ask for a blocked site. From that page, "Ask to allow" (with an optional reason) sends a request; it shows on
+  Today, in Alerts and on Devices › New devices with Allow / Deny — and as ntfy push buttons. Allowing puts the site
+  on the allowlist of the device's NextDNS profile (logged in History › Changes); "Stop allowing" takes it off.
+
 ## [0.1.82] — 2026-11-15
 
 - Device issues: a fix that UniFi applied was reported as "UniFi refused the fix" — the console answers a new
