@@ -195,3 +195,10 @@ VLAN), tick them and **Scan the network now** tries Tuya's port on each address 
 **Devices › All devices**, opening a device offers **It's a Tuya device**, so the scan looks for it at its address.
 Devices found are matched to their UniFi client by address.
 
+**When a network stays silent.** An IoT network is usually closed off by the firewall, so HomeOwl's computer can't
+reach port 6668 there and the scan finds nothing. The scan result then says so for that network and offers **Preview
+the fix**: one narrow rule that lets HomeOwl's network reach TCP 6668 on that network and nothing else (a zone-based
+policy on UniFi Network 9+, a LAN In rule with a port group on classic firewalls). You see the change first, it is
+applied only when you click **Allow it**, it shows in **History › Changes** and can be undone there. HomeOwl scans
+again right after. Broadcasts don't cross networks, so devices elsewhere are found by their port, not by announcing.
+

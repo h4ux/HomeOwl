@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -53,6 +54,7 @@ type tuyaStore struct {
 	Synced  int64        `json:"synced,omitempty"`
 	Error   string       `json:"error,omitempty"`
 	Scanned int64        `json:"scanned,omitempty"`
+	Nets    []string     `json:"nets,omitempty"` // the networks the last scan tried
 }
 
 func newTuyaStore(dir string) *tuyaStore {
@@ -298,7 +300,7 @@ func (a *App) tuyaScan(ctx context.Context, nets []string) ([]tuya.Found, error)
 			s.Devices = append(s.Devices, tuyaDev{Device: tuya.Device{ID: f.ID, Name: "Tuya device " + f.IP, IP: f.IP, Version: f.Version, Product: f.Product}})
 		}
 	}
-	s.Found, s.Scanned = out, time.Now().Unix()
+	s.Found, s.Scanned, s.Nets = out, time.Now().Unix(), append([]string{}, nets...)
 	s.saveLocked()
 	s.mu.Unlock()
 	a.tuyaMatchClients()
@@ -452,6 +454,7 @@ func (a *App) tuyaView(admin bool) map[string]any {
 			found = append(found, map[string]any{"ip": f.IP, "id": f.ID, "version": f.Version, "how": f.How, "mac": mac, "unifi_name": names[mac]})
 		}
 		res["found"] = found
+		res["unreached"] = a.tuyaUnreached(found)
 		res["regions"] = []string{"eu", "eu-w", "us", "us-e", "cn", "in"}
 	}
 	return res
@@ -504,9 +507,19 @@ func (a *App) tuyaAPI(ctx context.Context, op string, body map[string]any, by st
 		if err := a.tuyaSync(); err != nil {
 			return nil, err
 		}
-	case "scan":
-		nets := strList(body["networks"])
-		if len(nets) == 0 {
+	case "scan": // the networks ticked on screen (kept for next time), else the saved ones
+		nets := []string{}
+		for _, n := range strList(body["networks"]) {
+			if _, _, err := net.ParseCIDR(n); err != nil {
+				return nil, errors.New(n + " isn't a network (like 192.168.1.0/24)")
+			}
+			nets = append(nets, n)
+		}
+		if _, ok := body["networks"]; ok {
+			if err := a.Cfg.Update(func(c *config.Config) { c.Tuya.Networks = nets }); err != nil {
+				return nil, err
+			}
+		} else {
 			nets = a.Cfg.Get().Tuya.Networks
 		}
 		if _, err := a.tuyaScan(ctx, nets); err != nil {
@@ -582,6 +595,22 @@ func (a *App) tuyaAPI(ctx context.Context, op string, body map[string]any, by st
 		st.saveLocked()
 		st.mu.Unlock()
 		a.Sec.Delete(tuyaKeySlot(id))
+	case "firewall-check", "firewall-fix": // let HomeOwl reach Tuya's port on another network (an IoT VLAN)
+		view, acts, err := a.tuyaFwPlan(s(body, "network"))
+		if err != nil {
+			return nil, err
+		}
+		if op == "firewall-check" {
+			if view["fix"], err = a.fwPreview(acts, by); err != nil {
+				return nil, err
+			}
+			return view, nil
+		}
+		done, err := a.fwApply(acts, by)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"done": done}, nil
 	case "switch":
 		if err := a.tuyaSwitch(s(body, "id"), s(body, "code"), b(body, "on"), by); err != nil {
 			return nil, err
@@ -670,4 +699,120 @@ func tuyaErrText(err error, ip string) string {
 		return "It hung up: check the local key and the protocol version."
 	}
 	return m
+}
+
+// ownIPs: this computer's IPv4 addresses (swapped in tests).
+var ownIPs = func() []net.IP {
+	var out []net.IP
+	if l, err := net.InterfaceAddrs(); err == nil {
+		for _, ad := range l {
+			if n, ok := ad.(*net.IPNet); ok && n.IP.To4() != nil && !n.IP.IsLoopback() {
+				out = append(out, n.IP.To4())
+			}
+		}
+	}
+	return out
+}
+
+// homeOwlNet: the UniFi network HomeOwl's computer is on.
+func homeOwlNet(nets []issueNet) *issueNet {
+	for _, ip := range ownIPs() {
+		for i := range nets {
+			if nets[i].sn.Contains(ip) {
+				return &nets[i]
+			}
+		}
+	}
+	return nil
+}
+
+// tuyaUnreached: the networks of the last scan where nothing answered and HomeOwl sits elsewhere — most often the
+// firewall keeps HomeOwl's network from reaching them (an IoT network).
+func (a *App) tuyaUnreached(found []map[string]any) []map[string]any {
+	out := []map[string]any{}
+	s := a.tuya
+	s.mu.Lock()
+	scanned := append([]string{}, s.Nets...)
+	s.mu.Unlock()
+	if len(scanned) == 0 || !a.UniFi.Connected() {
+		return out
+	}
+	nets, err := a.issueNets()
+	if err != nil {
+		return out
+	}
+	own := homeOwlNet(nets)
+	for _, sub := range scanned {
+		_, sn, err := net.ParseCIDR(sub)
+		if err != nil || (own != nil && own.Subnet == sn.String()) {
+			continue
+		}
+		hit := false
+		for _, f := range found {
+			if ip := net.ParseIP(str(f, "ip")); ip != nil && sn.Contains(ip) {
+				hit = true
+			}
+		}
+		if hit {
+			continue
+		}
+		for _, n := range nets {
+			if n.Subnet == sn.String() {
+				out = append(out, map[string]any{"network": n.Subnet, "name": n.Name})
+			}
+		}
+	}
+	return out
+}
+
+// tuyaFwLabel: the rule's name, so it's recognisable in UniFi and HomeOwl can tell it's there.
+func tuyaFwLabel(network string) string { return unifi.FwName("HomeOwl: Tuya on " + network) }
+
+// tuyaFwPlan: one narrow firewall rule that lets HomeOwl's network reach Tuya's port (TCP 6668) on the network
+// the devices are on. Nothing else of that network opens up; it can be undone from the Changes page.
+func (a *App) tuyaFwPlan(subnet string) (map[string]any, []unifi.Action, error) {
+	if !a.UniFi.Connected() {
+		return nil, nil, errors.New("connect UniFi first")
+	}
+	nets, err := a.issueNets()
+	if err != nil {
+		return nil, nil, err
+	}
+	var dst *issueNet
+	for i := range nets {
+		if nets[i].Subnet == subnet {
+			dst = &nets[i]
+		}
+	}
+	if dst == nil {
+		return nil, nil, errors.New("that isn't one of the console's networks")
+	}
+	src := homeOwlNet(nets)
+	if src == nil {
+		return nil, nil, errors.New("couldn't tell which network HomeOwl's computer is on")
+	}
+	if src.ID == dst.ID {
+		return nil, nil, errors.New("HomeOwl is on " + dst.Name + " already, so no firewall is in between")
+	}
+	label := tuyaFwLabel(dst.Name)
+	view := map[string]any{"network": dst.Subnet, "name": dst.Name, "from": src.Name,
+		"text": "Let " + src.Name + " (where HomeOwl runs) reach Tuya's port, TCP 6668, on " + dst.Name + ". Nothing else on " + dst.Name + " opens up."}
+	desc := "Tuya: let " + src.Name + " reach Tuya devices on " + dst.Name + " (TCP 6668)"
+	zoneOf, zoned := a.fwZones()
+	if zoned {
+		sz, dz := zoneOf(src.ID), zoneOf(dst.ID)
+		if sz == nil || dz == nil {
+			return nil, nil, errors.New("couldn't find the firewall zones of " + src.Name + " and " + dst.Name)
+		}
+		if exists, err := a.fwPolicyExists("", label); err == nil && exists {
+			view["exists"] = true
+			return view, nil, nil
+		}
+		return view, []unifi.Action{{"kind": "fwpolicy", "src_zone": str(sz, "_id"), "dst_zone": str(dz, "_id"), "network_ids": []string{src.ID},
+			"ip": dst.Subnet, "protocol": "tcp", "ports": "6668", "name": label, "from": src.Name, "description": desc}}, nil
+	}
+	return view, []unifi.Action{
+		{"kind": "fwportgroup", "ports": "6668", "name": "HomeOwl Tuya port", "description": "Tuya: the port Tuya devices answer on"},
+		{"kind": "fwrule", "network_id": src.ID, "ip": dst.Subnet, "protocol": "tcp", "ports": "6668", "name": label, "from": src.Name,
+			"description": desc, "port_group": portGroupPending}}, nil
 }

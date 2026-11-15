@@ -66,7 +66,10 @@ function tuyaSettings(d) {
       ${found.length ? `<div class="ap-blocks">${found.map(f => `<div class="ap-block"><div><b>${esc(f.unifi_name || f.ip)}</b> <span class="fine muted mono">${esc(f.ip)}</span>
         <div class="fine muted">${f.id ? `Tuya ${esc(f.version || "")} · ${esc(f.id)}` : "Answers on Tuya's port"}${known.has(f.ip) ? " · added" : ""}</div></div>
         ${d.mode === "local" && !known.has(f.ip) ? `<button class="btn sm" data-tuyaadd="${esc(JSON.stringify({ ip: f.ip, id: f.id || "", version: f.version || "3.3", name: f.unifi_name || "" }))}">Add…</button>` : ""}</div>`).join("")}</div>`
-        : `<p class="fine muted">Nothing answered. Devices on another network need it ticked above, and the network must let HomeOwl reach port 6668.</p>`}` : ""}
+        : arr(d.unreached).length ? "" : `<p class="fine muted">Nothing answered. Devices on another network need it ticked above, and the network must let HomeOwl reach port 6668.</p>`}
+      ${arr(d.unreached).map(u => `<div class="msg warn tuya-fw"><div><b>Nothing on ${esc(u.name)} answered.</b> Devices on another network are only found when HomeOwl's network may reach them through the firewall,
+        and an IoT network is usually closed off. One narrow rule fixes it: HomeOwl's network may reach Tuya's port (TCP 6668) there, nothing else.</div>
+        <button class="btn sm" data-tuyafw="${esc(u.network)}">Preview the fix</button></div>`).join("")}` : ""}
   </details>`;
 }
 
@@ -103,7 +106,7 @@ document.addEventListener("click", async e => {
   const op = t.closest("[data-tuya]");
   if (op) {
     const o = op.dataset.tuya; op.disabled = true;
-    if (o === "scan") { op.textContent = "Scanning… (up to 40 s)"; await tuyaDo("scan", {}, "Scan done"); }
+    if (o === "scan") { op.textContent = "Scanning… (up to 40 s)"; await tuyaDo("scan", { networks: tuyaTicked() }, "Scan done"); }
     else if (o === "forget-cloud") await tuyaDo(o, {}, "Forgotten");
     else await tuyaDo(o, {}, "Updated");
     op.disabled = false; return;
@@ -119,6 +122,7 @@ document.addEventListener("click", async e => {
     t.disabled = false; return;
   }
   if (t.id === "tuya-add") { tuyaDeviceModal({}); return; }
+  const fw = t.closest("[data-tuyafw]"); if (fw) { fw.disabled = true; await tuyaFirewall(fw.dataset.tuyafw); fw.disabled = false; return; }
   const add = t.closest("[data-tuyaadd]"); if (add) { tuyaDeviceModal(JSON.parse(add.dataset.tuyaadd)); return; }
   const ed = t.closest("[data-tuyaedit]");
   if (ed) { const x = arr(S.tuya?.devices).find(d => d.id === ed.dataset.tuyaedit); if (x) tuyaDeviceModal({ ...x, known: true }); }
@@ -135,3 +139,25 @@ document.addEventListener("click", async e => {
   try { S.tuya = await api("/api/tuya"); } catch { /* the button just won't flip */ }
   b.dataset.on = on ? "" : "1"; b.textContent = on ? "Not a Tuya device" : "It's a Tuya device";
 });
+
+const tuyaTicked = () => $$("[data-tuyanet]").filter(i => i.checked).map(i => i.dataset.tuyanet);
+
+// the firewall fix (tuya.go tuyaFwPlan): a preview first, applied only on "Allow it", undoable from Changes
+async function tuyaFirewall(network) {
+  let r; try { r = await api("/api/tuya/firewall-check", { network }); } catch (err) { toast(err.message, "err"); return; }
+  const fix = arr(r.fix);
+  openModal({ title: `Let HomeOwl reach ${r.name}`, body: r.exists
+      ? `<p>HomeOwl's rule for ${esc(r.name)} is already there (UniFi › Settings › Policy Engine), so the firewall isn't what stops it. Check the devices are on, and that they're Tuya (Smart Life) devices.</p>`
+      : `<p>${esc(r.text)}</p>${fix.map(p => `<div class="pv"><div class="pv-h"><b>${esc(p.description)}</b></div>
+        <div>${Object.entries(p.after || {}).map(([k, v]) => `<div><span class="fine muted">${esc(k)}</span> ${esc(fmtVal(v))}</div>`).join("")}</div>
+        <div class="fine mono">${esc(p.method)} ${esc(p.path)}</div></div>`).join("")}
+      <p class="fine">↩ Can be undone from the Changes page.${S.write ? "" : " Change mode is locked — allowing it unlocks it for this session."}</p>`,
+    buttons: [{ label: "Close" }, ...(fix.length ? [{ label: "Allow it", cls: "primary", onClick: async () => {
+      try {
+        if (!S.write) await setWrite(true);
+        await api("/api/tuya/firewall-fix", { network });
+        closeModal(); toast("Allowed — scanning again", "ok");
+        await tuyaDo("scan", { networks: tuyaTicked() }, "Scan done");
+      } catch (err) { toast(err.message, "err"); }
+    } }] : [])] });
+}

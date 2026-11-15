@@ -204,20 +204,7 @@ func (a *App) issuePlan(mac, issueID string, from []string, viewer string) (map[
 		return view, nil, nil
 	}
 	// the firewall: zone-based (Network 9+) or classic
-	zst, zd := a.UniFi.Get(a.UniFi.SitePath("firewall/zone", true))
-	zones := unifi.List(zd)
-	zoneOf := func(netID string) map[string]any {
-		for _, z := range zones {
-			if l, ok := z["network_ids"].([]any); ok {
-				for _, x := range l {
-					if x == netID {
-						return z
-					}
-				}
-			}
-		}
-		return nil
-	}
+	zoneOf, zoned := a.fwZones()
 	label := FwLabel(is, name)
 	var acts []unifi.Action
 	fromNames := func(ns []issueNet) string {
@@ -232,7 +219,7 @@ func (a *App) issuePlan(mac, issueID string, from []string, viewer string) (map[
 		pickedList = append(pickedList, n)
 	}
 	sort.Slice(pickedList, func(i, j int) bool { return pickedList[i].Name < pickedList[j].Name })
-	if zst == 200 && len(zones) > 0 {
+	if zoned {
 		dz := zoneOf(dev.ID)
 		if dz == nil {
 			return nil, nil, errors.New(dev.Name + " isn't in a firewall zone")
@@ -322,6 +309,71 @@ func (a *App) fwPolicyExists(ip, name string) (bool, error) {
 	return false, nil
 }
 
+// fwZones: the console's firewall zones by network (zoned false: a classic firewall).
+func (a *App) fwZones() (zoneOf func(netID string) map[string]any, zoned bool) {
+	st, d := a.UniFi.Get(a.UniFi.SitePath("firewall/zone", true))
+	zones := unifi.List(d)
+	return func(netID string) map[string]any {
+		for _, z := range zones {
+			if l, ok := z["network_ids"].([]any); ok {
+				for _, x := range l {
+					if x == netID {
+						return z
+					}
+				}
+			}
+		}
+		return nil
+	}, st == 200 && len(zones) > 0
+}
+
+// fwPreview: what each firewall action would do, without doing it.
+func (a *App) fwPreview(acts []unifi.Action, by string) ([]any, error) {
+	var pv []any
+	for _, x := range acts {
+		p, err := a.Changes.Run(a.UniFi, x, true, by, false)
+		if err != nil {
+			return nil, err
+		}
+		pv = append(pv, p["preview"])
+	}
+	return pv, nil
+}
+
+// fwApply runs a firewall fix (a classic port group first, then the rules that use it), each one logged and undoable.
+func (a *App) fwApply(acts []unifi.Action, by string) ([]any, error) {
+	if len(acts) == 0 {
+		return nil, errors.New("nothing to fix")
+	}
+	group := ""
+	var done []any
+	for _, x := range acts {
+		if x["port_group"] == portGroupPending {
+			x["port_group"] = group
+		}
+		res, err := a.Changes.Run(a.UniFi, x, false, by, true)
+		if err == nil {
+			if ch, ok := res["result"].(unifi.Change); ok {
+				if !ch.OK {
+					err = errors.New(ch.Error)
+				} else {
+					done = append(done, ch)
+					if x["kind"] == "fwportgroup" {
+						group = ch.Created
+					}
+				}
+			}
+		}
+		if err != nil {
+			if len(done) > 0 {
+				return nil, errors.New("UniFi refused part of the fix (" + err.Error() + "); what was added is in the change log, where it can be undone")
+			}
+			return nil, errors.New("UniFi refused the fix: " + err.Error())
+		}
+	}
+	return done, nil
+}
+
 // issueAPI: "check" (diagnosis + preview of the fix) and "fix" (apply it, change mode unlocked like any UI change).
 func (a *App) issueAPI(op string, body map[string]any, viewer, by string) (map[string]any, error) {
 	var from []string
@@ -339,45 +391,16 @@ func (a *App) issueAPI(op string, body map[string]any, viewer, by string) (map[s
 	}
 	switch op {
 	case "check":
-		var pv []any
-		for _, x := range acts {
-			p, err := a.Changes.Run(a.UniFi, x, true, by, false)
-			if err != nil {
-				return nil, err
-			}
-			pv = append(pv, p["preview"])
+		pv, err := a.fwPreview(acts, by)
+		if err != nil {
+			return nil, err
 		}
 		view["fix"] = pv
 		return view, nil
 	case "fix":
-		if len(acts) == 0 {
-			return nil, errors.New("nothing to fix")
-		}
-		group := ""
-		var done []any
-		for _, x := range acts {
-			if x["port_group"] == portGroupPending {
-				x["port_group"] = group
-			}
-			res, err := a.Changes.Run(a.UniFi, x, false, by, true)
-			if err == nil {
-				if ch, ok := res["result"].(unifi.Change); ok {
-					if !ch.OK {
-						err = errors.New(ch.Error)
-					} else {
-						done = append(done, ch)
-						if x["kind"] == "fwportgroup" {
-							group = ch.Created
-						}
-					}
-				}
-			}
-			if err != nil {
-				if len(done) > 0 {
-					return nil, errors.New("UniFi refused part of the fix (" + err.Error() + "); what was added is in the change log, where it can be undone")
-				}
-				return nil, errors.New("UniFi refused the fix: " + err.Error())
-			}
+		done, err := a.fwApply(acts, by)
+		if err != nil {
+			return nil, err
 		}
 		time.Sleep(1500 * time.Millisecond) // the console applies it in a moment
 		is, _ := issueByID(s(body, "issue"))

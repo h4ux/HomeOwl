@@ -42,11 +42,19 @@ func (a Action) strs(k string) []string {
 	return out
 }
 
-// fwTarget checks the common parts: one private IPv4 address, the protocol, the ports ("" = any).
+// fwTarget checks the common parts: one private IPv4 address (or a home network, /16 to /30, such as an IoT
+// network HomeOwl must reach), the protocol, the ports ("" = any).
 func fwTarget(a Action) (ip, proto, ports string, err error) {
-	v4 := net.ParseIP(a.s("ip")).To4()
-	if v4 == nil || !v4.IsPrivate() {
+	ip = a.s("ip")
+	if _, sn, e := net.ParseCIDR(ip); e == nil {
+		ones, bits := sn.Mask.Size()
+		if sn.IP.To4() == nil || !sn.IP.IsPrivate() || bits != 32 || ones < 16 || ones > 30 || sn.String() != ip {
+			return "", "", "", aerr("the network needs to be a home network like 192.168.20.0/24")
+		}
+	} else if v4 := net.ParseIP(ip).To4(); v4 == nil || !v4.IsPrivate() {
 		return "", "", "", aerr("the device needs a home-network IPv4 address")
+	} else {
+		ip = v4.String()
 	}
 	proto, ports = a.s("protocol"), a.s("ports")
 	if !fwProtos[proto] {
@@ -55,7 +63,7 @@ func fwTarget(a Action) (ip, proto, ports string, err error) {
 	if ports != "" && (!portsRE.MatchString(ports) || proto == "all") {
 		return "", "", "", aerr("bad ports %q", ports)
 	}
-	return v4.String(), proto, ports, nil
+	return ip, proto, ports, nil
 }
 
 func fwWhat(proto, ports string) string {

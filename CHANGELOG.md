@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.93] — 2026-11-15
+
+### Added
+- **Smart › Tuya: reach an IoT network.** When a scanned network answers nothing and HomeOwl runs on another one, the
+  scan result says the firewall most likely closes it off and offers **Preview the fix**: one narrow rule letting
+  HomeOwl's network reach Tuya's port (TCP 6668) there, nothing else. Previewed first, applied on **Allow it**, logged
+  in History › Changes and undoable; HomeOwl scans again right after.
+
+### Fixed
+- **Scan the network now** scans the networks ticked on screen (and keeps them), not only the last saved ones.
+
 ## [0.1.92] — 2026-11-15
 
 ### Added
