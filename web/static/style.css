@@ -634,6 +634,8 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .dp-chip{display:inline-flex;align-items:center;gap:6px;padding:3px 3px 3px 8px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);font-size:13px}
 .dp-chip .x,.pr-tag .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 6px;border-radius:50%}
 .dp-chip .x:hover{color:var(--crit)}
+.dp-chip.old{opacity:.75;border-style:dashed}.dp-chip .dp-n{font-size:11px;color:var(--muted);font-weight:600}
+.dp-old{margin-top:8px}.dp-old>summary{cursor:pointer;font-size:13px;padding:4px 0}.dp-old .dp-sel{margin-top:6px}
 .dp-sug{margin-top:12px;border:1px solid var(--accent);border-radius:10px;padding:4px 10px;background:color-mix(in srgb,var(--accent) 6%,transparent)}
 .dp-h{display:flex;align-items:center;justify-content:space-between;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:6px 0}
 .dp-q{margin-top:12px;width:100%}

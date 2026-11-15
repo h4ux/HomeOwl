@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.85] — 2026-11-15
+
+- People & groups: a person's devices show only the active ones (online or seen in the last two weeks). Older
+  devices fold into "N older devices", still counted in Analytics and reports. The same device under several
+  spellings ("Alex's iPhone 15", "alex-iphone-15") is one chip (×2, all names on hover; × removes them together).
+  Suggestions offer only active devices and say when one is "another name for" a device already picked; the list
+  below no longer repeats picked devices, and older ones are found by searching.
+
 ## [0.1.84] — 2026-11-15
 
 - Menu: "Smart home" is now "Smart", so it fits on one line in the sidebar.
