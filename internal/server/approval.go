@@ -122,12 +122,17 @@ func (a *App) approvalTick(online []map[string]any) {
 	}
 	var block []map[string]any
 	var unblocked []string
+	var settle []CheckIn
 	for _, c := range online {
 		mac := strings.ToLower(str(c, "mac"))
 		if mac == "" || !a.gated(c) || st.Approved[mac] > 0 {
 			continue
 		}
 		if d, done := st.Blocked[mac]; done {
+			if x, ok := a.checkins.Registered(mac); ok && x.Time > d.At { // checked in and approved after the block
+				settle = append(settle, x)
+				continue
+			}
 			// online well after the block, so someone unblocked it in UniFi (say, while HomeOwl was down): that's an
 			// approval (right after a block, the console may still list it for a moment)
 			if c["blocked"] != true && time.Now().Unix()-d.At > 300 {
@@ -141,6 +146,10 @@ func (a *App) approvalTick(online []map[string]any) {
 			st.Approved[mac] = time.Now().Unix()
 			continue
 		}
+		if a.checkins.Waiting(mac) { // it checked in: that request is its approval (no second one, no block meanwhile)
+			delete(st.Grace, mac)
+			continue
+		}
 		if a.movingHere(str(c, "hostname")) {
 			continue
 		}
@@ -148,6 +157,11 @@ func (a *App) approvalTick(online []map[string]any) {
 	}
 	_ = s.save(st)
 	s.mu.Unlock()
+	for _, x := range settle {
+		if err := a.approvalSettle(x.MAC, x.Name, "device approval"); err != nil {
+			log.Printf("device approval: letting %s on: %v", x.Name, err)
+		}
+	}
 	for _, n := range unblocked {
 		log.Printf("device approval: %s was unblocked in UniFi, so it counts as approved", n)
 		a.Alerts.Add(alerts.Alert{Kind: "approval", Level: "info", Title: n + " was unblocked in UniFi",
@@ -250,6 +264,54 @@ func (a *App) blockForApproval(c map[string]any) {
 		Data: map[string]any{"mac": mac, "name": name}})
 }
 
+// approvalCheckedIn: the device checked in, so that request replaces its grace period's.
+func (a *App) approvalCheckedIn(mac string) {
+	s := a.approval
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.load()
+	if _, ok := st.Grace[strings.ToLower(mac)]; ok {
+		delete(st.Grace, strings.ToLower(mac))
+		_ = s.save(st)
+	}
+}
+
+// approvalSettle: an approved device (a check-in, say) is approved for device approval too: out of its grace period,
+// and unblocked if HomeOwl had blocked it.
+func (a *App) approvalSettle(mac, name, by string) error {
+	mac = strings.ToLower(mac)
+	if mac == "" {
+		return nil
+	}
+	s := a.approval
+	s.mu.Lock()
+	st := s.load()
+	_, blocked := st.Blocked[mac]
+	delete(st.Grace, mac)
+	if st.Seeded > 0 { // approval in use (or used): remember it, so it's never blocked later
+		st.Approved[mac] = time.Now().Unix()
+	}
+	err := s.save(st)
+	s.mu.Unlock()
+	if err != nil || !blocked {
+		return err
+	}
+	act := unifi.Action{"kind": "stacmd", "cmd": "unblock-sta", "mac": mac, "description": "Device approval: approved " + orStr(name, mac)}
+	res, err := a.Changes.Run(a.UniFi, act, false, by, false)
+	if err != nil {
+		return err
+	}
+	if ch, ok := res["result"].(unifi.Change); ok && !ch.OK {
+		return errors.New(ch.Error)
+	}
+	s.mu.Lock()
+	st = s.load()
+	delete(st.Blocked, mac)
+	err = s.save(st)
+	s.mu.Unlock()
+	return err
+}
+
 // approvalBlocked: is this MAC blocked by device approval (the new-device alert then says nothing more)?
 func (a *App) approvalBlocked(mac string) bool {
 	s := a.approval
@@ -320,6 +382,16 @@ func (a *App) approvalAPI(op string, body map[string]any, by string) (map[string
 		return v, nil
 	case "approve", "keep", "block":
 		mac := strings.ToLower(s(body, "mac"))
+		if x, ok := a.checkins.pendingFor(mac); ok && op == "approve" {
+			req := map[string]any{"id": x.ID}
+			if pid := s(body, "person_id"); pid != "" {
+				req["person_id"] = pid
+			}
+			if _, err := a.approveCheckIn(req, by); err != nil {
+				return nil, err
+			}
+			break
+		}
 		as := a.approval
 		as.mu.Lock()
 		st := as.load()

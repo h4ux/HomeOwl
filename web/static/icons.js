@@ -79,7 +79,7 @@ function unifiKind(d) {
 
 const CLIENT_RULES = [
   [/doorbell/, "doorbell"],
-  [/iphone|android|pixel|galaxy-?s\d|galaxy-?a\d|galaxy-?z|\bsm-[gsanf]|oneplus|redmi|poco|huawei-?p|nokia|motorola|moto-g/, "phone"],
+  [/iphone|\bphone\b|android|pixel|galaxy-?s\d|galaxy-?a\d|galaxy-?z|\bsm-[gsanf]|oneplus|redmi|poco|huawei-?p|nokia|motorola|moto-g/, "phone"],
   [/ipad|\btab\b|galaxy-?tab|kindle|fire-?hd|lenovo-?tab|tablet/, "tablet"],
   [/macbook|laptop|thinkpad|surface|notebook|chromebook|xps|zenbook|vivobook|ideapad/, "laptop"],
   [/imac|mac-?mini|macmini|mac-?studio|mac-?pro|desktop|workstation|-pc\b|\bpc-|gaming-?pc/, "desktop"],

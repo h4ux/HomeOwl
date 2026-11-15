@@ -1,5 +1,6 @@
 /* HomeOwl — device check-ins (admins): devices that introduced themselves on the "Hi HomeOwl" page wait here.
-   Approving sets the UniFi alias (allow-listed, previewed, undoable) and gives the device to a person. */
+   Approving (here, from a notification or in Devices › Grace period) names it in UniFi (allow-listed, previewed here,
+   undoable), gives it to a person and lets it on the network — one approval, server-side (checkin.go). */
 "use strict";
 
 S.checkins = null;
@@ -476,18 +477,14 @@ async function previewCheckin(x) {
       <div class="fine mono">${esc(pv.method)} ${esc(pv.path)}</div><div class="fine">↩ Can be undone from the Changes page.</div></div>` : ""}
     <p>Device <span class="mono">${esc(x.mac)}</span> → <b>${esc(who)}</b> in People${main && person !== "-" ? ", and Who's home follows it" : ""}.</p>
     ${ndp ? `<p class="fine">Its check-in page will offer a setup through NextDNS profile <b>${esc(S.ciND.profiles.find(p => p.id === ndp)?.name || ndp)}</b>, named “${esc(alias)}”.</p>` : ""}
-    ${act && !S.write ? `<p class="muted"><b>Change mode is locked</b> — approving unlocks it for this session.</p>` : ""}`,
+    <p class="fine">Approving also lets it on the network if device approval is holding it — there's nothing else to approve.</p>`,
     buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person, alias, ndp, main) }] });
 }
 async function finishCheckin(x, act, person, alias, ndp, main) {
   try {
-    if (act) {
-      if (!S.write) await setWrite(true);
-      const r = (await api("/api/action", { action: act, dry_run: false })).result;
-      if (!r.ok) throw new Error(`UniFi refused the name change: ${r.error || "unknown error"}`);
-    }
-    await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp, main });
-    closeModal(); toast("Approved", "ok"); loadCheckins();
+    const r = await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp, main });
+    closeModal(); toast(r.warning ? `Approved — ${r.warning}` : "Approved", r.warning ? "err" : "ok"); loadCheckins();
+    S.apvAt = 0;
     setTimeout(() => collectLive(true, true).catch(() => { }), 2500);
   } catch (err) { toast(err.message, "err"); }
 }
@@ -495,7 +492,7 @@ async function finishCheckin(x, act, person, alias, ndp, main) {
 document.addEventListener("click", async e => {
   const ok = e.target.closest("[data-ciok]"); if (ok) { approveCheckin(ok.dataset.ciok); return; }
   const no = e.target.closest("[data-cino]");
-  if (no) { try { S.checkins = await api("/api/checkins/reject", { id: no.dataset.cino }); toast("Rejected", "ok"); loadCheckins(); } catch (err) { toast(err.message, "err"); } return; }
+  if (no) { try { S.checkins = await api("/api/checkins/reject", { id: no.dataset.cino }); toast(S.approval?.on ? "Rejected — and blocked, so it doesn't ask again" : "Rejected", "ok"); loadCheckins(); } catch (err) { toast(err.message, "err"); } return; }
   if (e.target.id === "ci-reload") loadCheckins();
 });
 { const _render = render; render = function () { _render(); const a = $("#nav-checkins")?.closest("a"); if (a) a.hidden = S.role !== "admin" || S.source !== "live"; if (S.view === "checkins") loadCheckins(); }; }

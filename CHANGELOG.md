@@ -4,6 +4,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.95] — 2026-11-15
+
+### Fixed
+- **New devices: one approval.** A device that checks in no longer also gets a grace-period request (or a block)
+  of its own; its check-in is the request, and a grace period already running ends there.
+- **Approving does all of it, from anywhere.** On the New devices page, from the phone notification, or with Approve
+  in Devices › Grace period: the device is named in UniFi as entered on it (before, only the page set the name), given
+  to the person entered on it (the Grace tab used to drop that), and unblocked if HomeOwl had blocked it (before, it
+  stayed blocked). If UniFi refuses the name, the approval still goes through and says so.
+- **Rejecting a check-in blocks the device** when device approval is on, so it doesn't ask again as a new device.
+- **Stuck devices are let on:** a device blocked earlier whose check-in was approved afterwards is unblocked.
+- **People: device names as UniFi shows them now**, not the analytics copy that lags after a rename; names like
+  "Sam's Phone" get the phone icon.
+
 ## [0.1.94] — 2026-11-15
 
 ### Added

@@ -88,6 +88,7 @@ flowchart TD
   where -- "guest Wi-Fi, setup Wi-Fi,<br/>or a cable" --> pass["Not gated"]
   where -- "home Wi-Fi" --> known{"Approved before,<br/>or checked in?"}
   known -- yes --> ok["Stays connected"]
+  known -- "it checked in,<br/>waiting" --> wait["Online; the check-in<br/>is its one approval"]
   known -- "no" --> block["HomeOwl blocks it in UniFi<br/>(logged, undoable)"]
   block --> alert["Alert to the admins"]
   alert --> decide{"Admin"}
@@ -104,6 +105,13 @@ topic in Settings › Alerts (Generate makes a private one), each new device is 
 and **Block** buttons. A tap doesn't call HomeOwl: it posts a signed, one-time answer to a second private ntfy topic
 that HomeOwl listens to, so it works from anywhere without opening HomeOwl to the internet. Answers expire after two
 days, and HomeOwl only acts on its own.
+
+**One approval per device.** A device that checks in (its page, "This is Sam's iPhone") is waiting for that
+check-in only: it gets no grace-period alert of its own and isn't blocked meanwhile, and a grace period already
+running ends there. Approving it — on the New devices page, from the notification, or with Approve in Devices › Grace
+period — does everything at once: names it in UniFi as entered (or as the admin changed it; logged, undoable), gives
+it to the person (creating them if they're new), and unblocks it if HomeOwl had blocked it. Rejecting a check-in
+blocks the device when approval is on, so it doesn't come back asking as a new device.
 
 **If HomeOwl is down, or blocked a device by mistake:** the block lives in UniFi, so lift it there. In the UniFi
 app (or unifi.ui.com), open Client Devices, show the Blocked ones, open the device and tap Unblock. When HomeOwl runs

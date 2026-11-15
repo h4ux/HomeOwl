@@ -311,9 +311,10 @@ function ppGroups(p) {
   const meta = S.ex.meta || {}, cl = new Map(arr(meta.clients).map(c => [c.mac, c]));
   const nd = new Map(arr(meta.dns_devices).map(d => [d.profile ? `ndev|${d.profile}/${d.device}` : `dns|${d.device}`, d]));
   const online = new Set(arr(S.model?.clients).map(c => c.mac));
+  const live = mac => S.model?.clients?.find(c => c.mac === mac) || S.model?.knownByMac?.[mac];
   const items = p.devices.filter(d => d.kind !== "profile").map(d => {
     const k = `${d.kind}|${d.key}`;
-    if (d.kind === "mac") { const c = cl.get(d.key) || {}; return { k, mac: d.key, name: c.name || c.hostname || d.key, seen: dpTime(c.last_seen), online: online.has(d.key) }; }
+    if (d.kind === "mac") { const c = cl.get(d.key) || {}, u = live(d.key) || {}; return { k, mac: d.key, name: u.name || c.name || u.hostname || c.hostname || d.key, seen: dpTime(c.last_seen), online: online.has(d.key) }; }
     return { k, name: d.kind === "ndev" ? d.key.slice(d.key.indexOf("/") + 1) : d.key, nd: true, seen: dpTime(nd.get(k)?.last) };
   });
   const apart = new Set(arr(S.devLinks?.apart)), isApart = (a, b) => apart.has(a < b ? `${a}||${b}` : `${b}||${a}`);

@@ -54,7 +54,7 @@ func (a *App) checkinAlert(x CheckIn) {
 			}
 		}
 	}
-	body := "Approve it in Devices › New devices."
+	body := "Approving names it “" + x.Name + "” in UniFi and lets it on the network — one approval, here or in Devices › New devices."
 	if who != "" {
 		body = "For " + who + ". " + body
 	}

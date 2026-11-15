@@ -34,6 +34,8 @@ func checkinApp(t *testing.T) *App {
 			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[
 				{"ip":"192.168.1.40","mac":"AA:BB:CC:00:00:40","hostname":"ipad","oui":"Apple","user_id":"u40","network":"Default"},
 				{"ip":"192.168.1.60","mac":"aa:bb:cc:00:00:60","is_guest":true}]}`))
+		case strings.HasSuffix(r.URL.Path, "/cmd/stamgr"):
+			_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[]}`))
 		default:
 			http.NotFound(w, r)
 		}

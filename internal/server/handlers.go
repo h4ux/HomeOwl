@@ -486,7 +486,7 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			res = a.checkinView()
 		}
 	case p == "checkins/reject":
-		err = a.checkins.Decide(s(body, "id"), "rejected", by)
+		err = a.rejectCheckIn(s(body, "id"), by)
 		res = a.checkinView()
 	case p == "guest-wifi/pick":
 		err = a.pickGuestSSIDs(body)

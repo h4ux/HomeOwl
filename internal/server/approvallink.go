@@ -271,7 +271,7 @@ func (a *App) checkinDecision(id, op string) error {
 		return errors.New("already done")
 	}
 	if op == "ci-reject" {
-		if err := a.checkins.Decide(id, "rejected", "push"); err != nil {
+		if err := a.rejectCheckIn(id, "push"); err != nil {
 			return err
 		}
 		a.Alerts.Add(alerts.Alert{Kind: "approval_done", Title: x.Name + " rejected", Body: "Decided from a phone notification."})
@@ -287,9 +287,14 @@ func (a *App) checkinDecision(id, op string) error {
 			}
 		}
 	}
-	if _, err := a.approveCheckIn(body, "push"); err != nil {
+	res, err := a.approveCheckIn(body, "push")
+	if err != nil {
 		a.Alerts.Add(alerts.Alert{Kind: "approval_done", Level: "warn", Title: "Couldn't approve " + x.Name, Body: err.Error()})
 		return err
+	}
+	if m, _ := res.(map[string]any); m != nil && m["warning"] != nil {
+		a.Alerts.Add(alerts.Alert{Kind: "approval_done", Level: "warn", Title: x.Name + " approved, but", Body: str(m, "warning")})
+		return nil
 	}
 	a.Alerts.Add(alerts.Alert{Kind: "approval_done", Title: "✓ " + x.Name + " approved", Body: "Decided from a phone notification. Its check-in page now offers its setup."})
 	return nil

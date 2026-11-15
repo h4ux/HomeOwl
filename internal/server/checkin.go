@@ -195,6 +195,23 @@ func (c *checkins) Registered(mac string) (CheckIn, bool) {
 	return best, best.ID != ""
 }
 
+// Waiting: the device checked in and waits for an admin.
+func (c *checkins) Waiting(mac string) bool {
+	_, ok := c.pendingFor(mac)
+	return ok
+}
+
+// pendingFor is the device's waiting check-in.
+func (c *checkins) pendingFor(mac string) (CheckIn, bool) {
+	mac = strings.ToLower(mac)
+	for _, x := range c.List() {
+		if mac != "" && x.MAC == mac && x.Status == "pending" {
+			return x, true
+		}
+	}
+	return CheckIn{}, false
+}
+
 // Touch records that the device fetched its setup profile (and which NextDNS profile was in it).
 func (c *checkins) Touch(id, nd, hash string) {
 	c.Edit(id, func(x *CheckIn) {
@@ -425,6 +442,7 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		fail(w, 400, err.Error())
 		return
 	}
+	a.approvalCheckedIn(mac)
 	a.checkinAlert(x)
 	send(w, 200, map[string]any{"ok": true})
 }
@@ -445,8 +463,9 @@ func clean(v string, max int) string {
 
 // ------------------------------------------------------------------ the admin's side
 
-// approveCheckIn gives the device to the person (creating them if the device named someone new) and marks it done.
-// The UniFi alias is set by the UI through the normal allow-listed action, so it is previewed and can be undone.
+// approveCheckIn gives the device to the person (creating them if the device named someone new), names it in UniFi
+// (the allow-listed client rename: logged and undoable; the page previews it first), lets it on the network if
+// device approval holds it, and marks the check-in done — the same from the page, a notification or the Grace tab.
 func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 	x, ok := a.checkins.Get(s(body, "id"))
 	if !ok || x.Status != "pending" {
@@ -496,15 +515,84 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 	if has(body, "main") {
 		main = b(body, "main")
 	}
+	warn := ""
+	if !b(body, "keep_name") {
+		if err := a.checkinRename(x, by); err != nil {
+			warn = "UniFi didn't take the name: " + err.Error()
+			log.Printf("check-in: naming %s: %v", x.MAC, err)
+		}
+	}
 	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile, c.PersonID, c.Main = x.Name, nd, pid, main }); err != nil {
 		return nil, err
+	}
+	if err := a.approvalSettle(x.MAC, x.Name, by); err != nil {
+		warn = strings.TrimPrefix(warn+"; ", "; ") + "couldn't let it on the network: " + err.Error()
 	}
 	if main && pid != "" && x.MAC != "" { // Who's home follows the person's main device (a group is never "home")
 		if err := a.presenceTag(map[string]any{"mac": x.MAC, "person": pid}); err != nil {
 			log.Printf("check-in: %s as %s's main device: %v", x.Name, pid, err)
 		}
 	}
-	return map[string]any{"ok": true, "person_id": pid, "checkins": a.checkinView()}, nil
+	res := map[string]any{"ok": true, "person_id": pid, "checkins": a.checkinView()}
+	if warn != "" {
+		res["warning"] = warn
+	}
+	return res, nil
+}
+
+// checkinRename gives the UniFi client the name entered at check-in (or by the admin), unless it has it already.
+func (a *App) checkinRename(x CheckIn, by string) error {
+	if !a.UniFi.Connected() || x.MAC == "" || x.Name == "" {
+		return nil
+	}
+	uid, now := x.UserID, ""
+	if list, err := a.onlineClients(time.Minute); err == nil {
+		for _, c := range list {
+			if strings.EqualFold(str(c, "mac"), x.MAC) {
+				uid, now = orStr(str(c, "user_id"), uid), str(c, "name")
+			}
+		}
+	}
+	if uid == "" || now == "" {
+		if st, d := a.UniFi.Get(a.UniFi.SitePath("rest/user", false)); st == 200 {
+			for _, c := range unifi.List(d) {
+				if strings.EqualFold(str(c, "mac"), x.MAC) {
+					uid, now = orStr(uid, str(c, "_id")), str(c, "name")
+				}
+			}
+		}
+	}
+	if now == x.Name {
+		return nil
+	}
+	if uid == "" {
+		return errors.New("UniFi doesn't list it as a known client yet")
+	}
+	act := unifi.Action{"kind": "rest", "resource": "user", "id": uid, "fields": map[string]any{"name": x.Name},
+		"description": "Check-in: name " + x.MAC + " “" + x.Name + "”"}
+	res, err := a.Changes.Run(a.UniFi, act, false, by, false)
+	if err != nil {
+		return err
+	}
+	if ch, ok := res["result"].(unifi.Change); ok && !ch.OK {
+		return errors.New(ch.Error)
+	}
+	return nil
+}
+
+// rejectCheckIn closes a check-in; with device approval on, the device is blocked too (otherwise it would come
+// back as a new device asking again).
+func (a *App) rejectCheckIn(id, by string) error {
+	x, ok := a.checkins.Get(id)
+	if err := a.checkins.Decide(id, "rejected", by); err != nil {
+		return err
+	}
+	if ok && x.MAC != "" && a.Cfg.Get().Onboard.Approve && !a.approvalBlocked(x.MAC) {
+		if _, reg := a.checkins.Registered(x.MAC); !reg {
+			a.blockForApproval(map[string]any{"mac": x.MAC, "name": x.Name, "oui": x.Vendor})
+		}
+	}
+	return nil
 }
 
 // checkinLinks are the addresses of the check-in page, the nicest first (it's the one in the QR code): a name on
