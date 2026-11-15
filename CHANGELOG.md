@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.73] — 2026-11-15
+
+- Merge check-ins: a device checked in twice under the same name (it got a new Wi-Fi address after a profile
+  reinstall or a forgotten network) shows once on Home with "the same device? Merge…", instead of two "stopped using
+  its setup" lines. Merging keeps the newest (or the one you pick), marks the other "merged", moves the person and
+  device approval to the address in use, and archives the old address. Check-ins › Devices set up has Merge… for any
+  two devices.
+
 ## [0.1.72] — 2026-11-15
 
 - Check-in page: while the network looks for the device, a big "Registering this device" screen with an animation

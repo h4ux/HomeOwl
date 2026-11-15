@@ -37,7 +37,8 @@ type CheckIn struct {
 	Kind       string `json:"kind"`
 	PersonID   string `json:"person_id"`
 	PersonName string `json:"person_name"`
-	Status     string `json:"status"` // pending | approved | rejected
+	Status     string `json:"status"` // pending | approved | rejected | merged (merge.go: MergedInto is the one kept)
+	MergedInto string `json:"merged_into,omitempty"`
 	By         string `json:"by,omitempty"`
 	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
 	ProfileAt  int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile

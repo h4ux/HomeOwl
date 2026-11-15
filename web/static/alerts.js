@@ -24,7 +24,7 @@ async function loadAlerts(markRead) {
   if (alLive()) { try { S.alerts = await api("/api/alerts"); } catch (e) { S.alerts = S.alerts || { items: [], unread: 0 }; const el = $("#al-body"); if (el) el.innerHTML = `<div class="empty bad-t">${esc(e.message)}</div>`; return; } }
   else S.alerts = alFromBundle();
   alBadge(S.alerts.unread);
-  if (S.alerts.attention?.length && !loadAlerts.drawn && (S.view === "today" || S.view === "overview")) { loadAlerts.drawn = true; render(); }
+  if ((S.alerts.attention?.length || S.alerts.duplicates?.length) && !loadAlerts.drawn && (S.view === "today" || S.view === "overview")) { loadAlerts.drawn = true; render(); }
   const el = $("#al-body"); if (!el || S.view !== "alerts") return;
   let people = [];
   if (S.source === "live" && S.role === "admin" && S.alerts.items.some(a => a.kind === "new_device" && a.data?.mac)) { try { people = (await api("/api/analytics/meta", {})).people || []; } catch { /* no analytics: no "Give to" */ } }

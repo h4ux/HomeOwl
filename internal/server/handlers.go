@@ -417,6 +417,18 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = a.ndProfileChoices()
 	case p == "checkins/approve":
 		res, err = a.approveCheckIn(body, by)
+	case p == "checkins/merge":
+		var drop []string
+		if l, ok := body["drop"].([]any); ok {
+			for _, v := range l {
+				if id, _ := v.(string); id != "" {
+					drop = append(drop, id)
+				}
+			}
+		}
+		if err = a.mergeCheckins(s(body, "keep"), drop, by); err == nil {
+			res = a.checkinView()
+		}
 	case p == "checkins/reject":
 		err = a.checkins.Decide(s(body, "id"), "rejected", by)
 		res = a.checkinView()

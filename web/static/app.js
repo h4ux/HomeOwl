@@ -84,6 +84,7 @@ function needsYou(m) {
   const out = [];
   m.devices.filter(d => !d.online).forEach(d => out.push({ t: `${d.name} is ${d.stateLabel === "Disconnected" ? "offline" : d.stateLabel.toLowerCase()}${d.lastSeen ? " · " + ago(d.lastSeen) : ""}`, btn: `<button class="btn sm primary" data-dev="${esc(d.mac)}">Debug</button>` }));
   m.wanLinks.filter(l => l.enabled && l.status && l.status !== "ok").forEach(l => out.push({ t: `Internet via ${l.isp || l.name} is down`, btn: `<button class="btn sm" data-goto="networks">Show</button>` }));
+  arr(S.alerts?.duplicates).forEach(x => out.push({ t: `${x.name} is checked in ${x.count === 2 ? "twice" : x.count + " times"} (it got a new Wi-Fi address) — the same device?`, btn: `<button class="btn sm primary" data-cimerge="${esc(x.ids.join(","))}">Merge…</button>` })); // merge.go
   arr(S.alerts?.attention).forEach(x => out.push({ t: `${x.name} stopped using its NextDNS setup${x.since ? " · last seen " + ago(x.since * 1000) : ""}`, btn: `<button class="btn sm" data-goto="checkins">Show</button>` })); // setupwatch.go
   groupFindings(S.findings.filter(f => (f.sev === "critical" || f.sev === "high") && !f.dev)).forEach(g => {
     const f = g.list[0], acts = g.list.flatMap(x => x.actions);

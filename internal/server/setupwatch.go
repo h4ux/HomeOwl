@@ -161,8 +161,14 @@ func (a *App) setupWatch(now time.Time) {
 // setupAttention lists the devices whose setup stopped (Home's "needs you").
 func (a *App) setupAttention() []map[string]any {
 	out := []map[string]any{}
+	older := map[string]bool{} // the same device checked in twice: Home asks to merge them instead
+	for _, g := range a.checkinDuplicates() {
+		for _, x := range g[1:] {
+			older[x.ID] = true
+		}
+	}
 	for _, x := range a.checkins.List() {
-		if x.Status == "approved" && x.NDProfile != "" && x.SetupLost > 0 {
+		if x.Status == "approved" && x.NDProfile != "" && x.SetupLost > 0 && !older[x.ID] {
 			out = append(out, map[string]any{"id": x.ID, "name": x.Name, "person": x.PersonName, "since": x.SetupSeen})
 		}
 	}

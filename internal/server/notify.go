@@ -57,7 +57,8 @@ func (a *App) deliverAlert(al alerts.Alert) {
 func (a *App) alertsView(admin bool) map[string]any {
 	out := map[string]any{"items": a.Alerts.List(), "unread": a.Alerts.Unread()}
 	if admin {
-		out["attention"] = a.setupAttention() // device setups that stopped: Home lists them
+		out["attention"] = a.setupAttention()      // device setups that stopped: Home lists them
+		out["duplicates"] = a.duplicateAttention() // the same device checked in twice (merge.go)
 		c := a.Cfg.Get()
 		a.mu.Lock()
 		e := a.alertErr

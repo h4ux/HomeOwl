@@ -7,6 +7,40 @@ V.checkins = () => `<div class="head"><div><h1>Device check-ins ${hint("Family m
   <button class="btn" id="ci-reload">Refresh</button></div><div id="ci-body"><div class="empty">Loading…</div></div>`;
 
 const CI_KIND = { phone: "📱", tablet: "📱", laptop: "💻", computer: "🖥", tv: "📺", console: "🎮", speaker: "🔊", watch: "⌚", camera: "📷", printer: "🖨", other: "❔" };
+// merging: the same device checked in twice (merge.go). ids: the duplicates, or one device to pick a partner for.
+async function mergeCheckins(ids) {
+  let ci; try { ci = await api("/api/checkins"); } catch (err) { return toast(err.message, "err"); }
+  const done = ci.items.filter(x => x.status === "approved"), by = id => done.find(x => x.id === id);
+  let group = ids.map(by).filter(Boolean);
+  const single = ids.length === 1;
+  if (!group.length) return toast("That device isn't approved any more — refresh.", "err");
+  const st = x => { const v = ci.setup?.[x.id]; return v ? setupState(x, v) : "–"; };
+  const draw = () => {
+    group.sort((a, b) => b.time - a.time);
+    const base = by(ids[0]), other = group.find(x => x.id !== base.id);
+    const pick = single ? `<label>Same device as<select id="cim-other"><option value="">Choose…</option>${done.filter(x => x.id !== base.id)
+      .sort((a, b) => (b.person_id === base.person_id) - (a.person_id === base.person_id) || a.name.localeCompare(b.name))
+      .map(x => `<option value="${esc(x.id)}" ${other?.id === x.id ? "selected" : ""}>${esc(x.name)} · ${esc(x.person_name || "")} · ${esc(x.mac)}</option>`).join("")}</select></label>` : "";
+    return `<p class="muted">A phone or computer that gets a new Wi-Fi address (a private address changed, its profile was reinstalled, the network was forgotten) shows up as a new device and gets checked in again. Merging keeps one, moves its person and approval to the address it uses now, and archives the old address. Nothing is deleted.</p>
+      ${pick}
+      ${group.length > 1 ? `<p><b>Keep which one?</b> The newest check-in is usually the one the device uses now.</p><div class="cim-list">${group.map((x, i) => `<label class="cim-opt"><input type="radio" name="cim-keep" value="${esc(x.id)}" ${i ? "" : "checked"}>
+        <div><b>${esc(x.name)}</b> <span class="fine muted mono">${esc(x.mac)}</span><div class="fine muted">${esc(x.person_name || "")} · checked in ${ago(x.time * 1000)}${S.archived?.has?.(x.mac) ? " · archived" : ""}</div><div class="fine">${st(x)}</div></div></label>`).join("")}</div>` : ""}`;
+  };
+  const go = async () => {
+    if (group.length < 2) return toast("Pick the other device first.", "err");
+    const keep = document.querySelector("input[name=cim-keep]:checked")?.value || group[0].id;
+    try { S.checkins = await api("/api/checkins/merge", { keep, drop: group.map(x => x.id).filter(id => id !== keep) }); }
+    catch (err) { return toast(err.message, "err"); }
+    closeModal(); toast("Merged", "ok"); loadAlerts?.(); if ($("#ci-body")) $("#ci-body").innerHTML = checkinsBody(S.checkins); else render();
+  };
+  openModal({ title: `Merge ${group[0].name}`, wide: true, body: `<div id="cim-body">${draw()}</div>`, buttons: [{ label: "Cancel" }, { label: "Merge", cls: "primary", onClick: go }] });
+  $("#cim-body").addEventListener("change", e => {
+    if (e.target.id !== "cim-other") return;
+    const o = by(e.target.value); group = [by(ids[0]), ...(o ? [o] : [])]; $("#cim-body").innerHTML = draw();
+  });
+}
+document.addEventListener("click", e => { const m = e.target.closest("[data-cimerge]"); if (m) mergeCheckins(m.dataset.cimerge.split(",")); });
+
 async function loadCheckins() {
   if (S.source !== "live") { $("#ci-body").innerHTML = `<div class="empty">Device check-in needs a live HomeOwl (not the demo).</div>`; return; }
   try {
@@ -79,7 +113,7 @@ function setupCard(c) {
     { k: "name", label: "Device", fmt: x => `${CI_KIND[x.kind] || ""} ${esc(x.name)}<div class="fine muted">${personLabel(x)}</div>` },
     { k: "nd_profile", label: "NextDNS profile", fmt: x => `${x.nd_profile ? esc(ndName(x.nd_profile)) : "–"}${c.setup?.[x.id]?.type ? `<div class="fine muted">type: ${esc(c.setup[x.id].type)}</div>` : ""}` },
     { k: "status", label: "Setup", sort: x => ({ stopped: -1, active: 0, quiet: 1, not_seen: 2, offered: 3, unknown: 4 })[c.setup?.[x.id]?.state] ?? 5, fmt: x => setupState(x, c.setup?.[x.id]) },
-    { k: "id", label: "", fmt: x => `<button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile || c.setup?.[x.id]?.type ? "Change…" : "Set up…"}</button>` }], done)}</div>`;
+    { k: "id", label: "", fmt: x => `<div class="btnrow"><button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile || c.setup?.[x.id]?.type ? "Change…" : "Set up…"}</button>${done.length > 1 ? `<button class="btn sm ghost" data-cimerge="${esc(x.id)}" title="The same device checked in again under another Wi-Fi address">Merge…</button>` : ""}</div>` }], done)}</div>`;
 }
 // the profile type a device gets: picked for it ("-" = none), else its person's
 const ciPersonType = x => arr(S.ciTypes?.types).find(t => arr(t.people).includes(x.person_id));

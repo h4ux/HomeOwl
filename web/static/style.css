@@ -841,3 +841,7 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .hi-wait-ring img{border-radius:16px;animation:hi-bob 1.6s ease-in-out infinite}
 @keyframes hi-bob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.06)}}
 @media (prefers-reduced-motion:reduce){.hi-wait-ring::before{animation-duration:3s}.hi-wait-ring img{animation:none}}
+.cim-list{display:grid;gap:8px}
+.cim-opt{display:flex;gap:12px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.cim-opt:has(input:checked){border-color:var(--accent);background:var(--panel2)}
+.cim-opt input{width:auto;flex:none;margin:3px 0 0}.cim-opt>div{flex:1;font-size:13px;font-weight:400;color:var(--text)}.cim-opt{margin:0}
