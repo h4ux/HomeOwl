@@ -223,6 +223,11 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			send(w, 200, a.presenceView(who.Admin(), days))
 			return
 		}
+	case "tuya":
+		if r.Method == http.MethodGet {
+			send(w, 200, a.tuyaView(who.Admin()))
+			return
+		}
 	case "device-links":
 		if r.Method == http.MethodGet {
 			send(w, 200, a.deviceLinksView())
@@ -438,6 +443,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.issueAPI("check", body, remoteIP(r), by)
 	case p == "device-issue/fix":
 		res, err = a.issueAPI("fix", body, remoteIP(r), by)
+	case strings.HasPrefix(p, "tuya/"):
+		res, err = a.tuyaAPI(r.Context(), strings.TrimPrefix(p, "tuya/"), body, by)
 	case p == "device-links/link":
 		if err = a.devLinks.link(strList(body["keys"])); err == nil {
 			res = a.deviceLinksView()

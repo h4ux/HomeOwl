@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.92] — 2026-11-15
+
+### Added
+- **Smart › Tuya.** Smart Life and Tuya plugs, switches, lights and sensors: online or not, their readings (power,
+  voltage, current, temperature, humidity, battery) and on/off switches for admins, each logged in History › Changes.
+  In the Tuya settings choose **Tuya Cloud** (a free Tuya IoT Platform project linked to the Smart Life app; every
+  device, in the right units) or **Home network only** (each device's local key, protocol 3.3, 3.4 or 3.5, no cloud).
+  **Where to look**: devices on HomeOwl's network announce themselves; tick other networks (an IoT VLAN) to scan
+  Tuya's port there, or mark a device in Devices › All devices with **It's a Tuya device**. Keys stay in the keychain.
+
 ## [0.1.91] — 2026-11-15
 
 ### Changed

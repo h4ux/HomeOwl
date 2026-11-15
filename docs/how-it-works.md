@@ -177,3 +177,21 @@ UniFi, the logs and the history keep them, and they can be restored. A device th
 | API keys, Wi-Fi and VPN passwords | the system keychain (or `<data>/secrets` without one) |
 | The web app | built into the program: plain HTML, CSS and JavaScript, no build step |
 | AI access | the MCP server, with its own mode: off, read, guarded or god (raw API, logged) — see [mcp.md](mcp.md) |
+
+## Tuya (Smart Life) devices
+
+**Smart › Tuya** shows Smart Life and Tuya plugs, switches, lights and sensors: online or not, their readings (power,
+voltage, temperature, humidity, battery), and on/off switches for admins. Every switch is logged in
+**History › Changes** like other actions. Pick how HomeOwl reaches them in the Tuya settings on that page:
+
+- **Tuya Cloud.** A free Tuya IoT Platform project with your Smart Life app account linked to it. Paste its Access
+  ID and Access Secret (kept in the system keychain). Every device shows, with readings in the right units. The cloud
+  also gives each device's local key, kept in the keychain for the home-network mode.
+- **Home network only.** HomeOwl talks to each device on port 6668 with its local key (protocol 3.3, 3.4 or 3.5), with
+  no cloud at run time. Battery sensors sleep and can't be reached this way.
+
+**Where to look for devices.** Devices on HomeOwl's own network announce themselves. For other networks (an IoT
+VLAN), tick them and **Scan the network now** tries Tuya's port on each address (up to a /22). In
+**Devices › All devices**, opening a device offers **It's a Tuya device**, so the scan looks for it at its address.
+Devices found are matched to their UniFi client by address.
+

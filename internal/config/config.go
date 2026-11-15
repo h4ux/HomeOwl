@@ -159,6 +159,16 @@ type UPS struct {
 	Actions      []UPSAction `json:"actions"`
 }
 
+// Tuya (Smart Life) devices under Smart. Mode "cloud" uses a Tuya IoT Platform project (its Access ID and Secret
+// are in the secrets store); "local" talks to devices on the home network with their local keys (also there).
+// Networks are the subnets to look for devices on; Marked are UniFi clients an admin said are Tuya devices.
+type Tuya struct {
+	Mode     string   `json:"mode,omitempty"` // "" (off), "cloud", "local"
+	Region   string   `json:"region,omitempty"`
+	Networks []string `json:"networks,omitempty"`
+	Marked   []string `json:"marked,omitempty"`
+}
+
 // UPSAction runs a script from the UPS scripts folder when an event happens.
 type UPSAction struct {
 	Event  string `json:"event"`
@@ -218,6 +228,7 @@ type Config struct {
 	Cameras        Cameras    `json:"cameras"`
 	Access         Access     `json:"access"`
 	UPS            UPS        `json:"ups"`
+	Tuya           Tuya       `json:"tuya"`
 	Onboard        Onboard    `json:"onboard"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`

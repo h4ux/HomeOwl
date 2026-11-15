@@ -48,6 +48,7 @@ type App struct {
 	hiNet    hiNetCache    // access point names and the internet's state, for the check-in page (myhome.go)
 	requests *siteRequests // blocked sites family members asked for (myhome.go)
 	devLinks *devLinks     // keys that are one device (devlinks.go)
+	tuya     *tuyaStore    // Tuya devices under Smart (tuya.go)
 	sta      staCache      // who's online, shared by the check-in page and the guest portal
 	DataDir  string
 	Cfg      *config.Store
@@ -128,7 +129,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}, appLogos: newAppLogos(dataDir),
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
 		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir), archive: newArchiveStore(dataDir),
-		requests: newSiteRequests(dataDir), devLinks: newDevLinks(dataDir)}
+		requests: newSiteRequests(dataDir), devLinks: newDevLinks(dataDir), tuya: newTuyaStore(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
 	a.UniFi.GuestSSIDs = func() []string { return a.Cfg.Get().Guest.SSIDs }
@@ -170,6 +171,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.connectProtectSaved(ctx)
 	go a.presenceLoop(ctx)
 	go a.setupWatchLoop(ctx)
+	go a.tuyaLoop(ctx)
 	go a.mdmLoop(ctx)
 	go a.archiveLoop(ctx)
 	go a.replyLoop(ctx) // Approve / Block from a phone notification (approvallink.go)

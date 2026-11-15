@@ -42,6 +42,7 @@ const NAV = [
     { label: "Cameras", views: [["cameras", "Cameras"]] },
     { label: "Doors", views: [["doors", "Doors"]] },
     { label: "UPS", views: [["ups", "UPS"]] },
+    { label: "Tuya", views: [["tuya", "Tuya"]] },
   ] },
   { id: "analytics", name: "Analytics", pages: [
     { label: "Overview", views: [["analytics", "Overview"]] },
