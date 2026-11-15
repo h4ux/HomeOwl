@@ -405,3 +405,38 @@ func (a *App) requestsView() map[string]any {
 	}
 	return map[string]any{"items": out, "profiles": names}
 }
+
+// hiGuest gives an approved device the guest Wi-Fi (name, password, the code's look), so the family can let a
+// visitor in from their own phone. The same networks as the guest card; it needn't be turned on for this.
+func (a *App) hiGuest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		fail(w, 405, "use GET")
+		return
+	}
+	_, mac, ok := a.hiDevice(w, r)
+	if !ok {
+		return
+	}
+	if _, ok := a.checkins.Registered(mac); !ok {
+		fail(w, 404, "This device isn't approved yet.")
+		return
+	}
+	res, err := a.guestWiFi(false)
+	if err != nil {
+		fail(w, 503, "The guest Wi-Fi isn't available right now.")
+		return
+	}
+	send(w, 200, map[string]any{"networks": a.guestShown(res), "qr_theme": res["qr_theme"]})
+}
+
+// guestShown: the guest networks a visitor can join (on, with a password or open; not the setup Wi-Fi).
+func (a *App) guestShown(res map[string]any) []map[string]any {
+	setup := a.Cfg.Get().Onboard.SSID
+	nets := []map[string]any{}
+	for _, n := range res["networks"].([]map[string]any) {
+		if en, _ := n["enabled"].(bool); en && n["security"] != "" && (setup == "" || n["ssid"] != setup) {
+			nets = append(nets, map[string]any{"ssid": n["ssid"], "password": n["password"], "security": n["security"], "hidden": n["hidden"]})
+		}
+	}
+	return nets
+}

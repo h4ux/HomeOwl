@@ -381,7 +381,7 @@ func (a *App) setupStatus(x CheckIn) map[string]any {
 		return st
 	}
 	switch {
-	case x.SetupLost > 0:
+	case x.SetupLost > 0 && last.Unix() <= x.SetupLost:
 		st["state"] = "stopped" // it worked, then stopped (setupwatch.go)
 	case last.IsZero() && x.ProfileAt > 0:
 		st["state"] = "not_seen" // downloaded, but no query under its name: probably not installed (or not yet imported)

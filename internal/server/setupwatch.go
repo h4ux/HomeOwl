@@ -55,18 +55,48 @@ var (
 // setupSeen is the device's last query under its name: in its NextDNS profile, or in the one it still has
 // installed while an update waits. cur is the last one in the profile it should use.
 func (a *App) setupSeen(x CheckIn) (last, cur time.Time, ip string, day int, err error) {
-	s, err := ndSeen(a, x.NDProfile, x.Name)
-	if err != nil {
-		return
-	}
-	last, cur, ip, day = s.Last, s.Last, s.ClientIP, s.Day
-	if x.ProfileND != "" && x.ProfileND != x.NDProfile {
-		if o, err2 := ndSeen(a, x.ProfileND, x.Name); err2 == nil {
-			day += o.Day
-			if o.Last.After(last) {
-				last, ip = o.Last, o.ClientIP
-			}
+	// the names NextDNS may know it by: its name now, the one in the profile it installed, and those of the
+	// check-ins merged into it (the profile on the device may be one of theirs)
+	type src struct{ nd, name string }
+	var srcs []src
+	seenSrc := map[src]bool{}
+	add := func(nd, name string) {
+		k := src{nd, name}
+		if nd != "" && name != "" && !seenSrc[k] {
+			seenSrc[k] = true
+			srcs = append(srcs, k)
 		}
+	}
+	from := func(y CheckIn) {
+		for _, n := range []string{y.Name, y.ProfileName} {
+			add(x.NDProfile, n)
+			add(y.ProfileND, n)
+		}
+	}
+	from(x)
+	for _, y := range a.checkins.List() {
+		if y.Status == "merged" && y.MergedInto == x.ID {
+			from(y)
+		}
+	}
+	ok := false
+	for _, k := range srcs {
+		s, e := ndSeen(a, k.nd, k.name)
+		if e != nil {
+			err = e
+			continue
+		}
+		ok = true
+		day += s.Day
+		if s.Last.After(last) {
+			last, ip = s.Last, s.ClientIP
+		}
+		if k.nd == x.NDProfile && s.Last.After(cur) {
+			cur = s.Last
+		}
+	}
+	if ok {
+		err = nil
 	}
 	return
 }

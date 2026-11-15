@@ -121,6 +121,12 @@ page shows that device and nothing about anyone else's:
   works, with the console's last speed test.
 - **Blocked on this device.** What NextDNS blocked under the device's name in the last day, and why. **Ask to allow**
   (with an optional reason), or type another site. At most five requests wait per device.
+- **Guest Wi-Fi.** The guest network's name, password and join code, so a visitor can scan it off the family member's
+  phone (the setup Wi-Fi is never shown). This works whether or not the guest card at `wifi.local` is turned on.
+
+"Is it OK?" matches NextDNS logs by every name the device has had: its name now, the name in the profile it installed
+(the profile keeps reporting that one after a rename), and the names of check-ins merged into it. A device marked
+stopped that NextDNS has seen since no longer shows as stopped.
 
 A request shows up on **Home › Today** and in **Home › Alerts** with **Allow** and **Deny**, and on
 **Devices › New devices** under *Site requests*. With ntfy set up, the push has Allow and Deny buttons that work the

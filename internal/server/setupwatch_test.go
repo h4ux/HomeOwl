@@ -132,3 +132,49 @@ func TestSetupWatch(t *testing.T) {
 		t.Fatalf("coverage: %v", cov)
 	}
 }
+
+// The profile on the device reports the name it had when it was downloaded (or a merged check-in's name):
+// renaming or merging the device afterwards doesn't make it "stopped".
+func TestSetupSeenOldNames(t *testing.T) {
+	a := checkinApp(t)
+	now := time.Now()
+	seen := map[string]time.Time{} // "profile/name" → last query
+	ndSeen = func(_ *App, nd, name string) (analytics.NDSeen, error) {
+		return analytics.NDSeen{Last: seen[nd+"/"+name]}, nil
+	}
+	t.Cleanup(func() {
+		ndSeen = func(a *App, nd, name string) (analytics.NDSeen, error) { return a.An.NDDeviceSeen(nd, name) }
+	})
+	add := func(mac, name string) string {
+		_ = a.checkins.Add(CheckIn{MAC: mac, IP: "192.168.1.40", Name: name, PersonName: "Alex"})
+		l := a.checkins.List()
+		id := l[len(l)-1].ID
+		_ = a.checkins.Decide(id, "approved", "admin")
+		a.checkins.Edit(id, func(c *CheckIn) { c.NDProfile = "abc123" })
+		return id
+	}
+	id := add("aa:bb:cc:00:00:40", "Alex iPad")
+	a.checkins.Touch(id, "abc123", "")
+	a.checkins.Edit(id, func(c *CheckIn) { c.Name, c.SetupLost = "Alex's iPad", now.Add(-time.Hour).Unix() })
+	seen["abc123/Alex iPad"] = now.Add(-time.Minute)
+	x, _ := a.checkins.Get(id)
+	if last, _, _, _, _ := a.setupSeen(x); !last.Equal(seen["abc123/Alex iPad"]) {
+		t.Fatalf("seen under the profile's name: %v", last)
+	}
+	// marked stopped an hour ago, seen since: not "stopped"
+	if a.An.Open() && len(a.An.NDSlots()) > 0 {
+		if st := a.setupStatus(x); st["state"] == "stopped" {
+			t.Fatalf("seen again: %v", st)
+		}
+	}
+	// a check-in merged into it: its name counts too
+	old := add("aa:bb:cc:00:00:41", "iPad (Alex)")
+	if err := a.mergeCheckins(id, []string{old}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	seen["abc123/iPad (Alex)"] = now
+	x, _ = a.checkins.Get(id)
+	if last, _, _, _, _ := a.setupSeen(x); !last.Equal(now) {
+		t.Fatalf("seen under the merged name: %v", last)
+	}
+}

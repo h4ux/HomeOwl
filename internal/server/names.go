@@ -20,12 +20,12 @@ import (
 // and a visit by that name gets only its own small page — the check-in page or the guest Wi-Fi card — over plain HTTP.
 
 // short links by IP on port 80 (http://192.168.1.10/wifi): only these pages, everything else goes to the real port
-var shortPaths = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
+var shortPaths = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/api/hi/guest": true, "/wifi": true, "/wifi.js": true, "/qr.js": true,
 	"/api/wifi": true, "/style.css": true, "/icon.png": true}
 
 // pages each name may serve; anything else on that name goes back to its page
 var namePaths = map[string]map[string]bool{
-	"checkin": {"/hi": true, "/hi.js": true, "/qr.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true},
+	"checkin": {"/hi": true, "/hi.js": true, "/qr.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/api/hi/guest": true},
 	"guest":   {"/wifi": true, "/wifi.js": true, "/qr.js": true, "/style.css": true, "/icon.png": true, "/api/wifi": true},
 }
 var nameHome = map[string]string{"checkin": "/hi", "guest": "/wifi"}
@@ -217,12 +217,7 @@ func (a *App) wifiAPI(w http.ResponseWriter, r *http.Request) {
 		fail(w, 503, "The guest Wi-Fi isn't available right now.")
 		return
 	}
-	nets := []map[string]any{}
-	for _, n := range res["networks"].([]map[string]any) {
-		if en, _ := n["enabled"].(bool); en && n["security"] != "" {
-			nets = append(nets, map[string]any{"ssid": n["ssid"], "password": n["password"], "security": n["security"], "hidden": n["hidden"]})
-		}
-	}
+	nets := a.guestShown(res)
 	// the check-in page: on the same address when it was opened by IP (or a Cloudflare link), else by IP address
 	hi := "/hi"
 	if a.nameHost(r) != "" {

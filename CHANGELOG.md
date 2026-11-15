@@ -4,6 +4,18 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.86] — 2026-11-15
+
+### Fixed
+- The device's own page said **Protection stopped** for a device whose profile was installed and working, when the
+  device had been renamed or merged after it installed the profile. NextDNS logs it under the name in the profile,
+  so HomeOwl now looks for every name the device has had (its name now, the profile's, and those of check-ins merged
+  into it). A device seen since it was marked stopped no longer shows as stopped.
+
+### Added
+- **Guest Wi-Fi on the device's own page.** An approved device shows the guest network's name, password and a join
+  code, so a visitor can scan it off your phone. The setup Wi-Fi is left out here and on the guest card.
+
 ## [0.1.85] — 2026-11-15
 
 - People & groups: a person's devices show only the active ones (online or seen in the last two weeks). Older

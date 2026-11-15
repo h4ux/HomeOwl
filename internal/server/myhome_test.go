@@ -135,3 +135,29 @@ func TestSiteRequests(t *testing.T) {
 		t.Fatalf("my requests: %v", reqs)
 	}
 }
+
+func TestHiGuest(t *testing.T) {
+	a := checkinApp(t)
+	get := func(ip string) (int, map[string]any) {
+		r := httptest.NewRequest("GET", "http://homeowl.lan:8555/api/hi/guest", nil)
+		r.RemoteAddr = ip + ":51234"
+		w := httptest.NewRecorder()
+		a.hiGuest(w, r)
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	_ = a.checkins.Add(CheckIn{MAC: "aa:bb:cc:00:00:40", IP: "192.168.1.40", Name: "Sam's iPad", PersonName: "Sam"})
+	if code, out := get("192.168.1.40"); code != 404 || out["networks"] != nil {
+		t.Fatalf("not approved yet: %d %v", code, out)
+	}
+	_ = a.checkins.Decide(a.checkins.List()[0].ID, "approved", "admin")
+	code, out := get("192.168.1.40")
+	nets, _ := out["networks"].([]any)
+	if code != 200 || len(nets) != 1 || nets[0].(map[string]any)["ssid"] != "Example Guests" || nets[0].(map[string]any)["password"] != "guest-pass-456" {
+		t.Fatalf("guest Wi-Fi: %d %v", code, out)
+	}
+	if code, _ := get("203.0.113.5"); code == 200 {
+		t.Fatal("from outside")
+	}
+}

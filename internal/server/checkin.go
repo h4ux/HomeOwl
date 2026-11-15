@@ -43,6 +43,9 @@ type CheckIn struct {
 	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
 	ProfileAt  int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
 	ProfileND  string `json:"profile_nd,omitempty"` // the NextDNS profile the device has installed (≠ NDProfile: an update is ready)
+	// the device name the installed profile reports to NextDNS: it stays what it was at download when the device is
+	// renamed later
+	ProfileName string `json:"profile_name,omitempty"`
 	// setupwatch.go: the last query NextDNS logged under the device's name, when the setup last changed, and when
 	// HomeOwl noticed it stopped being used (0 = it works)
 	SetupSeen    int64  `json:"setup_seen,omitempty"`
@@ -192,7 +195,9 @@ func (c *checkins) Registered(mac string) (CheckIn, bool) {
 
 // Touch records that the device fetched its setup profile (and which NextDNS profile was in it).
 func (c *checkins) Touch(id, nd, hash string) {
-	c.Edit(id, func(x *CheckIn) { x.ProfileAt, x.ProfileND, x.ProfileHash = time.Now().Unix(), nd, hash })
+	c.Edit(id, func(x *CheckIn) {
+		x.ProfileAt, x.ProfileND, x.ProfileHash, x.ProfileName = time.Now().Unix(), nd, hash, x.Name
+	})
 }
 
 // Edit changes a check-in in place.

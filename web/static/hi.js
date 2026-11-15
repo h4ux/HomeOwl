@@ -111,10 +111,25 @@ function registered(st) {
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
     <p class="muted">${r.person ? `It belongs to <b>${esc(r.person)}</b>. ` : ""}HomeOwl knows this device.</p>
     ${myStatus(mine, r)}${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
+    <div id="hi-guest"></div>
     ${wifi.length && pf !== "ios" && pf !== "mac" ? `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>` : ""}
     ${settled && setup ? `<details class="hi-again-setup"><summary>Set up this device again</summary>${setup}</details>` : setup}
     <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
   if ($("#hi-wifi")) homeWiFi();
+  guestWiFi();
+}
+
+// the guest Wi-Fi: a visitor scans the code off this screen
+async function guestWiFi() {
+  const el = $("#hi-guest");
+  let r;
+  try { const res = await fetch("/api/hi/guest", { cache: "no-store" }); r = await res.json(); if (!res.ok) throw new Error(r.error); }
+  catch { return; } // nothing to show: no guest network, or UniFi isn't reachable right now
+  if (!el || !r.networks?.length || typeof QR !== "object") return;
+  el.innerHTML = `<div class="hi-sect"><h3>Guest Wi-Fi</h3>${r.networks.map(n => `<details class="hi-guest"><summary><b>${esc(n.ssid)}</b> <span class="fine muted">show the code for a visitor</span></summary>
+      <div class="wifi-qr">${QR.themed(QR.wifi(n), { theme: r.qr_theme || "rounded", size: 240, label: `Join ${n.ssid}`, caption: `${n.ssid} · scan to join` })}</div>
+      ${n.security === "nopass" ? `<p class="fine">No password: it's open.</p>` : copyRow(n.password, "password")}
+      <p class="fine muted">They point their phone's camera at the code and tap the Wi-Fi banner.</p></details>`).join("")}</div>`;
 }
 
 // ---- "my device" (myhome.go): is it OK, how it's connected, what was blocked on it
