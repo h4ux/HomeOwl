@@ -80,7 +80,8 @@ func (c *Client) planFwPolicy(a Action) (*plan, error) {
 		}
 	}
 	name := FwName(orStr(a.s("name"), "HomeOwl: allow "+ip))
-	dest := map[string]any{"zone_id": dst, "matching_target": "IP", "ips": []string{ip}, "port_matching_type": "ANY",
+	// an address destination says whether it lists addresses (SPECIFIC) or names an address group (OBJECT)
+	dest := map[string]any{"zone_id": dst, "matching_target": "IP", "matching_target_type": "SPECIFIC", "ips": []string{ip}, "port_matching_type": "ANY",
 		"match_opposite_ips": false, "match_opposite_ports": false}
 	if ports != "" {
 		dest["port_matching_type"], dest["port"] = "SPECIFIC", ports

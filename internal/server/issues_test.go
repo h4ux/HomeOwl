@@ -88,7 +88,7 @@ func TestDeviceIssueFix(t *testing.T) {
 			pol := posts["firewall-policies"]
 			src, _ := pol["source"].(map[string]any)
 			dst, _ := pol["destination"].(map[string]any)
-			if pol["action"] != "ALLOW" || src["zone_id"] != "zi" || dst["zone_id"] != "zt" || dst["port"] != "631,9100,80,443,8080" ||
+			if pol["action"] != "ALLOW" || src["zone_id"] != "zi" || dst["zone_id"] != "zt" || dst["matching_target_type"] != "SPECIFIC" || dst["port"] != "631,9100,80,443,8080" ||
 				dst["ips"].([]any)[0] != "192.168.6.20" {
 				t.Fatalf("policy: %v", pol)
 			}

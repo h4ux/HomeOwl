@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.79] — 2026-11-15
+
+- Device issues: the zone-based firewall policy now says its destination lists specific addresses
+  (matching_target_type), which UniFi requires ("Missing firewall destination matching target type").
+
 ## [0.1.78] — 2026-11-15
 
 - Approve and Block from the phone notification now work from anywhere: a tap posts a signed one-time answer to a
