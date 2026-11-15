@@ -124,7 +124,8 @@ page shows that device and nothing about anyone else's:
 - **Guest Wi-Fi.** The guest network's name, password and join code, so a visitor can scan it off the family member's
   phone (the setup Wi-Fi is never shown). This works whether or not the guest card at `wifi.local` is turned on.
 
-"Is it OK?" matches NextDNS logs by every name the device has had: its name now, the name in the profile it installed
+"Is it OK?" matches NextDNS logs by every name the device has had (on letters and digits only, so a curly
+apostrophe or dashes for spaces still match): its name now, the name in the profile it installed
 (the profile keeps reporting that one after a rename), and the names of check-ins merged into it. A device marked
 stopped that NextDNS has seen since no longer shows as stopped.
 

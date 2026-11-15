@@ -878,4 +878,5 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .hi-req{display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:13px}
 .hi-again-setup{margin:16px 0}.hi-again-setup>summary{cursor:pointer;color:var(--accent);font-size:14px}
 .hi-guest{margin:6px 0}.hi-guest>summary{cursor:pointer;padding:6px 0}.hi-guest[open]>summary{margin-bottom:6px}
+.hi-ver{text-align:center;margin:12px 0 0}
 @media (max-width:420px){.hi-row{grid-template-columns:80px 1fr}.hi-row .fine{grid-column:2}}

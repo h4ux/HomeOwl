@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	_ "time/tzdata" // time zones work on every OS, including Windows
+	"unicode"
 
 	"github.com/h4ux/homeowl/internal/categories"
 )
@@ -529,18 +530,43 @@ func (e *Engine) NDDeviceSeen(profile, name string) (NDSeen, error) {
 	if e.db == nil {
 		return s, errors.New("analytics isn't running")
 	}
-	var last sql.NullTime
-	var ip sql.NullString
-	var day sql.NullInt64
-	err := e.db.QueryRow(`SELECT max(ts), arg_max(client_ip, ts), count(*) FILTER (WHERE ts >= ?)
-		FROM dns_queries WHERE profile_id = ? AND device_name = ? AND ts >= ?`,
-		utcnow().Add(-24*time.Hour), profile, name, utcnow().Add(-30*24*time.Hour)).Scan(&last, &ip, &day)
+	// NextDNS may log the name a little differently from how it was typed (a curly apostrophe from an iPhone
+	// keyboard, "--" or "-" for a space): every device name in the profile that reads the same counts
+	rows, err := e.db.Query(`SELECT device_name, max(ts), arg_max(client_ip, ts), count(*) FILTER (WHERE ts >= ?)
+		FROM dns_queries WHERE profile_id = ? AND ts >= ? AND device_name IS NOT NULL AND device_name <> '' GROUP BY device_name`,
+		utcnow().Add(-24*time.Hour), profile, utcnow().Add(-30*24*time.Hour))
 	if err != nil {
 		return s, err
 	}
-	if last.Valid {
-		s.Last = last.Time
+	defer rows.Close()
+	want := SameDeviceName(name)
+	for rows.Next() {
+		var dn string
+		var last sql.NullTime
+		var ip sql.NullString
+		var day sql.NullInt64
+		if err := rows.Scan(&dn, &last, &ip, &day); err != nil {
+			return s, err
+		}
+		if want == "" || SameDeviceName(dn) != want {
+			continue
+		}
+		s.Day += int(day.Int64)
+		if last.Valid && last.Time.After(s.Last) {
+			s.Last, s.ClientIP = last.Time, ip.String
+		}
 	}
-	s.ClientIP, s.Day = ip.String, int(day.Int64)
-	return s, nil
+	return s, rows.Err()
+}
+
+// SameDeviceName is a device name reduced to its letters and digits, lower case: two names that give the same
+// string are the same NextDNS device name typed or encoded differently.
+func SameDeviceName(n string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(n) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

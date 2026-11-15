@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.87] — 2026-11-15
+
+### Fixed
+- **Protection stopped** could still show for a working device: NextDNS may log the name differently from how it
+  was typed (an iPhone's curly apostrophe, dashes for spaces). Names now match on their letters and digits. When
+  it does say stopped, the note says when NextDNS last saw the device.
+
+### Added
+- The device's own page shows the HomeOwl version at the bottom.
+
 ## [0.1.86] — 2026-11-15
 
 ### Fixed

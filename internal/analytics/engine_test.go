@@ -225,6 +225,13 @@ func TestNDDeviceSeen(t *testing.T) {
 	if s, _ := e.NDDeviceSeen("abc123", "Sam's Phone"); !s.Last.IsZero() || s.Day != 0 {
 		t.Fatalf("unknown device: %+v", s)
 	}
+	// typed on an iPhone (curly apostrophe), or logged with dashes: the same device
+	if _, err := e.db.Exec(q, now.Add(-30*time.Minute), "abc123", "e.example", "example", "default", "alex-s--ipad", "203.0.113.9"); err != nil {
+		t.Fatal(err)
+	}
+	if s, _ := e.NDDeviceSeen("abc123", "Alex’s iPad"); now.Sub(s.Last) > time.Hour || s.ClientIP != "203.0.113.9" || s.Day != 3 {
+		t.Fatalf("spelled differently: %+v", s)
+	}
 	id, _ := e.SavePerson(Person{Name: "Alex"})
 	_ = e.AssignDevice(id, "ndev", "abc123/Alex's iPad")
 	if err := e.UnassignDevice("ndev", "abc123/Alex's iPad"); err != nil {

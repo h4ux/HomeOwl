@@ -139,7 +139,7 @@ function myStatus(mine, r) {
   const [ok, title, note] = {
     active: [true, "All good", `Protected and recognised by name${ss.where === "away" ? " (away from home right now)" : ""}.`],
     quiet: [true, "All good", `Set up. Not used in the last day${ss.last_seen ? ` (last ${agoS(ss.last_seen)})` : ""}.`],
-    stopped: [false, "Protection stopped", "It worked, then stopped — the profile was probably removed. Install it again below."],
+    stopped: [false, "Protection stopped", `It worked, then stopped${ss.last_seen ? ` (NextDNS last saw it ${agoS(ss.last_seen)})` : ""} — the profile was probably removed. Install it again below.`],
     not_seen: [false, "Not installed yet", "The profile was downloaded but isn't in use. Finish installing it below."],
     offered: [false, "Not set up yet", "Set it up below so it's protected and recognised by name everywhere."],
   }[ss.state] || [null, "", ""];
@@ -222,7 +222,7 @@ function hiWaiting(n) {
 document.addEventListener("click", e => { if (e.target.id === "hi-retry") { start.tries = 0; $("#hi-box").innerHTML = hiWaiting(1); start(); } });
 async function start() {
   let st;
-  try { st = await call("GET"); start.tries = 0; }
+  try { st = await call("GET"); start.tries = 0; if (st.version && $("#hi-ver")) $("#hi-ver").textContent = `HomeOwl ${st.version}`; }
   catch (err) { // the network may be busy for a moment (a phone just joined): keep trying rather than leave a dead end
     const again = ++start.tries <= 40;
     $("#hi-box").innerHTML = again ? hiWaiting(start.tries) : `<div class="msg err">${esc(err.message)}</div><button class="btn primary" id="hi-retry" type="button">Try again</button>`;

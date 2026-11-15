@@ -361,7 +361,7 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		res := map[string]any{"device": map[string]any{"mac": mac, "name": str(c, "name"), "hostname": str(c, "hostname"),
-			"vendor": str(c, "oui"), "network": str(c, "network")}, "people": people, "waiting": waiting}
+			"vendor": str(c, "oui"), "network": str(c, "network")}, "people": people, "waiting": waiting, "version": config.Version}
 		if a.onSetupWiFi(c) {
 			res["setup_wifi"] = a.Cfg.Get().Onboard.SSID
 		}
