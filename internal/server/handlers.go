@@ -223,6 +223,11 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			send(w, 200, a.presenceView(who.Admin(), days))
 			return
 		}
+	case "device-links":
+		if r.Method == http.MethodGet {
+			send(w, 200, a.deviceLinksView())
+			return
+		}
 	case "ups":
 		if r.Method == http.MethodGet {
 			days, _ := strconv.Atoi(r.URL.Query().Get("days"))
@@ -433,6 +438,14 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.issueAPI("check", body, remoteIP(r), by)
 	case p == "device-issue/fix":
 		res, err = a.issueAPI("fix", body, remoteIP(r), by)
+	case p == "device-links/link":
+		if err = a.devLinks.link(strList(body["keys"])); err == nil {
+			res = a.deviceLinksView()
+		}
+	case p == "device-links/separate":
+		if err = a.devLinks.separate(strList(body["keys"]), strList(body["from"])); err == nil {
+			res = a.deviceLinksView()
+		}
 	case p == "site-requests":
 		res = a.requestsView()
 	case p == "site-requests/decide":

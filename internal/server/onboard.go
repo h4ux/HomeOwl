@@ -62,7 +62,7 @@ func (a *App) checkinAlert(x CheckIn) {
 		body += " It's on the setup Wi-Fi and waits there until you approve it."
 	}
 	a.Alerts.Add(alerts.Alert{Kind: "checkin", Level: "info", Title: x.Name + " is waiting for approval", Body: body,
-		Data: map[string]any{"mac": x.MAC, "name": x.Name}})
+		Data: map[string]any{"mac": x.MAC, "name": x.Name, "checkin": x.ID}})
 }
 
 // hiWiFi gives an approved device the home Wi-Fi networks its profile type has, with their passwords: for Android

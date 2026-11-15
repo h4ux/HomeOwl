@@ -239,3 +239,93 @@ func TestLinkNDName(t *testing.T) {
 		t.Fatalf("unlinked: %+v", x)
 	}
 }
+
+func TestDeviceLinks(t *testing.T) {
+	a := checkinApp(t)
+	_ = a.checkins.Add(CheckIn{MAC: "AA:BB:CC:00:00:40", IP: "192.168.1.40", Name: "Alex's iPad", PersonName: "Alex"})
+	id := a.checkins.List()[0].ID
+	_ = a.checkins.Decide(id, "approved", "admin")
+	a.checkins.Edit(id, func(c *CheckIn) { c.NDProfile, c.NDNames = "abc123", []string{"Alex iPad"} })
+	has := func(v map[string]any, keys ...string) bool {
+		for _, g := range v["groups"].([][]string) {
+			n := 0
+			for _, k := range g {
+				for _, w := range keys {
+					if k == w {
+						n++
+					}
+				}
+			}
+			if n == len(keys) {
+				return true
+			}
+		}
+		return false
+	}
+	// a check-in links its address with its NextDNS names
+	if v := a.deviceLinksView(); !has(v, "mac|aa:bb:cc:00:00:40", "ndev|abc123/Alex's iPad", "ndev|abc123/Alex iPad") {
+		t.Fatalf("check-in group: %v", v)
+	}
+	if err := a.devLinks.link([]string{"mac|aa:bb:cc:00:00:41"}); err == nil {
+		t.Fatal("one key isn't a group")
+	}
+	_ = a.devLinks.link([]string{"mac|aa:bb:cc:00:00:41", "mac|aa:bb:cc:00:00:42"})
+	_ = a.devLinks.link([]string{"mac|aa:bb:cc:00:00:42", "ndev|abc123/Old iPad"})
+	if v := a.deviceLinksView(); !has(v, "mac|aa:bb:cc:00:00:41", "mac|aa:bb:cc:00:00:42", "ndev|abc123/Old iPad") {
+		t.Fatalf("joined: %v", v)
+	}
+	_ = a.devLinks.separate([]string{"ndev|abc123/Old iPad"}, []string{"mac|aa:bb:cc:00:00:41", "mac|aa:bb:cc:00:00:42", "ndev|abc123/Old iPad"})
+	v := a.deviceLinksView()
+	if has(v, "mac|aa:bb:cc:00:00:42", "ndev|abc123/Old iPad") || !has(v, "mac|aa:bb:cc:00:00:41", "mac|aa:bb:cc:00:00:42") {
+		t.Fatalf("separated: %v", v)
+	}
+	if ap := v["apart"].([]string); len(ap) != 2 {
+		t.Fatalf("kept apart: %v", ap)
+	}
+}
+
+// "X is waiting for approval": Approve and Reject on the push, decided once.
+func TestCheckinPush(t *testing.T) {
+	a := checkinApp(t)
+	if err := a.Sec.Set(slotNtfy, "https://ntfy.example.com/family-alerts"); err != nil {
+		t.Fatal(err)
+	}
+	add := func(mac, name string) CheckIn {
+		_ = a.checkins.Add(CheckIn{MAC: mac, IP: "192.168.1.40", Name: name, PersonName: "Sam"})
+		x, _ := a.checkins.Registered(mac)
+		for _, y := range a.checkins.List() {
+			if y.MAC == mac && y.Status == "pending" {
+				x = y
+			}
+		}
+		a.checkinAlert(x)
+		return x
+	}
+	x := add("aa:bb:cc:00:00:40", "Sam's iPad")
+	al := a.Alerts.List()[len(a.Alerts.List())-1]
+	acts := a.pushActions(al)
+	if len(acts) != 2 || acts[0].Label != "Approve" || acts[1].Label != "Reject" {
+		t.Fatalf("buttons: %+v", acts)
+	}
+	if err := a.useDecision(acts[0].Body); err != nil {
+		t.Fatal(err)
+	}
+	if y, _ := a.checkins.Get(x.ID); y.Status != "approved" {
+		t.Fatalf("approved: %+v", y)
+	}
+	if err := a.useDecision(acts[1].Body); err == nil {
+		t.Fatal("already decided")
+	}
+	z := add("aa:bb:cc:00:00:41", "Unknown phone")
+	for _, al := range a.Alerts.List() {
+		if al.Data["checkin"] == z.ID {
+			acts = a.pushActions(al)
+		}
+	}
+	if err := a.useDecision(acts[1].Body); err != nil {
+		t.Fatal(err)
+	}
+	if y, _ := a.checkins.Get(z.ID); y.Status != "rejected" {
+		t.Fatalf("rejected: %+v", y)
+	}
+}

@@ -76,7 +76,7 @@ func (a *App) checkToken(t string) (op, mac, sig string, exp int64, err error) {
 	if time.Now().Unix() > exp {
 		return "", "", "", 0, errors.New("that decision came after its two days — open HomeOwl to decide")
 	}
-	if !((f[0] == "approve" || f[0] == "block") && macRE.MatchString(f[1]) || (f[0] == "allow" || f[0] == "deny") && reqIDRE.MatchString(f[1])) {
+	if !((f[0] == "approve" || f[0] == "block") && macRE.MatchString(f[1]) || (f[0] == "allow" || f[0] == "deny" || f[0] == "ci-approve" || f[0] == "ci-reject") && reqIDRE.MatchString(f[1])) {
 		return "", "", "", 0, errors.New("not a valid decision")
 	}
 	return f[0], f[1], sig, exp, nil
@@ -105,6 +105,14 @@ func (a *App) pushActions(al alerts.Alert) []alerts.PushAction {
 		}
 		exp := time.Now().Add(linkTTL)
 		return []alerts.PushAction{{Label: "Allow", URL: reply, Body: a.approvalToken("allow", id, exp)}, {Label: "Deny", URL: reply, Body: a.approvalToken("deny", id, exp)}}
+	}
+	if id, _ := al.Data["checkin"].(string); al.Kind == "checkin" && id != "" { // a device checked in and waits
+		reply := a.replyTopic()
+		if reply == "" {
+			return nil
+		}
+		exp := time.Now().Add(linkTTL)
+		return []alerts.PushAction{{Label: "Approve", URL: reply, Body: a.approvalToken("ci-approve", id, exp)}, {Label: "Reject", URL: reply, Body: a.approvalToken("ci-reject", id, exp)}}
 	}
 	if al.Kind != "approval" || mac == "" || !a.Cfg.Get().Onboard.Approve {
 		return nil
@@ -138,6 +146,12 @@ func (a *App) useDecision(t string) error {
 		return errors.New("already done")
 	}
 	name := mac
+	if op == "ci-approve" || op == "ci-reject" {
+		st.Used[sig] = exp
+		_ = s.save(st)
+		s.mu.Unlock()
+		return a.checkinDecision(mac, op)
+	}
 	if op == "allow" || op == "deny" {
 		st.Used[sig] = exp
 		_ = s.save(st)
@@ -179,7 +193,7 @@ func (a *App) replyLoop(ctx context.Context) {
 	since := "10m"
 	for {
 		wait := time.Minute
-		if topic := a.replyTopic(); topic != "" && (a.Cfg.Get().Onboard.Approve || a.requests.pending() > 0) {
+		if topic := a.replyTopic(); topic != "" && (a.Cfg.Get().Onboard.Approve || a.requests.pending() > 0 || a.checkinsWaiting()) {
 			last, err := listenReplies(ctx, topic, since, a.useDecisionLogged)
 			if last != "" {
 				since = last
@@ -238,4 +252,45 @@ func listenReplies(ctx context.Context, topic, since string, use func(string)) (
 		return last, nil // our own 30-minute cut: reconnect
 	}
 	return last, sc.Err()
+}
+
+func (a *App) checkinsWaiting() bool {
+	for _, x := range a.checkins.List() {
+		if x.Status == "pending" {
+			return true
+		}
+	}
+	return false
+}
+
+// checkinDecision approves or rejects a checked-in device from a push button. Approving gives it to the person it
+// named and their NextDNS profile, as the admin page suggests; the rest can be changed there later.
+func (a *App) checkinDecision(id, op string) error {
+	x, ok := a.checkins.Get(id)
+	if !ok || x.Status != "pending" {
+		return errors.New("already done")
+	}
+	if op == "ci-reject" {
+		if err := a.checkins.Decide(id, "rejected", "push"); err != nil {
+			return err
+		}
+		a.Alerts.Add(alerts.Alert{Kind: "approval_done", Title: x.Name + " rejected", Body: "Decided from a phone notification."})
+		return nil
+	}
+	body := map[string]any{"id": id}
+	if a.An.Open() {
+		for _, p := range a.An.People() {
+			if p.ID == x.PersonID || x.PersonID == "" && strings.EqualFold(p.Name, x.PersonName) && x.PersonName != "" {
+				if nd := personNDProfile(p); nd != "" {
+					body["nd_profile"] = nd
+				}
+			}
+		}
+	}
+	if _, err := a.approveCheckIn(body, "push"); err != nil {
+		a.Alerts.Add(alerts.Alert{Kind: "approval_done", Level: "warn", Title: "Couldn't approve " + x.Name, Body: err.Error()})
+		return err
+	}
+	a.Alerts.Add(alerts.Alert{Kind: "approval_done", Title: "✓ " + x.Name + " approved", Body: "Decided from a phone notification. Its check-in page now offers its setup."})
+	return nil
 }

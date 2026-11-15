@@ -258,6 +258,7 @@ function ppApps(p, list) {
 }
 async function loadPeople() {
   let meta; try { meta = await exMeta(true); } catch (e) { return fill("pp-list", `<div class="empty bad-t">${esc(e.message)}</div>`); }
+  if (S.source === "live") { try { S.devLinks = await api("/api/device-links"); } catch { S.devLinks = null; } }
   const ppl = meta.people.filter(p => !isGroup(p)), grps = meta.people.filter(isGroup);
   const card = p => `<div class="card person" id="pp-${esc(p.id)}">
     <div class="pp-top">${ppAvatar(p)}<div class="pp-title"><b>${esc(p.name)}</b><span class="fine muted">${ppCount(p)}</span></div>
@@ -298,13 +299,71 @@ async function loadPeople() {
   } catch (e) { fill("pp-unassigned", `<div class="empty bad-t">${esc(e.message)}</div>`); }
 }
 
-// the UniFi devices a person or group has, as chips (admins can rename them in UniFi from here)
-function ppDevChips(p) {
-  const names = new Map(arr(S.ex.meta?.clients).map(c => [c.mac, c.name || c.hostname || c.mac]));
-  const macs = p.devices.filter(d => d.kind === "mac").map(d => d.key);
-  if (!macs.length) return "";
-  return `<div class="pp-devs">${macs.map(mac => `<span class="dp-chip">${cliIcon({ mac, name: names.get(mac) }, 16)}${esc(names.get(mac) || mac)}${canRename(mac) ? `<button type="button" class="x" data-rename="${esc(mac)}" title="Rename in UniFi" aria-label="Rename ${esc(names.get(mac) || mac)}">✎</button>` : ""}</span>`).join("")}</div>`;
+// one device, many names (devlinks.go): the Wi-Fi addresses and NextDNS names that are the same device become one
+// chip — linked by its check-in or by an admin, or spelled the same. Devices not seen lately fold away.
+const ppSimilar = (a, b) => {
+  const wa = dpWords(a).split(" ").filter(Boolean), wb = dpWords(b).split(" ").filter(Boolean);
+  if (!wa.length || !wb.length || wa.join(" ") === wb.join(" ")) return false;
+  const [sh, lo] = wa.length <= wb.length ? [wa, wb] : [wb, wa], inLo = sh.filter(w => lo.includes(w)).length;
+  return sh.length >= 2 && inLo === sh.length || inLo / new Set([...wa, ...wb]).size >= 0.6;
+};
+function ppGroups(p) {
+  const meta = S.ex.meta || {}, cl = new Map(arr(meta.clients).map(c => [c.mac, c]));
+  const nd = new Map(arr(meta.dns_devices).map(d => [d.profile ? `ndev|${d.profile}/${d.device}` : `dns|${d.device}`, d]));
+  const online = new Set(arr(S.model?.clients).map(c => c.mac));
+  const items = p.devices.filter(d => d.kind !== "profile").map(d => {
+    const k = `${d.kind}|${d.key}`;
+    if (d.kind === "mac") { const c = cl.get(d.key) || {}; return { k, mac: d.key, name: c.name || c.hostname || d.key, seen: dpTime(c.last_seen), online: online.has(d.key) }; }
+    return { k, name: d.kind === "ndev" ? d.key.slice(d.key.indexOf("/") + 1) : d.key, nd: true, seen: dpTime(nd.get(k)?.last) };
+  });
+  const apart = new Set(arr(S.devLinks?.apart)), isApart = (a, b) => apart.has(a < b ? `${a}||${b}` : `${b}||${a}`);
+  const up = items.map((_, i) => i), find = i => up[i] === i ? i : (up[i] = find(up[i])), join = (i, j) => { up[find(i)] = find(j); };
+  const at = new Map(items.map((it, i) => [it.k, i]));
+  arr(S.devLinks?.groups).forEach(g => { const ix = g.map(k => at.get(k)).filter(i => i !== undefined); ix.slice(1).forEach(i => join(ix[0], i)); });
+  const byWords = new Map();
+  items.forEach((it, i) => { const w = dpWords(it.name); if (!w) return; const j = byWords.get(w); if (j === undefined) byWords.set(w, i); else if (!isApart(it.k, items[j].k)) join(i, j); });
+  const groups = new Map();
+  items.forEach((it, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(it); });
+  return [...groups.values()].map(l => {
+    const best = [...l].sort((a, b) => (b.online - a.online) || (!!b.mac - !!a.mac) || (b.seen - a.seen))[0];
+    const seen = Math.max(0, ...l.map(x => x.seen)), on = l.some(x => x.online);
+    return { items: l, name: best.name, mac: l.find(x => x.mac && x.online)?.mac || l.find(x => x.mac)?.mac, seen, online: on, active: on || seen > Date.now() - DP_ACTIVE_DAYS * 864e5, keys: l.map(x => x.k) };
+  }).sort((a, b) => (b.active - a.active) || (b.online - a.online) || a.name.localeCompare(b.name));
 }
+function ppDevChips(p) {
+  const gs = ppGroups(p); if (!gs.length) return "";
+  const chip = (g, i) => `<span class="dp-chip${g.active ? "" : " old"}">${g.online ? onDot(true) : ""}${cliIcon({ mac: g.mac, name: g.name }, 16)}<span title="${esc(g.items.map(x => `${x.name} (${x.mac ? "Wi-Fi address" : "NextDNS"})`).join("\n"))}">${esc(g.name)}</span>${g.items.length > 1 ? `<span class="dp-n">×${g.items.length}</span>` : ""}${isAdmin() && S.source === "live" ? `<button type="button" class="x" data-ppdev="${esc(p.id)}" data-ppdevi="${i}" title="Names, same device, rename" aria-label="Edit ${esc(g.name)}">✎</button>` : ""}</span>`;
+  const act = gs.filter(g => g.active), old = gs.filter(g => !g.active);
+  // close spellings that may be one device: one tap to confirm
+  const sug = [];
+  if (isAdmin() && S.source === "live") {
+    const apart = new Set(arr(S.devLinks?.apart));
+    act.forEach((a, i) => act.slice(i + 1).forEach(b => { if (sug.length < 3 && ppSimilar(a.name, b.name) && !a.keys.some(x => b.keys.some(y => apart.has(x < y ? `${x}||${y}` : `${y}||${x}`)))) sug.push([a, b]); }));
+  }
+  return `<div class="pp-devs">${act.map(g => chip(g, gs.indexOf(g))).join("")}
+    ${old.length ? `<details class="dp-old"><summary>${plural(old.length, "older device")}</summary>${old.map(g => chip(g, gs.indexOf(g))).join("")}</details>` : ""}</div>
+    ${sug.map(([a, b]) => `<div class="pp-sug fine"><span><b>${esc(a.name)}</b> and <b>${esc(b.name)}</b>: the same device?</span>
+      <span class="btnrow"><button class="btn sm" data-pplink="${esc(JSON.stringify([...a.keys, ...b.keys]))}">Same device</button><button class="btn sm ghost" data-ppapart="${esc(JSON.stringify([a.keys, b.keys]))}">Different</button></span></div>`).join("")}`;
+}
+async function ppLinks(path, body, msg) {
+  try { S.devLinks = await api(path, body); toast(msg, "ok"); closeModal(); loadPeople(); } catch (e) { toast(e.message, "err"); }
+}
+document.addEventListener("click", e => {
+  const l = e.target.closest("[data-pplink]");
+  if (l) { ppLinks("/api/device-links/link", { keys: JSON.parse(l.dataset.pplink) }, "One device now"); return; }
+  const a = e.target.closest("[data-ppapart]");
+  if (a) { const [x, y] = JSON.parse(a.dataset.ppapart); ppLinks("/api/device-links/separate", { keys: x, from: y }, "Kept apart"); return; }
+  const d = e.target.closest("[data-ppdev]"); if (!d) return;
+  const p = S.ex.meta.people.find(x => x.id === d.dataset.ppdev); if (!p) return;
+  const gs = ppGroups(p), g = gs[+d.dataset.ppdevi]; if (!g) return;
+  const others = gs.filter(x => x !== g);
+  openModal({ title: g.name, body: `<p class="fine muted">The names this device has in UniFi (Wi-Fi addresses) and NextDNS. A phone gets a new Wi-Fi address on another network or after a reset, and an older profile can report another name to NextDNS.</p>
+    <div class="pp-names">${g.items.map(x => `<div class="pp-name"><span>${x.online ? onDot(true) : ""}<b>${esc(x.name)}</b> <span class="fine muted">${x.mac ? `Wi-Fi address <span class="mono">${esc(x.mac)}</span>` : "NextDNS"}${x.seen ? ` · seen ${esc(ago(x.seen))}` : ""}</span></span>
+      ${g.items.length > 1 ? `<button class="btn sm ghost" data-ppsep="${esc(x.k)}">Not this device</button>` : ""}${x.mac && canRename(x.mac) ? `<button class="btn sm ghost" data-rename="${esc(x.mac)}">Rename</button>` : ""}</div>`).join("")}</div>
+    ${others.length ? `<label style="margin-top:12px">Same device as<select id="pp-same"><option value="">Pick one of ${esc(p.name)}'s devices…</option>${others.map((o, i) => `<option value="${i}">${esc(o.name)}${o.active ? "" : " (older)"}</option>`).join("")}</select></label>` : ""}`,
+    buttons: [{ label: "Close" }, ...(others.length ? [{ label: "Join them", cls: "primary", onClick: () => { const v = $("#pp-same").value; if (v === "") return toast("Pick the device it's the same as", "err"); ppLinks("/api/device-links/link", { keys: [...g.keys, ...others[+v].keys] }, "One device now"); } }] : [])] });
+  setTimeout(() => $$("[data-ppsep]").forEach(b => b.addEventListener("click", () => ppLinks("/api/device-links/separate", { keys: [b.dataset.ppsep], from: g.keys }, "Separated"))), 0);
+});
 // which of a person's own devices (phones, tablets, computers) have their NextDNS setup (setupwatch.go)
 const PP_SETUP_KINDS = new Set(["phone", "tablet", "laptop", "desktop", "computer"]);
 const PP_SETUP_MISS = { no_checkin: "not checked in", none: "no setup", offered: "not set up", not_seen: "not installed?", stopped: "stopped" };
@@ -313,8 +372,14 @@ async function ppSetup() {
   const cl = new Map(arr(S.ex.meta?.clients).map(c => [c.mac, c]));
   Object.entries(r.people || {}).forEach(([pid, devs]) => {
     const card = $(`#pp-${CSS.escape(pid)}`); if (!card) return;
-    const mine = devs.map(d => ({ ...d, name: d.name || cl.get(d.mac)?.name || cl.get(d.mac)?.hostname || d.mac }))
+    const all = devs.map(d => ({ ...d, name: d.name || cl.get(d.mac)?.name || cl.get(d.mac)?.hostname || d.mac }))
       .filter(d => PP_SETUP_KINDS.has(d.kind || clientKind({ mac: d.mac, ...cl.get(d.mac) })));
+    // one line per device, not per Wi-Fi address: set up if any of its addresses is; older devices left out
+    const person = S.ex.meta.people.find(x => x.id === pid), gs = person ? ppGroups(person) : [];
+    const gOf = mac => gs.find(g => g.keys.includes(`mac|${mac}`));
+    const byG = new Map();
+    all.forEach(d => { const g = gOf(d.mac); if (g && !g.active) return; const k = g || d.mac; if (!byG.has(k)) byG.set(k, []); byG.get(k).push({ ...d, name: g ? g.name : d.name }); });
+    const mine = [...byG.values()].map(l => l.find(d => !PP_SETUP_MISS[d.state]) || l.find(d => d.state === "stopped") || l[0]);
     if (!mine.length) return;
     const miss = mine.filter(d => PP_SETUP_MISS[d.state]), ok = mine.length - miss.length;
     card.querySelector(".pp-setup")?.remove();
@@ -326,8 +391,8 @@ async function ppSetup() {
 }
 
 function ppCount(p) {
-  const prof = p.devices.filter(d => d.kind === "profile").length, dev = p.devices.length - prof;
-  return [prof ? plural(prof, "NextDNS profile") : "", dev || !prof ? plural(dev, "device") : ""].filter(Boolean).join(" + ");
+  const prof = p.devices.filter(d => d.kind === "profile").length, gs = ppGroups(p), act = gs.filter(g => g.active).length;
+  return [prof ? plural(prof, "NextDNS profile") : "", gs.length || !prof ? plural(act, "device") + (gs.length > act ? ` · ${gs.length - act} older` : "") : ""].filter(Boolean).join(" + ");
 }
 
 // give one unassigned NextDNS device (as named in the logs) to a person: every profile that has a device by that name

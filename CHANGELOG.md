@@ -4,6 +4,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.91] — 2026-11-15
+
+### Changed
+- **People shows one chip per device**, not one per Wi-Fi address or NextDNS name. A device's addresses (a new
+  private address, another network) and NextDNS names (an older profile, another spelling) are grouped: by its
+  check-in, by names with the same words, or because you said so. The chip shows ×N with every name in its tooltip;
+  devices not seen for two weeks fold under *older devices*, and the count and "N of M set up" are per device.
+- **Same device?** Close names ("Alex's iPad Air" and "Alex - iPad") get a one-tap **Same device** / **Different**
+  on the card, and ✎ on a chip lists its names, joins it with another device, or takes a name off it.
+
+### Fixed
+- The "… is waiting for approval" push for a device that checked in had no buttons. It now has **Approve** (to the
+  person it named, with their NextDNS profile) and **Reject**, like the new-device push.
+
 ## [0.1.90] — 2026-11-15
 
 ### Added
