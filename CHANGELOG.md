@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.72] — 2026-11-15
+
+- Check-in page: while the network looks for the device, a big "Registering this device" screen with an animation
+  and progress text, instead of a small line; a Try again button if it gives up.
+
 ## [0.1.71] — 2026-11-14
 
 - Check-in page and guest portal: "couldn't ask the network who you are" no longer leaves a dead end. HomeOwl reads

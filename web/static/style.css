@@ -832,3 +832,12 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
   .ps-link{font-size:12pt;overflow-wrap:anywhere}
 }
 #dt-setup-print{margin-top:10px}
+/* check-in: waiting for the network */
+.hi-wait{text-align:center;padding:28px 8px 12px}
+.hi-wait h2{font-size:24px;margin:22px 0 6px}
+.hi-wait-step{font-size:17px;margin:0 0 10px}
+.hi-wait-ring{position:relative;width:120px;height:120px;margin:0 auto;display:grid;place-items:center}
+.hi-wait-ring::before{content:"";position:absolute;inset:0;border-radius:50%;border:5px solid var(--line);border-top-color:var(--accent);border-right-color:var(--accent);animation:spin 1.1s linear infinite}
+.hi-wait-ring img{border-radius:16px;animation:hi-bob 1.6s ease-in-out infinite}
+@keyframes hi-bob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.06)}}
+@media (prefers-reduced-motion:reduce){.hi-wait-ring::before{animation-duration:3s}.hi-wait-ring img{animation:none}}

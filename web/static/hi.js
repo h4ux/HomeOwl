@@ -130,12 +130,22 @@ async function homeWiFi() {
 }
 
 start.tries = 0;
+// hiWaiting: a big "we're on it" while the network looks for this device
+function hiWaiting(n) {
+  const steps = ["Connecting to the network…", "Looking for this device…", "Still looking: the network can take a moment…", "Almost there…"];
+  return `<div class="hi-wait">
+    <div class="hi-wait-ring"><img src="icon.png" alt="" width="64" height="64"></div>
+    <h2>Registering this device</h2>
+    <p class="hi-wait-step">${esc(steps[Math.min(Math.floor((n - 1) / 3), steps.length - 1)])}</p>
+    <p class="fine muted">Keep this page open. It carries on by itself.</p></div>`;
+}
+document.addEventListener("click", e => { if (e.target.id === "hi-retry") { start.tries = 0; $("#hi-box").innerHTML = hiWaiting(1); start(); } });
 async function start() {
   let st;
   try { st = await call("GET"); start.tries = 0; }
   catch (err) { // the network may be busy for a moment (a phone just joined): keep trying rather than leave a dead end
     const again = ++start.tries <= 40;
-    $("#hi-box").innerHTML = `<div class="msg ${again ? "" : "err"}">${esc(err.message)}${again ? `<div class="fine muted">Trying again by itself in a few seconds…</div>` : ""}</div>`;
+    $("#hi-box").innerHTML = again ? hiWaiting(start.tries) : `<div class="msg err">${esc(err.message)}</div><button class="btn primary" id="hi-retry" type="button">Try again</button>`;
     if (again) setTimeout(start, Math.min(3000 + start.tries * 500, 10000));
     return;
   }
