@@ -30,10 +30,10 @@ func TestDeviceIssueFix(t *testing.T) {
 			case strings.HasSuffix(p, "/integration/v1/info"):
 				_, _ = w.Write([]byte(`{"applicationVersion":"9.0"}`))
 			case strings.HasSuffix(p, "/stat/sta"):
-				_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[{"mac":"00:11:22:00:00:20","ip":"192.168.6.20","network_id":"iot","hostname":"office-printer"}]}`))
+				_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[{"mac":"00:11:22:00:00:20","ip":"192.168.2.20","network_id":"iot","hostname":"office-printer"}]}`))
 			case strings.HasSuffix(p, "/rest/networkconf"):
 				_, _ = w.Write([]byte(`{"meta":{"rc":"ok"},"data":[{"_id":"lan","name":"Home","purpose":"corporate","ip_subnet":"192.168.1.1/24","attr_hidden_id":"LAN"},
-					{"_id":"iot","name":"IoT","purpose":"corporate","ip_subnet":"192.168.6.1/24"},{"_id":"wan","name":"Internet","purpose":"wan"}]}`))
+					{"_id":"iot","name":"IoT","purpose":"corporate","ip_subnet":"192.168.2.1/24"},{"_id":"wan","name":"Internet","purpose":"wan"}]}`))
 			case strings.HasSuffix(p, "/firewall/zone"):
 				if !zoned {
 					http.NotFound(w, r)
@@ -42,6 +42,7 @@ func TestDeviceIssueFix(t *testing.T) {
 				_, _ = w.Write([]byte(`[{"_id":"zi","name":"Internal","network_ids":["lan"]},{"_id":"zt","name":"IoT","network_ids":["iot"]}]`))
 			case strings.HasSuffix(p, "/firewall-policies"):
 				if r.Method == "POST" {
+					w.WriteHeader(201) // the v2 API answers a new object with 201 Created
 					_, _ = w.Write([]byte(`{"_id":"pol1"}`))
 					return
 				}
@@ -89,12 +90,12 @@ func TestDeviceIssueFix(t *testing.T) {
 			src, _ := pol["source"].(map[string]any)
 			dst, _ := pol["destination"].(map[string]any)
 			if pol["action"] != "ALLOW" || src["zone_id"] != "zi" || dst["zone_id"] != "zt" || dst["matching_target_type"] != "SPECIFIC" || dst["port"] != "631,9100,80,443,8080" ||
-				dst["ips"].([]any)[0] != "192.168.6.20" {
+				dst["ips"].([]any)[0] != "192.168.2.20" {
 				t.Fatalf("policy: %v", pol)
 			}
 		} else {
 			rule, grp := posts["firewallrule"], posts["firewallgroup"]
-			if rule["action"] != "accept" || rule["src_networkconf_id"] != "lan" || rule["dst_address"] != "192.168.6.20" ||
+			if rule["action"] != "accept" || rule["src_networkconf_id"] != "lan" || rule["dst_address"] != "192.168.2.20" ||
 				rule["dst_firewallgroup_ids"].([]any)[0] != "grp1" || rule["rule_index"] != float64(2001) || grp["group_type"] != "port-group" {
 				t.Fatalf("rule %v group %v", rule, grp)
 			}

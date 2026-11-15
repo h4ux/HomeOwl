@@ -480,6 +480,8 @@ func holdsSecret(v any) bool {
 	return false
 }
 
+var createdRE = regexp.MustCompile(`^map\[_id:([0-9a-fA-F-]{8,64}) `)
+
 func (ch *Changes) load() {
 	b, err := os.ReadFile(ch.logPath)
 	if err != nil {
@@ -504,6 +506,10 @@ func (ch *Changes) load() {
 		}
 		c.undo = uf.Undo[c.ID]
 		c.Undone = undone[c.ID]
+		if m := createdRE.FindStringSubmatch(c.Error); m != nil && !c.OK && c.Status > 200 && c.Status < 300 && c.Method == "POST" && c.undo == nil {
+			// before 0.1.82 a "201 Created" counted as refused, though UniFi made it: logged with the new object as the error
+			c.OK, c.Error, c.Created, c.undo = true, "", m[1], &req{"DELETE", c.Path + "/" + m[1], nil}
+		}
 		c.Undoable = c.undo != nil
 		ch.list = append(ch.list, &c)
 	}
@@ -576,7 +582,7 @@ func (ch *Changes) Run(c *Client, a Action, dryRun bool, who string, requireUnlo
 		return nil, aerr("change mode is locked - unlock it in the sidebar first")
 	}
 	st, d := c.Request(p.Method, p.Path, p.Body)
-	ok := st == 200
+	ok := st >= 200 && st < 300 // the v2 API answers a new object with 201 Created
 	if m, isMap := d.(map[string]any); isMap {
 		if meta, _ := m["meta"].(map[string]any); meta != nil && meta["rc"] == "error" {
 			ok = false
@@ -604,7 +610,7 @@ func (ch *Changes) Raw(c *Client, method, path string, body any, who string) (in
 	st, d := c.Request(method, path, body)
 	if method != "GET" {
 		ch.record(c, who, Preview{Method: method, Path: path, Target: path, Description: "raw API request (MCP full access)",
-			Before: map[string]any{}, After: map[string]any{"body": body}}, st, st == 200, d, nil)
+			Before: map[string]any{}, After: map[string]any{"body": body}}, st, st >= 200 && st < 300, d, nil)
 	}
 	return st, d
 }
@@ -663,7 +669,7 @@ func (ch *Changes) Undo(c *Client, id int, who string, requireUnlock bool) error
 	u := e.undo
 	ch.mu.Unlock()
 	st, d := c.Request(u.Method, u.Path, u.Body)
-	ok := st == 200
+	ok := st >= 200 && st < 300
 	if ok {
 		ch.mu.Lock()
 		e.Undone = true

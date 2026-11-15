@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.82] — 2026-11-15
+
+- Device issues: a fix that UniFi applied was reported as "UniFi refused the fix" — the console answers a new
+  firewall policy with "201 Created", which HomeOwl didn't count as success. It does now (any 2xx), and a change
+  logged that way before is repaired when HomeOwl starts, so it shows as applied and can be reverted.
+
 ## [0.1.81] — 2026-11-15
 
 - A reorganised menu. **Home**: Today, Who's home, Alerts. **Devices** (new): All devices and New devices (check-ins,

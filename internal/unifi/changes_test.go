@@ -40,3 +40,19 @@ func TestChangesSurviveRestart(t *testing.T) {
 		t.Fatal("undone is remembered")
 	}
 }
+
+// Before 0.1.82 a 201 from the v2 API was logged as refused although UniFi made the object; the log repairs it.
+func TestCreatedLoggedAsRefused(t *testing.T) {
+	dir := t.TempDir()
+	ch := NewChanges(dir)
+	ch.recordAt("https://console", "admin", Preview{Method: "POST", Path: "/proxy/network/v2/api/site/default/firewall-policies", Description: "Allow the printer"},
+		201, false, map[string]any{"_id": "70ef6763-5b03-4d2e-b780-000000000000", "action": "ALLOW", "name": "HomeOwl: print Printer"}, nil)
+	if l := ch.List(); l[0].OK || !strings.HasPrefix(l[0].Error, "map[_id:") {
+		t.Fatalf("how the old version logged it: %+v", l[0])
+	}
+	l := NewChanges(dir).List()
+	if !l[0].OK || !l[0].Undoable || l[0].Error != "" || l[0].Created != "70ef6763-5b03-4d2e-b780-000000000000" ||
+		l[0].undo.Method != "DELETE" || l[0].undo.Path != "/proxy/network/v2/api/site/default/firewall-policies/70ef6763-5b03-4d2e-b780-000000000000" {
+		t.Fatalf("repaired: %+v %+v", l[0], l[0].undo)
+	}
+}
