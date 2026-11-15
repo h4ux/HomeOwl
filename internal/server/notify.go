@@ -41,7 +41,9 @@ func (a *App) deliverAlert(al alerts.Alert) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	errs := alerts.Deliver(ctx, a.alertChannels(), al)
+	ch := a.alertChannels()
+	ch.Actions = a.pushActions(al) // Approve / Block for a new device (approvallink.go)
+	errs := alerts.Deliver(ctx, ch, al)
 	msg := ""
 	for _, e := range errs {
 		msg += e.Error() + "; "

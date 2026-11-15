@@ -46,7 +46,7 @@ function alList(items, people) {
       S.source === "live" ? actBtn({ kind: "stacmd", cmd: "block-sta", mac, label: a.data?.name || mac, description: `Block ${a.data?.name || mac}` }, "Block") : "",
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
     ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
-      : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button><button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`
+      : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button>${a.data.grace ? `<button class="btn sm" data-alapvblock="${esc(a.data.mac)}">Block</button>` : `<button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`}`
       : a.kind === "archive" && S.role === "admin" ? `<button class="btn sm" data-goto="clients">Review</button>`
       : a.kind === "approval_flood" && S.role === "admin" ? `<button class="btn sm" data-goto="settings">Settings</button>`
       : (a.kind === "setup_lost" || a.kind === "checkin") && S.role === "admin" ? `<button class="btn sm" data-goto="checkins">${a.kind === "checkin" ? "Approve…" : "Check-ins"}</button>` : "";
@@ -61,10 +61,10 @@ function alList(items, people) {
 document.addEventListener("click", e => {
   if (e.target.id === "al-read") { if (alLive()) api("/api/alerts/read", { id: 0 }).then(() => loadAlerts()).catch(err => toast(err.message, "err")); return; }
   const sh = e.target.closest("[data-alshow]"); if (sh) { showClient(sh.dataset.alshow); return; }
-  const apv = e.target.closest("[data-alapv],[data-alapvkeep]");
+  const apv = e.target.closest("[data-alapv],[data-alapvkeep],[data-alapvblock]");
   if (apv) {
-    const keep = !!apv.dataset.alapvkeep, mac = apv.dataset.alapv || apv.dataset.alapvkeep; apv.disabled = true;
-    api(keep ? "/api/approval/keep" : "/api/approval/approve", { mac }).then(() => toast(keep ? "Kept blocked" : "Approved — it can connect now", "ok")).catch(err => toast(err.message, "err"));
+    const op = apv.dataset.alapvkeep ? "keep" : apv.dataset.alapvblock ? "block" : "approve", mac = apv.dataset.alapv || apv.dataset.alapvkeep || apv.dataset.alapvblock; apv.disabled = true;
+    api(`/api/approval/${op}`, { mac }).then(() => toast({ keep: "Kept blocked", block: "Blocked", approve: "Approved — it can connect now" }[op], "ok")).catch(err => toast(err.message, "err"));
     return;
   }
   if (e.target.id === "al-test") { api("/api/alerts/test", {}).then(() => toast("Test sent", "ok")).catch(err => toast(err.message, "err")).finally(() => setTimeout(renderAlertSettings, 300)); return; }

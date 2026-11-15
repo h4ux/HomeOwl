@@ -285,6 +285,15 @@ async function loadApproval() {
   try { S.approval = await api("/api/approval"); } catch (e) { S.approval = { error: e.message }; }
   renderApproval();
 }
+const APV_GRACE = [[0, "no time — block at once"], [15, "15 minutes"], [60, "1 hour"], [240, "4 hours"], [1440, "1 day"], [4320, "3 days"], [10080, "7 days"]];
+document.addEventListener("change", e => {
+  if (e.target.id !== "apv-grace") return;
+  approvalDo("/api/approval/set", { grace_minutes: +e.target.value }, +e.target.value ? `New devices stay online for ${e.target.selectedOptions[0].textContent}` : "New devices are blocked at once");
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-apvblock]"); if (!b) return;
+  approvalDo("/api/approval/block", { mac: b.dataset.apvblock }, "Blocked");
+});
 function renderApproval() {
   const el = $("#st-approval"), r = S.approval; if (!el || !r) return;
   if (r.error) { el.innerHTML = `<div class="msg warn">${esc(r.error)}</div>`; return; }
@@ -295,8 +304,14 @@ function renderApproval() {
       <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${kept ? "" : `<button class="btn sm" data-apvkeep="${esc(d.mac)}">Keep blocked</button>`}</div></div>`;
   el.innerHTML = `<h3 style="margin-top:18px">Approve new devices ${hint("A device that joins the home Wi-Fi for the first time is blocked in UniFi until you approve it here or from its alert. Checked-in devices (from the setup Wi-Fi with their profile) don't need it. Devices seen in the last day when you turn this on count as approved; older ones wait for you when they come back. Guest networks, the setup Wi-Fi and wired devices aren't covered. Each block is in the change log and can be undone.")}</h3>
     <label class="check"><input type="checkbox" id="apv-on" ${r.on ? "checked" : ""}> <span>Block first-time devices on the home Wi-Fi until I approve them</span></label>
+    ${r.on ? `<div class="ap-grace"><label>New devices stay online for<select id="apv-grace">${APV_GRACE.map(([m, l]) => `<option value="${m}" ${m === (r.grace_minutes || 0) ? "selected" : ""}>${l}</option>`).join("")}${APV_GRACE.some(([m]) => m === (r.grace_minutes || 0)) ? "" : `<option value="${r.grace_minutes}" selected>${r.grace_minutes} minutes</option>`}</select></label>
+      <span class="fine muted">${r.grace_minutes ? "…so you can approve them in time. Not approved by then: blocked." : "Blocked straight away until you approve them."}</span></div>
+      <p class="fine">${r.push ? "✓ New devices are pushed to your phone (ntfy) with <b>Approve</b> and <b>Block</b> buttons. Everyone subscribed to the topic can decide." : `Get new devices on your phone with <b>Approve</b> and <b>Block</b> buttons: add an ntfy topic in <a href="#" data-goto="settings">Settings › Alerts</a> (the ntfy app; both parents can subscribe).`}</p>` : ""}
+    ${r.on && arr(r.grace).length ? `<h4 style="margin:10px 0 4px">Online, waiting for a decision</h4><div class="ap-blocks">${r.grace.map(d => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)} · blocked ${d.ends * 1000 > Date.now() ? "in " + fmtDur((d.ends * 1000 - Date.now()) / 1000) : "at its next check"}</div></div>
+      <div class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}
+      <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button><button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></div></div>`).join("")}</div>` : ""}
     ${r.on ? `<p class="fine muted">${r.approved} devices approved. <button class="btn sm ghost" id="apv-trim" title="Devices approved when this was turned on, but not seen in the last ${r.recent_hours || 24} hours, wait for approval when they come back. Devices you approved and checked-in devices stay.">Re-check devices not seen lately</button></p>` : ""}
-    ${r.waiting.length ? `<div class="ap-blocks">${r.waiting.map(d => row(d, false)).join("")}</div>` : r.on ? `<p class="fine muted">Nothing waiting.</p>` : ""}
+    ${r.waiting.length ? `<h4 style="margin:10px 0 4px">Blocked, waiting for a decision</h4><div class="ap-blocks">${r.waiting.map(d => row(d, false)).join("")}</div>` : r.on && !arr(r.grace).length ? `<p class="fine muted">Nothing waiting.</p>` : ""}
     ${r.kept.length ? `<details class="wi-more"><summary>Kept blocked (${r.kept.length})</summary><div class="ap-blocks">${r.kept.map(d => row(d, true)).join("")}</div></details>` : ""}
     ${r.on || r.waiting.length || r.kept.length ? `<details class="wi-more"><summary>If HomeOwl is down, or blocked a device by mistake</summary><div class="fine">
       <p>Blocks are set in UniFi, so you can always lift one there, without HomeOwl:</p>

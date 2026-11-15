@@ -43,6 +43,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiProfile(w, r)
 		return
 	}
+	if p == "approval-link" { // a new-device push's Approve / Block button (signed one-time link, approvallink.go)
+		a.approvalLinkAPI(w, r)
+		return
+	}
 	if p == "welcome" { // the guest Wi-Fi's sign-in page, when HomeOwl is the guest portal (portal.go)
 		a.welcomeAPI(w, r)
 		return

@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.76] — 2026-11-15
+
+- Device approval: a grace period (Settings › Device profiles › Approve new devices: none, 15 minutes up to 7
+  days). A new device stays online meanwhile and shows under "Online, waiting for a decision" with Approve and
+  Block now; it's blocked only if nobody approves it in time.
+- New-device pushes (ntfy) carry Approve and Block buttons: signed, single-use links that expire after two days and
+  work without signing in. They're made when the push is sent and never stored with the alert.
+
 ## [0.1.75] — 2026-11-15
 
 - Device issues: a client's window has an Issues section. Pick what doesn't work (printing or scanning, AirPlay,

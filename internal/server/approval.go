@@ -3,10 +3,12 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +46,8 @@ type pendingDevice struct {
 type approvalState struct {
 	Approved map[string]int64         `json:"approved"` // MAC → when
 	Blocked  map[string]pendingDevice `json:"blocked"`
+	Grace    map[string]pendingDevice `json:"grace,omitempty"` // new, still online during the grace period (At: since)
+	Used     map[string]int64         `json:"used,omitempty"`  // approval links already used → when they expire
 	Seeded   int64                    `json:"seeded,omitempty"`
 	// SeedRecent: the seed took only devices seen recently (older seeds approved everything UniFi ever saw, and
 	// are trimmed once)
@@ -150,6 +154,9 @@ func (a *App) approvalTick(online []map[string]any) {
 			Body: "It's connected again, so HomeOwl counts it as approved and won't block it again."})
 	}
 
+	if g := a.Cfg.Get().Onboard.GraceMinutes; g > 0 {
+		block = a.graceFilter(block, time.Duration(g)*time.Minute, time.Now())
+	}
 	if len(block) > maxBlocksPerTick {
 		a.Alerts.Add(alerts.Alert{Kind: "approval_flood", Level: "warn", Title: "Device approval paused",
 			Body: "More than 10 new devices joined at once, so HomeOwl blocked none of them. Look at Settings › Device profiles › Approve new devices."})
@@ -158,6 +165,70 @@ func (a *App) approvalTick(online []map[string]any) {
 	for _, c := range block {
 		a.blockForApproval(c)
 	}
+}
+
+// graceFilter: new devices get the grace period (and the admins an alert); those whose grace is over are blocked.
+func (a *App) graceFilter(cands []map[string]any, grace time.Duration, now time.Time) []map[string]any {
+	s := a.approval
+	s.mu.Lock()
+	st := s.load()
+	if st.Grace == nil {
+		st.Grace = map[string]pendingDevice{}
+	}
+	var due []map[string]any
+	var fresh []pendingDevice
+	for _, c := range cands {
+		mac := strings.ToLower(str(c, "mac"))
+		d, ok := st.Grace[mac]
+		if !ok {
+			d = pendingDevice{MAC: mac, Name: str(c, "name"), Hostname: str(c, "hostname"), Vendor: str(c, "oui"), SSID: str(c, "essid"), At: now.Unix()}
+			st.Grace[mac] = d
+			fresh = append(fresh, d)
+			continue
+		}
+		if now.Sub(time.Unix(d.At, 0)) >= grace {
+			due = append(due, c)
+			delete(st.Grace, mac)
+		}
+	}
+	for mac, d := range st.Grace { // approved meanwhile, or long gone
+		if st.Approved[mac] > 0 || now.Sub(time.Unix(d.At, 0)) > 30*24*time.Hour {
+			delete(st.Grace, mac)
+		}
+	}
+	_ = s.save(st)
+	s.mu.Unlock()
+	if len(fresh) > maxBlocksPerTick {
+		a.Alerts.Add(alerts.Alert{Kind: "approval_flood", Level: "warn", Title: fmt.Sprintf("%d new devices joined at once", len(fresh)),
+			Body: "They're online for now. Look at Settings › Device profiles › Approve new devices."})
+		return due
+	}
+	for _, d := range fresh {
+		name := orStr(d.Name, orStr(d.Hostname, d.MAC))
+		a.Alerts.Add(alerts.Alert{Kind: "approval", Level: "warn", Title: name + " joined the home Wi-Fi",
+			Body: "It's online for now. HomeOwl blocks it in " + fmtGrace(grace) + " unless you approve it.",
+			Data: map[string]any{"mac": d.MAC, "name": name, "grace": true}})
+	}
+	return due
+}
+
+// fmtGrace: 15 minutes, 4 hours, 3 days.
+func fmtGrace(d time.Duration) string {
+	m := int(d.Minutes())
+	switch {
+	case m%(24*60) == 0:
+		return plural(m/(24*60), "day")
+	case m%60 == 0:
+		return plural(m/60, "hour")
+	}
+	return plural(m, "minute")
+}
+
+func plural(n int, w string) string {
+	if n == 1 {
+		return "1 " + w
+	}
+	return strconv.Itoa(n) + " " + w + "s"
 }
 
 func (a *App) blockForApproval(c map[string]any) {
@@ -203,13 +274,33 @@ func (a *App) approvalView() map[string]any {
 	}
 	sort.Slice(waiting, func(i, j int) bool { return waiting[i].At > waiting[j].At })
 	sort.Slice(kept, func(i, j int) bool { return kept[i].At > kept[j].At })
-	return map[string]any{"on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept}
+	gm := a.Cfg.Get().Onboard.GraceMinutes
+	grace := []map[string]any{}
+	for _, d := range st.Grace {
+		if st.Approved[d.MAC] == 0 {
+			grace = append(grace, map[string]any{"mac": d.MAC, "name": d.Name, "hostname": d.Hostname, "vendor": d.Vendor, "ssid": d.SSID, "at": d.At,
+				"ends": d.At + int64(gm)*60})
+		}
+	}
+	sort.Slice(grace, func(i, j int) bool { return grace[i]["at"].(int64) > grace[j]["at"].(int64) })
+	return map[string]any{"on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept,
+		"grace_minutes": gm, "grace": grace, "push": a.Sec.Get(slotNtfy) != ""}
 }
 
 // approvalAPI: on/off, approve (unblock, optionally give it to someone), keep blocked.
 func (a *App) approvalAPI(op string, body map[string]any, by string) (map[string]any, error) {
 	switch op {
 	case "set":
+		if has(body, "grace_minutes") && !has(body, "on") {
+			g, _ := n(body, "grace_minutes")
+			if g < 0 || g > 30*24*60 {
+				return nil, errors.New("the grace period is up to 30 days")
+			}
+			if err := a.Cfg.Update(func(c *config.Config) { c.Onboard.GraceMinutes = int(g) }); err != nil {
+				return nil, err
+			}
+			break
+		}
 		on := b(body, "on")
 		if on {
 			if err := a.seedApproval(); err != nil {
@@ -227,13 +318,40 @@ func (a *App) approvalAPI(op string, body map[string]any, by string) (map[string
 		v := a.approvalView()
 		v["trimmed"] = n
 		return v, nil
-	case "approve", "keep":
+	case "approve", "keep", "block":
 		mac := strings.ToLower(s(body, "mac"))
 		as := a.approval
 		as.mu.Lock()
 		st := as.load()
 		d, ok := st.Blocked[mac]
+		g, inGrace := st.Grace[mac]
 		as.mu.Unlock()
+		if inGrace && !ok { // still online in its grace period: approve without an unblock, or block it now
+			as.mu.Lock()
+			st = as.load()
+			delete(st.Grace, mac)
+			if op == "approve" {
+				st.Approved[mac] = time.Now().Unix()
+			}
+			err := as.save(st)
+			as.mu.Unlock()
+			if err != nil {
+				return nil, err
+			}
+			if op == "approve" {
+				if pid := s(body, "person_id"); pid != "" && a.An.Open() {
+					if err := a.An.AssignDevice(pid, "mac", mac); err != nil {
+						return nil, err
+					}
+				}
+			} else {
+				a.blockForApproval(map[string]any{"mac": mac, "name": g.Name, "hostname": g.Hostname, "oui": g.Vendor, "essid": g.SSID})
+			}
+			break
+		}
+		if op == "block" {
+			return nil, errors.New("that device isn't in its grace period any more")
+		}
 		if !ok {
 			return nil, errors.New("that device isn't waiting any more")
 		}

@@ -38,7 +38,12 @@ type Channels struct {
 	Ntfy    string // e.g. https://ntfy.sh/<your secret topic>
 	Webhook string
 	Link    string // where "Open HomeOwl" should point, if anywhere
+	// Actions: buttons for this push (ntfy), made per alert by the caller — never stored with the alert
+	Actions []PushAction
 }
+
+// PushAction is a push button that POSTs to its URL (a signed one-time link).
+type PushAction struct{ Label, URL string }
 
 // Store keeps the newest alerts in a JSON file.
 type Store struct {
@@ -197,6 +202,15 @@ func ntfy(ctx context.Context, ch Channels, a Alert) error {
 	}
 	if ch.Link != "" {
 		req.Header.Set("Click", ch.Link)
+	}
+	var acts []string
+	for _, x := range ch.Actions {
+		if CheckURL(x.URL) == nil && !strings.ContainsAny(x.Label+x.URL, ",;") {
+			acts = append(acts, "http, "+x.Label+", "+x.URL+", method=POST, clear=true")
+		}
+	}
+	if len(acts) > 0 {
+		req.Header.Set("Actions", strings.Join(acts, "; "))
 	}
 	return do(req)
 }
