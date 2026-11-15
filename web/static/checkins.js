@@ -352,7 +352,7 @@ function printApprovalHelp() {
 }
 document.addEventListener("click", e => { if (e.target.id === "apv-print") printApprovalHelp(); });
 async function approvalDo(path, body, msg) {
-  try { S.approval = await api(path, body); toast(msg, "ok"); renderApproval(); } catch (err) { toast(err.message, "err"); loadApproval(); }
+  try { S.approval = await api(path, body); toast(msg, "ok"); renderApproval(); if (S.view === "clients") render(); } catch (err) { toast(err.message, "err"); loadApproval(); }
 }
 document.addEventListener("click", e => {
   if (e.target.id !== "apv-trim") return;

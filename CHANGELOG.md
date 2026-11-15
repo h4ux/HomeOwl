@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.90] — 2026-11-15
+
+### Added
+- **Grace period tab in Devices › All devices** (admins, while approving new devices is on): new devices that are
+  online until you decide, with when they joined, when HomeOwl blocks them, and **Approve** / **Block now**.
+
 ## [0.1.89] — 2026-11-15
 
 ### Added

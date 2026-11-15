@@ -521,10 +521,11 @@ V.clients = m => {
   const top = [...m.clients].filter(c => c.tx !== null || c.rx !== null).sort((a, b) => ((b.tx || 0) + (b.rx || 0)) - ((a.tx || 0) + (a.rx || 0))).slice(0, 10);
   const byAp = {}; wl.forEach(c => { const k = m.devByMac[c.apMac]?.name || "Unknown AP"; byAp[k] = (byAp[k] || 0) + 1; });
   const admin = S.role === "admin" && S.source === "live";
-  const tabs = { active: ["Active", m.clients.length], known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length], ...(admin && arr(S.archiveSug?.archived).length ? { archived: ["Archived", arr(S.archiveSug.archived).length] } : {}) };
-  const tab = S.clientTab === "archived" && !tabs.archived ? "known" : S.clientTab;
-  if (admin) loadArchive();
-  const tbl = tab === "archived" ? archivedTable() : tab === "active" ? table("clients", [
+  const grace = admin ? arr(S.approval?.grace) : [];
+  const tabs = { active: ["Active", m.clients.length], ...(grace.length ? { grace: ["Grace period", grace.length] } : {}), known: ["All known (incl. offline)", m.known.length], blocked: ["Blocked", m.known.filter(k => k.blocked).length], ...(admin && arr(S.archiveSug?.archived).length ? { archived: ["Archived", arr(S.archiveSug.archived).length] } : {}) };
+  const tab = S.clientTab === "archived" && !tabs.archived || S.clientTab === "grace" && !tabs.grace ? "known" : S.clientTab;
+  if (admin) { loadArchive(); loadClientApproval(); }
+  const tbl = tab === "archived" ? archivedTable() : tab === "grace" ? graceTable(m, grace) : tab === "active" ? table("clients", [
     { k: "label", label: "Name", fmt: r => `${onDot(true)}${cliIcon(r)}${esc(r.label)}${canRename(r.mac) ? ` <button class="icon-btn" data-rename="${esc(r.mac)}" title="Edit name, type and note" aria-label="Edit ${esc(r.label)}">✎</button>` : ""}${m.knownByMac[r.mac]?.note ? `<div class="fine muted cl-note">${esc(m.knownByMac[r.mac].note)}</div>` : ""}` },
     { k: "network", label: "Network" }, { k: "wired", label: "Link", fmt: r => r.wired ? `wired${r.swPort ? " · port " + r.swPort : ""}` : `${esc(r.ssid || "Wi-Fi")} · ${bandLabel(r.band)}` },
     { k: "signal", label: "Signal", num: 1, fmt: r => r.signal === null || r.signal === undefined ? "–" : `<span class="${r.signal < -75 ? "bad-t" : ""}" title="${r.signal < -75 ? "Weak" : r.signal < -67 ? "OK" : "Good"}">${r.signal} dBm</span>` },
@@ -548,6 +549,26 @@ V.clients = m => {
     <div class="card"><h2>Wireless clients per AP</h2>${hbar(Object.entries(byAp).sort((a, b) => b[1] - a[1]).map(([label, value]) => ({ label, value, color: "var(--c4)" })))}</div>
     <div class="card"><h2>Whole-network app categories</h2>${hbar([...m.dpiCats].sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx)).slice(0, 8).map(d => ({ label: d.cat, value: d.rx + d.tx, color: "var(--c1)" })), { fmt: fmtBytes })}</div></div>`)}`;
 };
+
+// ---- new devices in their grace period (approval.go): online until approved, blocked when it ends
+async function loadClientApproval() {
+  if (S.apvBusy || S.apvAt && Date.now() - S.apvAt < 60000) return;
+  S.apvBusy = true;
+  const before = arr(S.approval?.grace).map(d => d.mac).join();
+  try { S.approval = await api("/api/approval"); } catch { /* not turned on, or no UniFi: no tab */ } finally { S.apvBusy = false; S.apvAt = Date.now(); }
+  if (S.view === "clients" && arr(S.approval?.grace).map(d => d.mac).join() !== before) render();
+}
+function graceTable(m, l) {
+  const people = S.devTypePeople || [];
+  const left = d => d.ends * 1000 > Date.now() ? `in ${fmtDur((d.ends * 1000 - Date.now()) / 1000)}` : "at the next check";
+  return `<p class="fine muted">New devices on the home Wi-Fi stay online for ${esc(fmtDur((S.approval?.grace_minutes || 0) * 60))} so you can approve them; then HomeOwl blocks them. Set the time in <a href="#" data-goto="checkins">Devices › New devices</a>.</p>` + table("grace", [
+    { k: "name", label: "Device", fmt: d => `${onDot(true)}${esc(m.knownByMac[d.mac]?.label || d.name || d.hostname || d.mac)}<div class="fine muted mono">${esc(d.mac)}</div>` },
+    { k: "vendor", label: "Vendor", fmt: d => esc(d.vendor || "–") }, { k: "ssid", label: "Wi-Fi", fmt: d => esc(d.ssid || "–") },
+    { k: "at", label: "Joined", num: 1, fmt: d => esc(ago(d.at * 1000)) },
+    { k: "ends", label: "Blocked", num: 1, fmt: d => `<span class="${d.ends * 1000 - Date.now() < 900000 ? "warn-t" : ""}">${esc(left(d))}</span>` },
+    { k: "mac", label: "", sort: () => 0, fmt: d => `<span class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}<button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button><button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></span>` },
+  ], l, { search: true, empty: "No device is in its grace period" });
+}
 
 // ---- archived devices (archive.go): old addresses of the same device, hidden from the lists, never deleted
 async function loadArchive(force) {
