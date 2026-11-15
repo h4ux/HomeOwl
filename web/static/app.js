@@ -446,6 +446,35 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-ctype]"); if (!b) return;
   $$(".type-opt").forEach(x => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); });
 });
+// device issues (issues.go): what doesn't work → diagnosis → a previewed fix → whether it answers now
+const DEVICE_ISSUES = [["print", "Printing or scanning doesn't work"], ["airplay", "AirPlay doesn't work"], ["cast", "Casting (Chromecast, Google TV) doesn't work"],
+  ["share", "File sharing doesn't work"], ["web", "Its app or web page doesn't open"], ["other", "Something else at home can't reach it"]];
+async function issueCheck(mac, issue, from) {
+  const out = $("#cl-issue-out"); if (!out || !issue) return;
+  out.innerHTML = `<div class="iss-busy"><div class="spinner"></div> Checking ${esc(DEVICE_ISSUES.find(x => x[0] === issue)?.[1].toLowerCase() || "")}…</div>`;
+  let r; try { r = await api("/api/device-issue/check", { mac, issue, ...(from ? { from } : {}) }); } catch (err) { out.innerHTML = `<div class="msg err">${esc(err.message)}</div>`; return; }
+  const mark = s => s.ok === true ? `<span class="iss-ok">✓</span>` : s.ok === false ? `<span class="iss-bad">✗</span>` : `<span class="iss-dot">•</span>`;
+  const fix = arr(r.fix);
+  out.innerHTML = `<ul class="iss-steps">${arr(r.steps).map(s => `<li>${mark(s)}<span>${esc(s.text)}</span></li>`).join("")}</ul>
+    ${arr(r.choices).length ? `<div class="iss-from"><span class="fine muted">Who should reach it:</span> ${r.choices.map(n => `<label class="check"><input type="checkbox" data-issfrom="${esc(n.id)}" ${arr(r.from).includes(n.id) ? "checked" : ""}> <span>${esc(n.name)} <span class="fine muted mono">${esc(n.subnet)}</span></span></label>`).join("")}</div>` : ""}
+    ${fix.length ? `<div class="iss-fix"><b>The fix</b>${fix.map(p => `<div class="pv"><div class="pv-h"><b>${esc(p.description)}</b></div>
+      <div>${Object.entries(p.after || {}).map(([k, v]) => `<div><span class="fine muted">${esc(k)}</span> ${esc(fmtVal(v))}</div>`).join("")}</div>
+      <div class="fine mono">${esc(p.method)} ${esc(p.path)}</div><div class="fine">↩ Can be undone from the Changes page.</div></div>`).join("")}
+      <div class="btnrow"><button class="btn primary" id="iss-fix">Fix it</button>${S.write ? "" : `<span class="fine muted">Change mode is locked — fixing unlocks it for this session.</span>`}</div></div>`
+      : `<p class="fine muted">${arr(r.from).length ? "Nothing to change on the console for this." : "Tick the network your phones and computers are on."}</p>`}
+    ${r.tip ? `<p class="fine">Tip: ${esc(r.tip)}</p>` : ""}`;
+  out.querySelectorAll("[data-issfrom]").forEach(cb => cb.addEventListener("change", () => issueCheck(mac, issue, [...out.querySelectorAll("[data-issfrom]:checked")].map(x => x.dataset.issfrom))));
+  $("#iss-fix")?.addEventListener("click", async () => {
+    const btn = $("#iss-fix"); btn.disabled = true; btn.textContent = "Fixing…";
+    try {
+      if (!S.write) await setWrite(true);
+      const res = await api("/api/device-issue/fix", { mac, issue, from: r.from });
+      out.innerHTML = `<ul class="iss-steps">${arr(res.done).map(c => `<li><span class="iss-ok">✓</span><span>${esc(c.description || c.target)} <span class="fine muted">(change #${c.id})</span></span></li>`).join("")}
+        <li>${res.answers ? `<span class="iss-ok">✓</span><span>${esc(r.device.name)} answers now. Try it again.</span>` : `<span class="iss-dot">•</span><span>The rule is in place. ${esc(r.device.name)} doesn't answer HomeOwl yet — give it a minute and try again; if it still fails, undo it from the Changes page.</span>`}</li></ul>`;
+      toast("Fixed", "ok");
+    } catch (err) { btn.disabled = false; btn.textContent = "Fix it"; toast(err.message, "err"); }
+  });
+}
 function showClient(mac) {
   const m = S.model, c = m.clients.find(x => x.mac === mac) || m.knownByMac[mac]; if (!c) return;
   const k = m.knownByMac[mac] || {}, userId = c.userId || k.id;
@@ -464,8 +493,13 @@ function showClient(mac) {
     ${live ? `<h3 style="margin-top:12px">Actions</h3><div class="btnrow">
       ${c.online !== false && !c.wired ? actBtn({ kind: "stacmd", cmd: "kick-sta", mac, label: c.label, description: `Reconnect ${c.label} (kick from Wi-Fi)` }, "Reconnect") : ""}
       ${actBtn({ kind: "stacmd", cmd: c.blocked ? "unblock-sta" : "block-sta", mac, label: c.label, description: `${c.blocked ? "Unblock" : "Block"} ${c.label}` }, c.blocked ? "Unblock" : "Block")}
-      ${userId ? `<button class="btn sm" id="cl-rename">Edit name, type &amp; note</button><button class="btn sm" id="cl-fixed">${c.fixedIp ? "Change / clear fixed IP" : "Set fixed IP"}</button>` : `<span class="fine">Rename / fixed IP need the client's record (not returned for this device).</span>`}</div>` : ""}`;
+      ${userId ? `<button class="btn sm" id="cl-rename">Edit name, type &amp; note</button><button class="btn sm" id="cl-fixed">${c.fixedIp ? "Change / clear fixed IP" : "Set fixed IP"}</button>` : `<span class="fine">Rename / fixed IP need the client's record (not returned for this device).</span>`}</div>
+      ${S.role === "admin" ? `<h3 style="margin-top:14px">Issues ${hint("Pick what doesn't work. HomeOwl checks whether the device answers and why not, and offers a fix — usually one narrow firewall rule that lets your home network reach just this device. You see exactly what changes first, and it can be undone from the Changes page.")}</h3>
+      <div class="btnrow"><select id="cl-issue" aria-label="What doesn't work"><option value="">Something doesn't work with it?</option>${DEVICE_ISSUES.map(([id, l]) => `<option value="${id}">${esc(l)}</option>`).join("")}</select>
+      <button class="btn sm primary" id="cl-issue-check" disabled>Check</button></div><div id="cl-issue-out"></div>` : ""}` : ""}`;
   openModal({ title: c.label, body, wide: true });
+  $("#cl-issue")?.addEventListener("change", e => { $("#cl-issue-check").disabled = !e.target.value; $("#cl-issue-out").innerHTML = ""; });
+  $("#cl-issue-check")?.addEventListener("click", () => issueCheck(mac, $("#cl-issue").value));
   $("#cl-rename")?.addEventListener("click", () => renameClient(mac));
   $("#cl-fixed")?.addEventListener("click", () => {
     const n = m.netById[c.networkId] || m.netForIp(c.ip || "") || m.defaultNet;

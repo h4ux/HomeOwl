@@ -417,6 +417,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = a.ndProfileChoices()
 	case p == "checkins/approve":
 		res, err = a.approveCheckIn(body, by)
+	case p == "device-issue/check":
+		res, err = a.issueAPI("check", body, remoteIP(r), by)
+	case p == "device-issue/fix":
+		res, err = a.issueAPI("fix", body, remoteIP(r), by)
 	case p == "checkins/merge":
 		var drop []string
 		if l, ok := body["drop"].([]any); ok {

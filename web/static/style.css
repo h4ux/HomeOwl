@@ -846,3 +846,10 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .cim-opt:has(input:checked){border-color:var(--accent);background:var(--panel2)}
 .cim-opt input{width:auto;flex:none;margin:3px 0 0}.cim-opt>div{flex:1;font-size:13px;font-weight:400;color:var(--text)}.cim-opt{margin:0}
 .hi-main{align-items:flex-start}.hi-main input{margin-top:3px!important}
+/* device issues */
+.iss-busy{display:flex;gap:10px;align-items:center;margin:10px 0}.iss-busy .spinner{width:20px;height:20px;border-width:2px}
+.iss-steps{list-style:none;padding:0;margin:10px 0}.iss-steps li{display:flex;gap:8px;margin:5px 0}
+.iss-ok{color:var(--ok);font-weight:700}.iss-bad{color:var(--crit);font-weight:700}.iss-dot{color:var(--muted)}
+.iss-from{display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center;margin:8px 0}.iss-from label{margin:0}
+.iss-fix{margin-top:10px}.iss-fix .pv{margin:8px 0}
+#cl-issue{max-width:420px}

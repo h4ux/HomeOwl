@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.75] — 2026-11-15
+
+- Device issues: a client's window has an Issues section. Pick what doesn't work (printing or scanning, AirPlay,
+  casting, file sharing, its web page, anything else) and Check shows why: which network it's on, whether it
+  answers HomeOwl, and which firewall is in between. Fix it adds one narrow allow rule — the networks you tick → that
+  device's address, only the ports the problem needs — as a zone-based policy (UniFi Network 9+) or a classic
+  LAN In rule with a port group. It's previewed, logged and undoable, and HomeOwl checks whether the device answers
+  afterwards.
+
 ## [0.1.74] — 2026-11-15
 
 - Check-in asks "Is this your main phone?" (ticked for a phone, not asked for shared devices). Approving it — the

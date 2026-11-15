@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -333,6 +334,12 @@ func (c *Client) plan(a Action) (*plan, error) {
 		body := map[string]any{"key": name, "value": ip.String(), "record_type": "A", "enabled": true, "ttl": 0, "port": 0, "priority": 0, "weight": 0}
 		return &plan{req: req{"POST", path, body}, Before: map[string]any{"record": nil}, After: map[string]any{"record": name + " → " + ip.String()},
 			DeleteCreated: true, Target: name}, nil
+	case "fwpolicy": // zone-based firewall (UniFi Network 9+): let some networks reach one device (issues.go)
+		return c.planFwPolicy(a)
+	case "fwportgroup": // classic firewall: the ports such a rule allows
+		return c.planFwPortGroup(a)
+	case "fwrule": // classic firewall: let a network reach one device
+		return c.planFwRule(a)
 	}
 	return nil, aerr("unknown action kind")
 }
@@ -423,6 +430,7 @@ type Change struct {
 	Error       string         `json:"error,omitempty"`
 	Undoable    bool           `json:"undoable"`
 	Undone      bool           `json:"undone"`
+	Created     string         `json:"created,omitempty"` // the id of what it created (a firewall port group the next rule uses)
 	undo        *req
 }
 
@@ -504,7 +512,11 @@ func (ch *Changes) Run(c *Client, a Action, dryRun bool, who string, requireUnlo
 			undo = &req{"DELETE", fmt.Sprintf("%s/%v", p.Path, f["_id"]), nil}
 		}
 	}
-	return map[string]any{"result": ch.record(c, who, pub, st, ok, d, undo)}, nil
+	ch2 := ch.record(c, who, pub, st, ok, d, undo)
+	if p.DeleteCreated && ok && undo != nil {
+		ch2.Created = path.Base(undo.Path)
+	}
+	return map[string]any{"result": ch2}, nil
 }
 
 // Raw performs any request (MCP "god mode") and logs it.
