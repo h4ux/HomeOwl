@@ -4,6 +4,11 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.77] — 2026-11-15
+
+- The 0.1.76 changes, released: its build stopped on a test race (push links were worked out for every alert, not
+  only new-device pushes to ntfy). v0.1.76 has no release.
+
 ## [0.1.76] — 2026-11-15
 
 - Device approval: a grace period (Settings › Device profiles › Approve new devices: none, 15 minutes up to 7

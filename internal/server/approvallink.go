@@ -87,8 +87,11 @@ func (a *App) linkBase() string {
 // pushActions: the buttons for a new-device push.
 func (a *App) pushActions(al alerts.Alert) []alerts.PushAction {
 	mac, _ := al.Data["mac"].(string)
+	if al.Kind != "approval" || mac == "" || !a.Cfg.Get().Onboard.Approve {
+		return nil
+	}
 	base := a.linkBase()
-	if al.Kind != "approval" || mac == "" || base == "" || !a.Cfg.Get().Onboard.Approve {
+	if base == "" {
 		return nil
 	}
 	exp := time.Now().Add(linkTTL)
