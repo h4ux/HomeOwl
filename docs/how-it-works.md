@@ -204,6 +204,14 @@ devices by room. In **Houses** (Tuya settings) untick a home to hide its devices
 account, say — or make your own houses. Opening a device (✎) puts it in a house and room and says what it is (a
 "Boiler switch" rather than "Switch"); empty fields follow Smart Life, and the choices survive every sync.
 
+**How it looks.** Each house has a banner with its name, how many devices are online and on, and its Tap-to-Run
+scenes; **✎ Look** picks a background (a colour preset, or a photo of the house — shrunk in the browser, kept in the
+data folder, shown only to people signed in). Its automations sit folded under the banner. Every device card has an
+icon (picked from its name — a switch called "Boiler" gets the water-heater icon — or its type; ✎ picks another), and
+a device with several switches lists them by name: the names given in the Smart Life app (read once a day), or your
+own in ✎ › Switch names. In Cloud mode HomeOwl asks the Tuya Cloud every 5 minutes, which keeps well inside the free
+plan's monthly calls.
+
 **Scenes and automations.** Each Smart Life home's Tap-to-Run scenes show with **Run**, its automations with an
 on/off switch, for admins, logged in **History › Changes**. They need the **Smart Home Scene Linkage** API service in
 the Tuya project; without it the page says so.

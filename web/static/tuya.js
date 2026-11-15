@@ -39,39 +39,47 @@ function tuyaBody(d) {
   const kindBar = Object.keys(kinds).length > 1 ? `<div class="filters tuya-filter" role="group" aria-label="Type"><button data-tuyakind="" class="${!S.tuyaKind ? "on" : ""}">All types</button>
       ${Object.entries(kinds).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, n]) => `<button data-tuyakind="${esc(k)}" class="${S.tuyaKind === k ? "on" : ""}">${esc(k)} (${n})</button>`).join("")}</div>` : "";
   // one section per house (or just the chosen one), rooms inside
-  const groups = S.tuyaHome ? [{ id: S.tuyaHome, name: "", list: devs }]
-    : [...homes.map(h => ({ id: h.id, name: h.name, list: devs.filter(x => x.home === h.id) })), { id: "-", name: homes.length ? "No house" : "", list: devs.filter(x => !x.home) }];
+  const groups = (S.tuyaHome ? [S.tuyaHome] : [...homes.map(h => h.id), "-"]).map(id => ({ id, list: devs.filter(x => id === "-" ? !x.home : x.home === id) }));
   const house = g => {
     const h = homes.find(x => x.id === g.id), rooms = {};
     g.list.forEach(x => { (rooms[x.room || ""] ||= []).push(x); });
     const keys = Object.keys(rooms).sort((a, b) => (a === "") - (b === "") || a.localeCompare(b));
-    const scenes = h && !S.tuyaKind ? tuyaScenes(h) : "";
-    if (!g.list.length && !scenes) return "";
-    return `<section class="tuya-house">${g.name ? `<h2>${esc(g.name)} <span class="fine muted">${plural(g.list.length, "device")}</span></h2>` : ""}${scenes}
-      ${keys.map(r => `${keys.length > 1 || r ? `<h3 class="tuya-room">${esc(r || "No room")}</h3>` : ""}<div class="tuya-grid">${rooms[r].map(tuyaCard).join("")}</div>`).join("")}</section>`;
+    const grid = keys.map(r => `${keys.length > 1 || r ? `<h3 class="tuya-room">${esc(r || "No room")}</h3>` : ""}<div class="tuya-grid">${rooms[r].map(tuyaCard).join("")}</div>`).join("");
+    if (!h) return g.list.length ? `<section class="tuya-house">${homes.length ? `<h2 class="tuya-plain">No house <span class="fine muted">${plural(g.list.length, "device")}</span></h2>` : ""}${grid}</section>` : "";
+    const all = arr(S.tuya.devices).filter(x => x.home === h.id), on = all.filter(x => x.online).length, lit = all.filter(x => arr(x.switches).some(s => s.on)).length;
+    const lk = tuyaLookOf(h), sc = S.tuyaKind ? [] : arr(h.scenes);
+    return `<section class="tuya-house"><div class="tuya-banner ${lk.cls}" style="${esc(lk.style)}"><div class="tuya-banner-top">
+        <div><h2>${esc(h.name)}</h2><p>${plural(all.length, "device")} · ${on} online${lit ? ` · ${lit} on` : ""}</p></div>
+        ${tuyaAdmin() ? `<button class="tuya-glass sm" data-tuyalook="${esc(h.id)}" title="Background">✎ Look</button>` : ""}</div>
+      ${sc.length ? `<div class="tuya-scenes">${sc.map(x => `<button class="tuya-glass" data-tuyascene="${esc(x.id)}" data-home="${esc(h.id)}" ${tuyaAdmin() ? "" : "disabled title=\"Admins can run scenes\""}>▶ ${esc(x.name)}</button>`).join("")}</div>` : ""}</div>
+      ${S.tuyaKind ? "" : tuyaAutos(h)}${grid}</section>`;
   };
   const cards = all.length ? houseBar + kindBar + (groups.map(house).join("") || `<div class="card"><p class="muted">Nothing here.</p></div>`)
     : d.mode ? `<div class="card"><p class="muted">${d.mode === "cloud" ? "The Tuya Cloud project has no devices yet. Link your Smart Life app account to the project (Devices › Link Tuya App Account), then Refresh." : "No devices yet. Scan the network below, or add one by hand."}</p></div>` : "";
   return head + cards + (tuyaAdmin() ? tuyaSettings(d) : !d.mode ? `<div class="card"><p class="muted">Tuya isn't set up. An admin can set it up here.</p></div>` : "");
 }
 
-// a home's Tap-to-Run scenes (Run) and automations (on/off), from Smart Life
-function tuyaScenes(h) {
-  const sc = arr(h.scenes), au = arr(h.automations);
-  if (!sc.length && !au.length) return h.scene_error && tuyaAdmin() ? `<p class="fine muted">Scenes and automations can't be read: ${esc(h.scene_error)}. In the Tuya project, add the <b>Smart Home Scene Linkage</b> API service (Cloud › your project › Service API).</p>` : "";
-  return `<div class="card tuya-scenes">${sc.length ? `<div><span class="fine muted">Tap-to-Run</span><div class="tuya-sclist">${sc.map(x => `<button class="btn sm" data-tuyascene="${esc(x.id)}" data-home="${esc(h.id)}" ${tuyaAdmin() ? "" : "disabled title=\"Admins can run scenes\""}>▶ ${esc(x.name)}</button>`).join("")}</div></div>` : ""}
-    ${au.length ? `<div><span class="fine muted">Automations</span><div class="tuya-sclist">${au.map(x => `<button class="tuya-tog${x.enabled ? " on" : ""}" type="button" role="switch" aria-checked="${x.enabled ? "true" : "false"}" ${tuyaAdmin() ? "" : "disabled"}
-      data-tuyaauto="${esc(x.id)}" data-home="${esc(h.id)}" data-on="${x.enabled ? "1" : ""}" title="${tuyaAdmin() ? `Turn ${x.enabled ? "off" : "on"}` : "Admins can switch it"}"><span class="tuya-knob"></span>${esc(x.name)}</button>`).join("")}</div></div>` : ""}</div>`;
+// a home's automations (on/off, folded), or why they can't be read
+function tuyaAutos(h) {
+  const au = arr(h.automations);
+  if (!au.length) return !arr(h.scenes).length && h.scene_error && tuyaAdmin() ? `<p class="fine muted">Scenes and automations can't be read: ${esc(h.scene_error)}. In the Tuya project, add the <b>Smart Home Scene Linkage</b> API service (Cloud › your project › Service API).</p>` : "";
+  const on = au.filter(x => x.enabled).length;
+  return `<details class="tuya-autos"><summary>Automations <span class="fine muted">${on} of ${au.length} on</span></summary><div class="tuya-autolist">${au.map(x => `<div class="tuya-row"><span>${esc(x.name)}</span>
+    <button class="tuya-tog${x.enabled ? " on" : ""}" type="button" role="switch" aria-checked="${x.enabled ? "true" : "false"}" aria-label="${esc(x.name)}" ${tuyaAdmin() ? "" : "disabled"}
+      data-tuyaauto="${esc(x.id)}" data-home="${esc(h.id)}" data-on="${x.enabled ? "1" : ""}" title="${tuyaAdmin() ? `Turn ${x.enabled ? "off" : "on"}` : "Admins can switch it"}"><span class="tuya-knob"></span></button></div>`).join("")}</div></details>`;
 }
 
 function tuyaCard(x) {
-  const sw = arr(x.switches), rd = arr(x.readings);
-  return `<div class="card tuya-card${x.online ? "" : " off"}">
-    <div class="tuya-top">${onDot(x.online, x.seen * 1000)}<div class="tuya-name"><b>${esc(x.name)}</b>${x.kind ? ` <span class="tuya-kind">${esc(x.kind)}</span>` : ""}<div class="fine muted">${esc([x.product !== x.kind ? x.product : "", x.unifi_name && x.unifi_name !== x.name ? `UniFi: ${x.unifi_name}` : "", x.ip].filter(Boolean).join(" · "))}</div></div>
-      ${tuyaAdmin() ? `<button class="icon-btn" data-tuyaedit="${esc(x.id)}" title="Details" aria-label="Details of ${esc(x.name)}">✎</button>` : ""}</div>
+  const sw = arr(x.switches), rd = arr(x.readings), lit = sw.some(s => s.on), can = tuyaAdmin() && x.online;
+  const tog = (s, label) => `<button class="tuya-tog${s.on ? " on" : ""}" type="button" role="switch" aria-checked="${s.on ? "true" : "false"}" aria-label="${esc(label)}" ${can ? "" : "disabled"}
+    data-tuyasw="${esc(x.id)}" data-code="${esc(s.code)}" data-on="${s.on ? "1" : ""}" title="${tuyaAdmin() ? `Turn ${s.on ? "off" : "on"}` : "Admins can switch it"}"><span class="tuya-knob"></span></button>`;
+  return `<div class="card tuya-card${x.online ? "" : " off"}${lit ? " lit" : ""}">
+    <div class="tuya-top"><span class="tuya-ic">${tuyaSvg(tuyaIconOf(x))}</span>
+      <div class="tuya-name"><b>${esc(x.name)}</b><div class="fine muted">${x.online ? "" : "Offline · "}${esc(x.kind || "Tuya device")}</div></div>
+      ${sw.length === 1 ? tog(sw[0], x.name) : ""}
+      ${tuyaAdmin() ? `<button class="icon-btn" data-tuyaedit="${esc(x.id)}" title="Edit" aria-label="Edit ${esc(x.name)}">✎</button>` : ""}</div>
     ${rd.length ? `<div class="tuya-read">${rd.map(r => `<div><b>${esc(r.value)}${r.unit ? `<span class="fine"> ${esc(r.unit)}</span>` : ""}</b><span class="fine muted">${esc(r.label)}</span></div>`).join("")}</div>` : ""}
-    ${sw.length ? `<div class="tuya-sw">${sw.map(s => `<button class="tuya-tog${s.on ? " on" : ""}" type="button" role="switch" aria-checked="${s.on ? "true" : "false"}" ${tuyaAdmin() && x.online ? "" : "disabled"}
-        data-tuyasw="${esc(x.id)}" data-code="${esc(s.code)}" data-on="${s.on ? "1" : ""}" title="${tuyaAdmin() ? `Turn ${s.on ? "off" : "on"}` : "Admins can switch it"}"><span class="tuya-knob"></span>${esc(s.label)}</button>`).join("")}</div>` : ""}
+    ${sw.length > 1 ? `<div class="tuya-rows">${sw.map(s => `<div class="tuya-row"><span>${esc(s.label)}</span>${tog(s, `${x.name}: ${s.label}`)}</div>`).join("")}</div>` : ""}
     ${!x.online && x.error ? `<p class="fine muted">${esc(x.error)}</p>` : ""}</div>`;
 }
 
@@ -133,7 +141,13 @@ function tuyaDeviceModal(x) {
       <label>House<select id="td-place"><option value="">${fromApp ? `As in Smart Life (${esc(fromApp.name)})` : "No house"}</option>${homes.map(h => `<option value="${esc(h.id)}" ${x.place === h.id ? "selected" : ""}>${esc(h.name)}</option>`).join("")}</select></label>
       <label>Room<input id="td-room" list="td-rooms" value="${esc(x.my_room || "")}" placeholder="${esc(x.room && !x.my_room ? x.room : "e.g. Kitchen")}" maxlength="40"><datalist id="td-rooms">${rooms.map(r => `<option value="${esc(r)}">`).join("")}</datalist></label>
       <label>Type<input id="td-type" list="td-kinds" value="${esc(x.type || "")}" placeholder="${esc(x.auto_kind || "e.g. Boiler switch")}" maxlength="40"><datalist id="td-kinds">${arr(S.tuya?.kinds).map(k => `<option value="${esc(k)}">`).join("")}</datalist></label></div>
-    <p class="fine muted">Empty fields follow Smart Life. The type is what the page groups and filters by.</p>` : "";
+    <p class="fine muted">Empty fields follow Smart Life. The type is what the page groups and filters by.</p>
+    ${arr(x.switches).length > 1 ? `<h3>Switch names</h3><div class="grid g2">${x.switches.map(s => `<label>${esc(s.auto)}<input data-tdsw="${esc(s.code)}" value="${esc(s.custom || "")}" placeholder="${esc(s.auto)}" maxlength="30"></label>`).join("")}</div>
+      <p class="fine muted">Names given in the Smart Life app are used${S.tuya?.mode === "cloud" ? " (read once a day)" : " when the device came from the cloud"}; a name here wins.</p>` : ""}
+    <h3>Icon</h3><div class="tuya-icons" role="radiogroup" aria-label="Icon">
+      <label class="tuya-icpick" title="Automatic"><input type="radio" name="td-icon" value="" ${x.icon ? "" : "checked"}><span>${tuyaSvg(tuyaIconOf({ ...x, icon: "" }))}<small>Auto</small></span></label>
+      ${Object.entries(TUYA_ICONS).map(([k, [l]]) => `<label class="tuya-icpick" title="${esc(l)}"><input type="radio" name="td-icon" value="${k}" ${x.icon === k ? "checked" : ""}><span>${tuyaSvg(k)}</span></label>`).join("")}</div>
+    <details class="fine" style="margin-top:12px"><summary>Details</summary><p class="muted">${esc([x.product, x.unifi_name ? `UniFi: ${x.unifi_name}` : "", x.ip, x.version ? `protocol ${x.version}` : "", x.id].filter(Boolean).join(" · "))}</p></details>` : "";
   openModal({ title: x.id ? x.name || "Tuya device" : "Add a Tuya device", body: `${x.id && !local ? `<p class="fine muted">From the Tuya Cloud. ID <span class="mono">${esc(x.id)}</span>${x.version ? ` · protocol ${esc(x.version)}` : ""}${x.ip ? ` · ${esc(x.ip)}` : ""}${x.product ? ` · ${esc(x.product)}` : ""}</p>` : ""}
     ${local ? `<div class="grid g2"><label>Name<input id="td-name" value="${esc(x.name || "")}" placeholder="Kitchen plug"></label>
       <label>Device ID<input id="td-id" value="${esc(x.id || "")}" spellcheck="false" ${known ? "readonly" : ""}></label>
@@ -144,7 +158,9 @@ function tuyaDeviceModal(x) {
     buttons: [{ label: "Close" }, ...(known && local ? [{ label: "Remove", onClick: async () => { if (await tuyaDo("remove", { id: x.id }, "Removed")) closeModal(); } }] : []),
       ...(local || known ? [{ label: "Save", cls: "primary", onClick: async () => {
         if (local && !await tuyaDo("device", { id: $("#td-id").value, name: $("#td-name").value, ip: $("#td-ip").value, version: $("#td-ver").value, local_key: $("#td-key").value }, known ? "" : "Saved")) return;
-        if (known && !await tuyaDo("tag", { id: x.id, place: $("#td-place").value, room: $("#td-room").value, type: $("#td-type").value }, "Saved")) return;
+        const names = {}; $$("[data-tdsw]").forEach(i => { names[i.dataset.tdsw] = i.value.trim(); });
+        if (known && !await tuyaDo("tag", { id: x.id, place: $("#td-place").value, room: $("#td-room").value, type: $("#td-type").value,
+          icon: $("input[name=td-icon]:checked")?.value || "", names }, "Saved")) return;
         closeModal();
       } }] : [])] });
 }
@@ -161,6 +177,7 @@ document.addEventListener("click", async e => {
   const t = e.target;
   const sw = t.closest("[data-tuyasw]");
   if (sw) { sw.disabled = true; const on = !sw.dataset.on; await tuyaDo("switch", { id: sw.dataset.tuyasw, code: sw.dataset.code, on }, `Turned ${on ? "on" : "off"}`); return; }
+  const lk = t.closest("[data-tuyalook]"); if (lk) { tuyaLookModal(lk.dataset.tuyalook); return; }
   const hb = t.closest("[data-tuyahome]"); if (hb) { S.tuyaHome = hb.dataset.tuyahome; tuyaKeep(); $("#tuya-body").innerHTML = tuyaBody(S.tuya); return; }
   const kb = t.closest("[data-tuyakind]"); if (kb) { S.tuyaKind = kb.dataset.tuyakind; tuyaKeep(); $("#tuya-body").innerHTML = tuyaBody(S.tuya); return; }
   const sc = t.closest("[data-tuyascene]");
@@ -229,4 +246,28 @@ async function tuyaFirewall(network) {
         await tuyaDo("scan", { networks: tuyaTicked() }, "Scan done");
       } catch (err) { toast(err.message, "err"); }
     } }] : [])] });
+}
+
+// a house's background: a preset or a photo (shrunk here, stored by HomeOwl, shown to everyone signed in)
+function tuyaLookModal(id) {
+  const h = arr(S.tuya?.homes).find(x => x.id === id); if (!h) return;
+  let pick = h.look || "", photo = "";
+  const sw = (k, label, cls, style) => `<button type="button" class="tuya-swatch ${cls}${pick === k ? " on" : ""}" data-look="${k}" style="${esc(style || "")}"><span>${esc(label)}</span></button>`;
+  const draw = () => {
+    const cur = tuyaLookOf({ ...h, look: pick, photo: pick === "photo" ? h.photo || 1 : 0 });
+    $("#tl-grid").innerHTML = sw("", "Automatic", tuyaLookOf({ id: h.id }).cls) + Object.entries(TUYA_LOOKS).map(([k, l]) => sw(k, l, `look-${k}`)).join("")
+      + (h.photo || photo ? sw("photo", "Photo", "look-photo", photo ? `background-image:url('${photo}')` : cur.style) : "");
+  };
+  openModal({ title: `${h.name}: background`, body: `<div class="tuya-swatches" id="tl-grid"></div>
+    <label style="margin-top:12px">Or a photo of the house<input type="file" id="tl-file" accept="image/jpeg,image/png,image/webp,image/heic"></label>
+    <p class="fine muted">It's shrunk to a banner on this device first, then kept by HomeOwl (not sent anywhere else).</p>`,
+    buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
+      if (await tuyaDo("home-look", { id, look: pick, photo: pick === "photo" ? photo : "" }, "Saved")) closeModal();
+    } }] });
+  draw();
+  $("#tl-grid").addEventListener("click", e => { const b = e.target.closest("[data-look]"); if (b) { pick = b.dataset.look; draw(); } });
+  $("#tl-file").addEventListener("change", async e => {
+    const f = e.target.files?.[0]; if (!f) return;
+    try { photo = await tuyaShrink(f); pick = "photo"; draw(); } catch (err) { toast(err.message, "err"); }
+  });
 }

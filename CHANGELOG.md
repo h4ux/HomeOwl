@@ -4,6 +4,21 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.96] — 2026-11-15
+
+### Added
+- **Smart › Tuya: a new look.** Each house gets a banner with a background — a colour preset or a photo of the house
+  (✎ Look) — its name, devices online and on, and its Tap-to-Run scenes; automations fold away under it. Cards are
+  compact, with an icon and the switch on the card; devices with several switches list each one by name.
+- **Icons per device.** 29 home icons (wall switch, water heater, jacuzzi, gate, garage, outdoor light, fan, AC…).
+  Without a choice the icon follows the device's name, then its type; ✎ picks another.
+- **Switch names.** The names given to each switch in the Smart Life app are read from the cloud (once a day per
+  device), and ✎ › Switch names sets your own.
+
+### Changed
+- Tuya Cloud mode checks every 5 minutes instead of 2, to stay inside the free cloud plan's monthly call quota. The
+  product name (often in Chinese), UniFi name and address moved from the card to ✎ › Details.
+
 ## [0.1.95] — 2026-11-15
 
 ### Fixed

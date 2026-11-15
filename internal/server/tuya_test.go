@@ -308,3 +308,72 @@ func TestTuyaHomes(t *testing.T) {
 		t.Fatal("scenes in History › Changes")
 	}
 }
+
+func TestTuyaLookAndNames(t *testing.T) {
+	a := checkinApp(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ok := func(res string) { _, _ = w.Write([]byte(`{"success":true,"result":` + res + `}`)) }
+		switch p := r.URL.Path; {
+		case p == "/v1.0/token":
+			ok(`{"access_token":"tok","expire_time":7200}`)
+		case strings.HasSuffix(p, "/associated-users/devices"):
+			ok(`{"has_more":false,"devices":[{"id":"bf00000000000003","name":"Parking","category":"kg","online":true,"uid":"u1",
+				"status":[{"code":"switch_1","value":true},{"code":"switch_2","value":false},{"code":"switch_3","value":true}]}]}`)
+		case p == "/v1.0/users/u1/homes":
+			ok(`[{"home_id":101,"name":"Example Home"}]`)
+		case strings.HasSuffix(p, "/multiple-names"):
+			ok(`[{"identifier":"switch_1","name":"Gate light"},{"identifier":"switch_2","name":"Path"}]`)
+		default:
+			ok(`[]`)
+		}
+	}))
+	defer srv.Close()
+	tuya.Regions["test"] = srv.URL
+	defer delete(tuya.Regions, "test")
+	if _, err := a.tuyaAPI(context.Background(), "settings", map[string]any{"mode": "cloud", "region": "test", "access_id": "cid", "access_secret": "sec"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	labels := func() []string {
+		var l []string
+		for _, sw := range a.tuyaView(true)["devices"].([]map[string]any)[0]["switches"].([]map[string]any) {
+			l = append(l, sw["label"].(string))
+		}
+		return l
+	}
+	if l := labels(); strings.Join(l, ",") != "Gate light,Path,Switch 3" {
+		t.Fatalf("names from the app: %v", l)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "tag", map[string]any{"id": "bf00000000000003", "icon": "lantern", "names": map[string]any{"switch_3": "Garden", "bad code!": "x"}}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	_ = a.tuyaSyncNow(true)
+	if l := labels(); strings.Join(l, ",") != "Gate light,Path,Garden" {
+		t.Fatalf("an admin's name wins, and survives a sync: %v", l)
+	}
+	if d := a.tuyaView(true)["devices"].([]map[string]any)[0]; d["icon"] != "lantern" {
+		t.Fatalf("icon: %v", d["icon"])
+	}
+	// the house's look: a preset, then a photo (checked by its bytes, served back)
+	if _, err := a.tuyaAPI(context.Background(), "home-look", map[string]any{"id": "101", "look": "sea"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "home-look", map[string]any{"id": "101", "look": "photo", "photo": "data:image/png;base64,aGVsbG8="}, "admin"); err == nil {
+		t.Fatal("not a picture")
+	}
+	png := "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+	if _, err := a.tuyaAPI(context.Background(), "home-look", map[string]any{"id": "101", "look": "photo", "photo": png}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	a.tuyaBg(w, httptest.NewRequest("GET", "/api/tuya/bg?home=101", nil))
+	if w.Code != 200 || w.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("photo: %d %s", w.Code, w.Header().Get("Content-Type"))
+	}
+	_ = a.tuyaSyncNow(true)
+	if h := a.tuyaView(true)["homes"].([]map[string]any)[0]; h["look"] != "photo" || h["photo"] == int64(0) {
+		t.Fatalf("the look survives a refresh of the homes: %v", h)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "home-look", map[string]any{"id": "101", "look": "../x"}, "admin"); err == nil {
+		t.Fatal("unknown look")
+	}
+}

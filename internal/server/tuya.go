@@ -2,12 +2,16 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,6 +33,7 @@ const (
 	slotTuyaID     = "tuya-access-id"
 	slotTuyaSecret = "tuya-access-secret"
 	tuyaEvery      = 2 * time.Minute
+	tuyaCloudEvery = 5 * time.Minute
 	tuyaHomesEvery = time.Hour
 )
 
@@ -50,6 +55,11 @@ type tuyaDev struct {
 	Place  string               `json:"place,omitempty"`   // the house an admin put it in (overrides Home)
 	MyRoom string               `json:"my_room,omitempty"` // the room an admin gave it (overrides Room)
 	Type   string               `json:"type,omitempty"`    // what an admin says it is (overrides the category)
+	Icon   string               `json:"icon,omitempty"`    // the icon an admin picked ("" = by its type)
+	// switch names: an admin's (Names) over the Smart Life app's (AppNames, read daily from the cloud)
+	Names    map[string]string `json:"names,omitempty"`
+	AppNames map[string]string `json:"app_names,omitempty"`
+	NamesAt  int64             `json:"names_at,omitempty"`
 }
 
 // tuyaHome: a Smart Life home from the cloud, or a house an admin made (Custom) to group devices.
@@ -61,6 +71,8 @@ type tuyaHome struct {
 	Scenes      []tuya.Scene `json:"scenes,omitempty"`
 	Automations []tuya.Scene `json:"automations,omitempty"`
 	SceneErr    string       `json:"scene_error,omitempty"`
+	Look        string       `json:"look,omitempty"`  // the house's background: a preset, or "photo" (tuya-bg/<id>)
+	Photo       int64        `json:"photo,omitempty"` // when the photo was set (the page's cache key)
 }
 
 // where: the house and room a device shows under.
@@ -155,6 +167,7 @@ func (a *App) tuyaSyncNow(force bool) error {
 				if o.ID == d.ID {
 					n.MAC, n.Units, n.IP, n.Version = o.MAC, o.Units, o.IP, o.Version
 					n.Home, n.Room, n.Place, n.MyRoom, n.Type = o.Home, o.Room, o.Place, o.MyRoom, o.Type
+					n.Icon, n.Names, n.AppNames, n.NamesAt = o.Icon, o.Names, o.AppNames, o.NamesAt
 				}
 			}
 			n.LocalKey, n.UID, n.Owner = "", "", ""
@@ -172,6 +185,7 @@ func (a *App) tuyaSyncNow(force bool) error {
 		if force || time.Since(time.Unix(s.HomesAt, 0)) > tuyaHomesEvery {
 			a.tuyaHomes(cl, list)
 		}
+		a.tuyaAppNames(cl, force)
 		for i, id := range need { // units once per device, a few at a time (the API has a quota)
 			if i == 5 {
 				break
@@ -274,7 +288,11 @@ func (a *App) tuyaLoop(ctx context.Context) {
 				log.Printf("tuya: %v", err)
 			}
 		}
-		t.Reset(tuyaEvery)
+		every := tuyaEvery
+		if a.Cfg.Get().Tuya.Mode == "cloud" { // the free cloud plan counts calls: every 5 minutes is about 9,000 a month
+			every = tuyaCloudEvery
+		}
+		t.Reset(every)
 	}
 }
 
@@ -401,6 +419,19 @@ func tuyaSwitches(d tuyaDev) []map[string]any {
 	return out
 }
 
+// tuyaSwitchList: the switches with their names (an admin's, else the Smart Life app's, else "Switch 2"), and the
+// generic name as "auto" for the edit form.
+func tuyaSwitchList(d tuyaDev) []map[string]any {
+	l := tuyaSwitches(d)
+	for _, sw := range l {
+		code := sw["code"].(string)
+		sw["auto"] = orStr(d.AppNames[code], sw["label"].(string))
+		sw["label"] = orStr(d.Names[code], sw["auto"].(string))
+		sw["custom"] = d.Names[code]
+	}
+	return l
+}
+
 // tuyaReadings: the numbers worth showing (power, temperature, humidity, battery…), with units.
 var tuyaReadingCodes = map[string]string{"cur_power": "Power", "cur_voltage": "Voltage", "cur_current": "Current",
 	"add_ele": "Energy", "va_temperature": "Temperature", "temp_current": "Temperature", "va_humidity": "Humidity",
@@ -493,7 +524,7 @@ func (a *App) tuyaView(admin bool) map[string]any {
 		out = append(out, map[string]any{"id": d.ID, "name": d.Name, "category": d.Category, "kind": d.kind(), "auto_kind": tuyaCategory[d.Category],
 			"home": home, "room": room, "place": d.Place, "my_room": d.MyRoom, "type": d.Type, "product": d.Product,
 			"online": d.Online, "ip": d.IP, "version": d.Version, "mac": d.MAC, "unifi_name": names[d.MAC], "seen": d.Seen, "error": d.Err,
-			"switches": tuyaSwitches(d), "readings": tuyaReadings(d), "has_key": admin && a.Sec.Get(tuyaKeySlot(d.ID)) != ""})
+			"switches": tuyaSwitchList(d), "readings": tuyaReadings(d), "icon": d.Icon, "auto_icon": tuyaIcon(d.Category), "has_key": admin && a.Sec.Get(tuyaKeySlot(d.ID)) != ""})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		return strings.ToLower(out[i]["name"].(string)) < strings.ToLower(out[j]["name"].(string))
@@ -501,7 +532,7 @@ func (a *App) tuyaView(admin bool) map[string]any {
 	res["devices"] = out
 	hl := []map[string]any{}
 	for _, h := range homes {
-		x := map[string]any{"id": h.ID, "name": h.Name, "custom": h.Custom, "hidden": hidden[h.ID], "count": count[h.ID]}
+		x := map[string]any{"id": h.ID, "name": h.Name, "custom": h.Custom, "hidden": hidden[h.ID], "count": count[h.ID], "look": h.Look, "photo": h.Photo}
 		if !hidden[h.ID] {
 			x["scenes"], x["automations"], x["scene_error"] = nz(h.Scenes), nz(h.Automations), h.SceneErr
 			rooms := []string{}
@@ -642,11 +673,31 @@ func (a *App) tuyaAPI(ctx context.Context, op string, body map[string]any, by st
 			return nil, errors.New("that device or house is gone")
 		}
 		st.Devices[j].Place, st.Devices[j].MyRoom, st.Devices[j].Type = place, clean(s(body, "room"), 40), clean(s(body, "type"), 40)
+		if has(body, "icon") {
+			st.Devices[j].Icon = clean(s(body, "icon"), 20)
+		}
+		if m, ok := body["names"].(map[string]any); ok {
+			names := map[string]string{}
+			for code, v := range m {
+				if n := clean(fmt.Sprint(v), 30); n != "" && tuyaCodeRE.MatchString(code) {
+					names[code] = n
+				}
+			}
+			st.Devices[j].Names = names
+		}
 		if n := clean(s(body, "name"), 60); n != "" && a.Cfg.Get().Tuya.Mode == "local" {
 			st.Devices[j].Name = n
 		}
 		st.saveLocked()
 		st.mu.Unlock()
+	case "home-look": // a preset background, or the photo uploaded for it
+		look := s(body, "look")
+		if look != "" && look != "photo" && !tuyaLookRE.MatchString(look) {
+			return nil, errors.New("pick one of the backgrounds")
+		}
+		if err := a.tuyaSetLook(s(body, "id"), look, s(body, "photo")); err != nil {
+			return nil, err
+		}
 	case "scene", "automation":
 		if err := a.tuyaScene(op, s(body, "home"), s(body, "id"), b(body, "on"), by); err != nil {
 			return nil, err
@@ -1035,6 +1086,11 @@ func (a *App) tuyaHomes(cl *tuya.Cloud, list []tuya.Device) {
 		s.saveLocked()
 		return
 	}
+	for i := range homes { // the look chosen here stays
+		if j := s.home(homes[i].ID); j >= 0 {
+			homes[i].Look, homes[i].Photo = s.Homes[j].Look, s.Homes[j].Photo
+		}
+	}
 	for _, h := range s.Homes {
 		if h.Custom {
 			homes = append(homes, h)
@@ -1108,4 +1164,107 @@ func (a *App) tuyaScene(kind, home, id string, on bool, by string) error {
 		st.mu.Unlock()
 	}
 	return nil
+}
+
+var (
+	tuyaCodeRE = regexp.MustCompile(`^[a-z0-9_]{1,24}$`)
+	tuyaLookRE = regexp.MustCompile(`^[a-z]{2,16}$`)
+)
+
+// tuyaAppNames reads the switch names given in the Smart Life app, once a day per multi-switch device (the free
+// cloud plan has a monthly call quota), a few devices per sync; force (Refresh) reads them all.
+func (a *App) tuyaAppNames(cl *tuya.Cloud, force bool) {
+	s := a.tuya
+	s.mu.Lock()
+	var ids []string
+	for _, d := range s.Devices {
+		if len(tuyaSwitches(d)) > 1 && (force || time.Since(time.Unix(d.NamesAt, 0)) > 24*time.Hour) {
+			ids = append(ids, d.ID)
+		}
+	}
+	s.mu.Unlock()
+	if !force && len(ids) > 3 {
+		ids = ids[:3]
+	}
+	for _, id := range ids {
+		names, err := cl.SwitchNames(id)
+		s.mu.Lock()
+		if j := s.find(id); j >= 0 {
+			s.Devices[j].NamesAt = time.Now().Unix() // tried: not again today, even if this API isn't open to the project
+			if err == nil {
+				s.Devices[j].AppNames = names
+			}
+		}
+		s.mu.Unlock()
+	}
+	if len(ids) > 0 {
+		s.mu.Lock()
+		s.saveLocked()
+		s.mu.Unlock()
+	}
+}
+
+// tuyaBgDir: the house photos.
+func (a *App) tuyaBgDir() string { return filepath.Join(a.DataDir, "tuya-bg") }
+
+func tuyaBgFile(dir, id string) string {
+	sum := sha256.Sum256([]byte(id))
+	return filepath.Join(dir, hex.EncodeToString(sum[:8])+".img")
+}
+
+// tuyaSetLook sets a house's background. A photo comes as a data: URL (the page shrinks it first): JPEG, PNG or
+// WebP, up to 400 KB, checked by its first bytes.
+func (a *App) tuyaSetLook(id, look, photo string) error {
+	st := a.tuya
+	st.mu.Lock()
+	i := st.home(id)
+	st.mu.Unlock()
+	if i < 0 {
+		return errors.New("that house is gone")
+	}
+	file := tuyaBgFile(a.tuyaBgDir(), id)
+	if look == "photo" {
+		_, data, ok := strings.Cut(photo, ";base64,")
+		if !ok {
+			return errors.New("pick a picture")
+		}
+		img, err := base64.StdEncoding.DecodeString(data)
+		if err != nil || len(img) == 0 || len(img) > 400<<10 {
+			return errors.New("the picture is too big — try a smaller one")
+		}
+		if t := http.DetectContentType(img); t != "image/jpeg" && t != "image/png" && t != "image/webp" {
+			return errors.New("use a JPEG, PNG or WebP picture")
+		}
+		if err := os.MkdirAll(a.tuyaBgDir(), 0o700); err != nil {
+			return err
+		}
+		if err := os.WriteFile(file, img, 0o600); err != nil {
+			return err
+		}
+	} else {
+		_ = os.Remove(file)
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if i = st.home(id); i >= 0 {
+		st.Homes[i].Look = look
+		st.Homes[i].Photo = 0
+		if look == "photo" {
+			st.Homes[i].Photo = time.Now().Unix()
+		}
+		st.saveLocked()
+	}
+	return nil
+}
+
+// tuyaBg serves a house's photo to anyone signed in.
+func (a *App) tuyaBg(w http.ResponseWriter, r *http.Request) {
+	b, err := os.ReadFile(tuyaBgFile(a.tuyaBgDir(), r.URL.Query().Get("home")))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", http.DetectContentType(b))
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	_, _ = w.Write(b)
 }

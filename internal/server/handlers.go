@@ -228,6 +228,11 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			send(w, 200, a.tuyaView(who.Admin()))
 			return
 		}
+	case "tuya/bg":
+		if r.Method == http.MethodGet {
+			a.tuyaBg(w, r)
+			return
+		}
 	case "device-links":
 		if r.Method == http.MethodGet {
 			send(w, 200, a.deviceLinksView())

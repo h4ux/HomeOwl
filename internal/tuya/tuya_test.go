@@ -254,3 +254,18 @@ func TestCloud(t *testing.T) {
 		t.Fatal("unknown region")
 	}
 }
+
+func TestSwitchNames(t *testing.T) {
+	for in, want := range map[string]string{
+		`[{"identifier":"switch_1","name":"Boiler"},{"identifier":"switch_2","name":"Porch"}]`: "Boiler|Porch",
+		`{"switch_1":"Boiler","switch_2":"Porch"}`:                                             "Boiler|Porch",
+		`{"dp_name":{"switch_1":"Boiler","switch_2":"Porch"}}`:                                 "Boiler|Porch",
+		`[{"dp_id":1,"name":"Boiler"},{"dp_id":2,"name":"Porch"}]`:                             "Boiler|Porch",
+		`"nothing"`: "|",
+	} {
+		m := parseSwitchNames(json.RawMessage(in))
+		if got := m["switch_1"] + "|" + m["switch_2"]; got != want {
+			t.Errorf("%s: %v", in, m)
+		}
+	}
+}

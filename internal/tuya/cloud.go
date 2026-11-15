@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -419,4 +420,61 @@ func (c *Cloud) SetAutomation(home, id string, on bool) error {
 	}
 	_, err := c.call("PUT", "/v1.0/homes/"+url.PathEscape(home)+"/automations/"+url.PathEscape(id)+"/actions/"+act, nil)
 	return err
+}
+
+// SwitchNames: the names given in the Smart Life app to each switch of a multi-switch device ("switch_1" → "Boiler").
+// Tuya answers a list of {identifier, name} (or a map); unknown shapes give no names, not an error.
+func (c *Cloud) SwitchNames(id string) (map[string]string, error) {
+	res, err := c.call("GET", "/v1.0/devices/"+url.PathEscape(id)+"/multiple-names", nil)
+	if err != nil {
+		return nil, err
+	}
+	return parseSwitchNames(res), nil
+}
+
+func parseSwitchNames(res json.RawMessage) map[string]string {
+	out := map[string]string{}
+	var l []map[string]any
+	if json.Unmarshal(res, &l) != nil {
+		var m map[string]any
+		if json.Unmarshal(res, &m) != nil {
+			return out
+		}
+		for _, k := range []string{"dp_name", "names", "list"} { // wrapped
+			if inner, ok := m[k]; ok {
+				b, _ := json.Marshal(inner)
+				return parseSwitchNames(b)
+			}
+		}
+		for k, v := range m {
+			if s, ok := v.(string); ok && s != "" {
+				out[k] = s
+			}
+		}
+		return out
+	}
+	for _, x := range l {
+		var code, name string
+		for _, k := range []string{"identifier", "code", "dp_code", "dpCode"} {
+			if s, ok := x[k].(string); ok && s != "" {
+				code = s
+				break
+			}
+		}
+		if code == "" {
+			if n, ok := x["dp_id"].(float64); ok {
+				code = "switch_" + strconv.Itoa(int(n))
+			}
+		}
+		for _, k := range []string{"name", "value"} {
+			if s, ok := x[k].(string); ok && s != "" {
+				name = s
+				break
+			}
+		}
+		if code != "" && name != "" {
+			out[code] = name
+		}
+	}
+	return out
 }
