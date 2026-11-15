@@ -163,7 +163,7 @@ func (a *App) setupAttention() []map[string]any {
 	out := []map[string]any{}
 	older := map[string]bool{} // the same device checked in twice: Home asks to merge them instead
 	for _, g := range a.checkinDuplicates() {
-		for _, x := range g[1:] {
+		for _, x := range g.List[1:] {
 			older[x.ID] = true
 		}
 	}

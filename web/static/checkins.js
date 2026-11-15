@@ -14,6 +14,8 @@ async function mergeCheckins(ids) {
   let group = ids.map(by).filter(Boolean);
   const single = ids.length === 1;
   if (!group.length) return toast("That device isn't approved any more — refresh.", "err");
+  const out = new Set(); let keep = "";
+  const keepID = () => { const inn = [...group].sort((a, b) => b.time - a.time).filter(x => !out.has(x.id)); return inn.find(x => x.id === keep)?.id || inn[0]?.id || group[0].id; };
   const st = x => { const v = ci.setup?.[x.id]; return v ? setupState(x, v) : "–"; };
   const draw = () => {
     group.sort((a, b) => b.time - a.time);
@@ -23,18 +25,34 @@ async function mergeCheckins(ids) {
       .map(x => `<option value="${esc(x.id)}" ${other?.id === x.id ? "selected" : ""}>${esc(x.name)} · ${esc(x.person_name || "")} · ${esc(x.mac)}</option>`).join("")}</select></label>` : "";
     return `<p class="muted">A phone or computer that gets a new Wi-Fi address (a private address changed, its profile was reinstalled, the network was forgotten) shows up as a new device and gets checked in again. Merging keeps one, moves its person and approval to the address it uses now, and archives the old address. Nothing is deleted.</p>
       ${pick}
-      ${group.length > 1 ? `<p><b>Keep which one?</b> The newest check-in is usually the one the device uses now.</p><div class="cim-list">${group.map((x, i) => `<label class="cim-opt"><input type="radio" name="cim-keep" value="${esc(x.id)}" ${i ? "" : "checked"}>
-        <div><b>${esc(x.name)}</b> <span class="fine muted mono">${esc(x.mac)}</span><div class="fine muted">${esc(x.person_name || "")} · checked in ${ago(x.time * 1000)}${S.archived?.has?.(x.mac) ? " · archived" : ""}</div><div class="fine">${st(x)}</div></div></label>`).join("")}</div>` : ""}`;
+      ${group.length > 1 ? `<p><b>Which are the same device, and which one to keep?</b> The newest check-in is usually the one the device uses now. Untick one that's a different device — HomeOwl won't suggest that pair again.</p>
+        <div class="cim-list">${group.map((x, i) => `<div class="cim-opt${out.has(x.id) ? " cim-out" : ""}">
+          <label class="cim-in" title="The same device"><input type="checkbox" data-cimin="${esc(x.id)}" ${out.has(x.id) ? "" : "checked"}> Same</label>
+          <label class="cim-keep"><input type="radio" name="cim-keep" value="${esc(x.id)}" ${x.id === keepID() ? "checked" : ""} ${out.has(x.id) ? "disabled" : ""}>
+          <div><b>${esc(x.name)}</b> <span class="fine muted mono">${esc(x.mac)}</span><div class="fine muted">${esc(x.person_name || "")} · checked in ${ago(x.time * 1000)}${S.archived?.has?.(x.mac) ? " · archived" : ""}</div><div class="fine">${st(x)}</div></div></label></div>`).join("")}</div>` : ""}`;
   };
+  const dismiss = async l => { if (l.length > 1) S.checkins = await api("/api/checkins/merge-dismiss", { ids: l }); };
+  const refresh = () => { closeModal(); loadAlerts?.(); if ($("#ci-body")) $("#ci-body").innerHTML = checkinsBody(S.checkins); else render(); };
   const go = async () => {
+    const inn = group.filter(x => !out.has(x.id));
     if (group.length < 2) return toast("Pick the other device first.", "err");
-    const keep = document.querySelector("input[name=cim-keep]:checked")?.value || group[0].id;
-    try { S.checkins = await api("/api/checkins/merge", { keep, drop: group.map(x => x.id).filter(id => id !== keep) }); }
-    catch (err) { return toast(err.message, "err"); }
-    closeModal(); toast("Merged", "ok"); loadAlerts?.(); if ($("#ci-body")) $("#ci-body").innerHTML = checkinsBody(S.checkins); else render();
+    if (inn.length < 2) return toast("Tick at least two that are the same device — or choose “Not the same device”.", "err");
+    const keep = keepID();
+    try {
+      S.checkins = await api("/api/checkins/merge", { keep, drop: inn.map(x => x.id).filter(id => id !== keep) });
+      for (const x of group.filter(x => out.has(x.id))) await dismiss([x.id, keep]); // a different device: don't suggest it again
+    } catch (err) { return toast(err.message, "err"); }
+    refresh(); toast("Merged", "ok");
   };
-  openModal({ title: `Merge ${group[0].name}`, wide: true, body: `<div id="cim-body">${draw()}</div>`, buttons: [{ label: "Cancel" }, { label: "Merge", cls: "primary", onClick: go }] });
+  const notSame = async () => {
+    try { await dismiss(group.map(x => x.id)); } catch (err) { return toast(err.message, "err"); }
+    refresh(); toast("Got it — won't suggest these again", "ok");
+  };
+  openModal({ title: `Merge ${group[0].name}`, wide: true, body: `<div id="cim-body">${draw()}</div>`,
+    buttons: [{ label: "Cancel" }, ...(single ? [] : [{ label: "Not the same device", onClick: notSame }]), { label: "Merge", cls: "primary", onClick: go }] });
   $("#cim-body").addEventListener("change", e => {
+    if (e.target.name === "cim-keep") { keep = e.target.value; return; }
+    if (e.target.dataset.cimin) { e.target.checked ? out.delete(e.target.dataset.cimin) : out.add(e.target.dataset.cimin); $("#cim-body").innerHTML = draw(); return; }
     if (e.target.id !== "cim-other") return;
     const o = by(e.target.value); group = [by(ids[0]), ...(o ? [o] : [])]; $("#cim-body").innerHTML = draw();
   });

@@ -113,3 +113,50 @@ func TestMainDevice(t *testing.T) {
 		t.Fatalf("tag moved: %v", d)
 	}
 }
+
+func TestSimilarDuplicates(t *testing.T) {
+	for _, c := range []struct {
+		a, b      string
+		same, sim bool
+	}{
+		{"Alex's iPhone", "alex’s iphone ", true, true},
+		{"Alex's iPhone", "Alex's iPhone 15", false, true},
+		{"Alex iPhone", "iPhone (Alex)", true, true},
+		{"Alex's iPhone", "Alex's iPad", false, false},
+		{"Living room TV", "Bedroom TV", false, false},
+	} {
+		if same, sim := similarNames(c.a, c.b); same != c.same || sim != c.sim {
+			t.Errorf("%q ~ %q: same %v similar %v", c.a, c.b, same, sim)
+		}
+	}
+	a, err := New(t.TempDir(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for i, n := range []string{"Alex's MacBook", "Alex's MacBook Air", "Alex's MacBook Pro"} {
+		mac := "02:00:00:00:00:0" + string(rune('1'+i))
+		_ = a.checkins.Add(CheckIn{MAC: mac, Name: n, PersonID: "p1", PersonName: "Alex"})
+		for _, x := range a.checkins.List() {
+			if x.MAC == mac {
+				_ = a.checkins.Decide(x.ID, "approved", "admin")
+				ids = append(ids, x.ID)
+			}
+		}
+	}
+	d := a.duplicateAttention()
+	if len(d) != 1 || d[0]["count"] != 3 || d[0]["exact"] != false {
+		t.Fatalf("three look-alikes in one group: %v", d)
+	}
+	// the Air and the Pro are different machines; the plain one is still like each of them
+	if err := a.dismissMerge([]string{ids[1], ids[2]}); err != nil {
+		t.Fatal(err)
+	}
+	if d := a.duplicateAttention(); len(d) != 1 {
+		t.Fatalf("still linked through the plain name: %v", d)
+	}
+	_ = a.dismissMerge(ids)
+	if d := a.duplicateAttention(); len(d) != 0 {
+		t.Fatalf("not the same: no suggestion: %v", d)
+	}
+}

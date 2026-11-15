@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.80] — 2026-11-15
+
+- Changes: everything HomeOwl changed on the console — and how to revert it — now survives restarts and updates
+  (changes that hold a password stay revertible only until a restart). A new "Still in place — can be reverted"
+  list on Records › Changes shows what's still applied, each with a Revert button.
+- Merge devices: suggestions now include similar names (the same person's "iPhone" and "iPhone 15", words in a
+  different order), not only exact ones. In the merge dialog, untick a device that's a different one, or choose
+  "Not the same device" — HomeOwl won't suggest that pair again.
+
 ## [0.1.79] — 2026-11-15
 
 - Device issues: the zone-based firewall policy now says its destination lists specific addresses

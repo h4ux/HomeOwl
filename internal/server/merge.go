@@ -1,7 +1,10 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -13,37 +16,159 @@ import (
 // default) and marks the others "merged": their old address leaves the person and is archived, and the kept one is
 // approved for device approval. Nothing is deleted.
 
-// checkinDuplicates: groups of approved check-ins with the same name for the same person, newest first.
-func (a *App) checkinDuplicates() [][]CheckIn {
-	groups := map[string][]CheckIn{}
-	for _, x := range a.checkins.List() {
-		if x.Status != "approved" {
-			continue
-		}
-		k := x.PersonID + "|" + strings.ToLower(strings.TrimSpace(x.Name))
-		groups[k] = append(groups[k], x)
+// nameWords: a device name's words, without "'s", punctuation or case ("Alex's iPhone 15" → alex iphone 15).
+func nameWords(n string) []string {
+	n = strings.ToLower(n)
+	for _, x := range []string{"’s", "'s"} {
+		n = strings.ReplaceAll(n, x, "")
 	}
-	var out [][]CheckIn
-	for _, g := range groups {
-		if len(g) < 2 {
-			continue
-		}
-		sort.Slice(g, func(i, j int) bool { return g[i].Time > g[j].Time })
-		out = append(out, g)
+	return strings.FieldsFunc(n, func(r rune) bool { return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r > 127) })
+}
+
+// similarNames: the same words (in any order), or most of them (one name's words all in the other, or ≥ 60% shared).
+func similarNames(a, b string) (same, similar bool) {
+	wa, wb := nameWords(a), nameWords(b)
+	if len(wa) == 0 || len(wb) == 0 {
+		return false, false
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i][0].Name < out[j][0].Name })
+	sa, sb := append([]string(nil), wa...), append([]string(nil), wb...)
+	sort.Strings(sa)
+	sort.Strings(sb)
+	if strings.Join(sa, " ") == strings.Join(sb, " ") {
+		return true, true
+	}
+	set := map[string]bool{}
+	for _, w := range wa {
+		set[w] = true
+	}
+	common := 0
+	for _, w := range wb {
+		if set[w] {
+			common++
+		}
+	}
+	short, union := len(wa), len(wa)+len(wb)-common
+	if len(wb) < short {
+		short = len(wb)
+	}
+	return false, (common == short && short >= 2) || float64(common)/float64(union) >= 0.6
+}
+
+// mergeDismissed: pairs an admin said aren't the same device ("id|id", smaller first).
+func (a *App) mergeDismissed() map[string]bool {
+	out := map[string]bool{}
+	var l []string
+	if b, err := os.ReadFile(filepath.Join(a.DataDir, "merge-dismissed.json")); err == nil {
+		_ = json.Unmarshal(b, &l)
+	}
+	for _, k := range l {
+		out[k] = true
+	}
 	return out
 }
 
-// duplicateAttention: Home's "needs you" — one line per device checked in more than once.
+func pairKey(x, y string) string {
+	if x > y {
+		x, y = y, x
+	}
+	return x + "|" + y
+}
+
+// dismissMerge: these devices aren't the same — stop suggesting any pair of them.
+func (a *App) dismissMerge(ids []string) error {
+	m := a.mergeDismissed()
+	for i := range ids {
+		for j := i + 1; j < len(ids); j++ {
+			m[pairKey(ids[i], ids[j])] = true
+		}
+	}
+	l := []string{}
+	for k := range m {
+		l = append(l, k)
+	}
+	sort.Strings(l)
+	b, _ := json.Marshal(l)
+	return os.WriteFile(filepath.Join(a.DataDir, "merge-dismissed.json"), b, 0o600)
+}
+
+type dupGroup struct {
+	List  []CheckIn
+	Exact bool // every name the same
+}
+
+// checkinDuplicates: approved check-ins of the same person (and kind) with the same or similar names, newest
+// first, leaving out pairs an admin said aren't the same.
+func (a *App) checkinDuplicates() []dupGroup {
+	var l []CheckIn
+	for _, x := range a.checkins.List() {
+		if x.Status == "approved" {
+			l = append(l, x)
+		}
+	}
+	gone := a.mergeDismissed()
+	parent := map[int]int{}
+	var find func(int) int
+	find = func(i int) int {
+		if p, ok := parent[i]; ok && p != i {
+			parent[i] = find(p)
+			return parent[i]
+		}
+		return i
+	}
+	exactPair := map[[2]int]bool{}
+	for i := range l {
+		for j := i + 1; j < len(l); j++ {
+			x, y := l[i], l[j]
+			if x.PersonID != y.PersonID || (x.Kind != "" && y.Kind != "" && x.Kind != y.Kind) || gone[pairKey(x.ID, y.ID)] {
+				continue
+			}
+			same, sim := similarNames(x.Name, y.Name)
+			if !sim {
+				continue
+			}
+			if same {
+				exactPair[[2]int{i, j}] = true
+			}
+			parent[find(j)] = find(i)
+		}
+	}
+	byRoot := map[int][]int{}
+	for i := range l {
+		byRoot[find(i)] = append(byRoot[find(i)], i)
+	}
+	var out []dupGroup
+	for _, idx := range byRoot {
+		if len(idx) < 2 {
+			continue
+		}
+		g := dupGroup{Exact: true}
+		for _, i := range idx {
+			g.List = append(g.List, l[i])
+		}
+		for _, x := range g.List[1:] {
+			if same, _ := similarNames(g.List[0].Name, x.Name); !same {
+				g.Exact = false
+			}
+		}
+		sort.Slice(g.List, func(i, j int) bool { return g.List[i].Time > g.List[j].Time })
+		out = append(out, g)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].List[0].Name < out[j].List[0].Name })
+	return out
+}
+
+// duplicateAttention: Home's "needs you" — one line per device that looks checked in more than once.
 func (a *App) duplicateAttention() []map[string]any {
 	out := []map[string]any{}
 	for _, g := range a.checkinDuplicates() {
-		ids := []string{}
-		for _, x := range g {
+		ids, names := []string{}, []string{}
+		for _, x := range g.List {
 			ids = append(ids, x.ID)
+			if !contains(names, x.Name) {
+				names = append(names, x.Name)
+			}
 		}
-		out = append(out, map[string]any{"name": g[0].Name, "person": g[0].PersonName, "count": len(g), "ids": ids})
+		out = append(out, map[string]any{"name": g.List[0].Name, "names": names, "person": g.List[0].PersonName, "count": len(g.List), "ids": ids, "exact": g.Exact})
 	}
 	return out
 }

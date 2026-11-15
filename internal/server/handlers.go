@@ -421,6 +421,20 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.issueAPI("check", body, remoteIP(r), by)
 	case p == "device-issue/fix":
 		res, err = a.issueAPI("fix", body, remoteIP(r), by)
+	case p == "checkins/merge-dismiss":
+		var ids []string
+		if l, ok := body["ids"].([]any); ok {
+			for _, v := range l {
+				if id, _ := v.(string); id != "" {
+					ids = append(ids, id)
+				}
+			}
+		}
+		if len(ids) < 2 {
+			err = errors.New("pick the devices that aren't the same")
+		} else if err = a.dismissMerge(ids); err == nil {
+			res = a.checkinView()
+		}
 	case p == "checkins/merge":
 		var drop []string
 		if l, ok := body["drop"].([]any); ok {

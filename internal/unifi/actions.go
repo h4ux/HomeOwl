@@ -439,12 +439,92 @@ type Changes struct {
 	mu       sync.Mutex
 	list     []*Change
 	logPath  string
+	undoPath string
 	Write    bool
 	ReadOnly bool
 }
 
 func NewChanges(dataDir string) *Changes {
-	return &Changes{logPath: filepath.Join(dataDir, "changes-log.jsonl")}
+	ch := &Changes{logPath: filepath.Join(dataDir, "changes-log.jsonl"), undoPath: filepath.Join(dataDir, "changes-undo.json")}
+	ch.load()
+	return ch
+}
+
+// The change log survives restarts (updates restart HomeOwl), and so does the way to undo each change — kept apart
+// from the log, readable only by HomeOwl, and never for a change whose undo would hold a password (those can be
+// undone until HomeOwl restarts).
+const keepChanges = 2000
+
+type undoFile struct {
+	Undo   map[int]*req `json:"undo"`
+	Undone []int        `json:"undone,omitempty"`
+}
+
+var undoSecretRE = regexp.MustCompile(`(?i)pass|secret|psk|key|token`)
+
+func holdsSecret(v any) bool {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, y := range x {
+			if undoSecretRE.MatchString(k) || holdsSecret(y) {
+				return true
+			}
+		}
+	case []any:
+		for _, y := range x {
+			if holdsSecret(y) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (ch *Changes) load() {
+	b, err := os.ReadFile(ch.logPath)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	if len(lines) > keepChanges {
+		lines = lines[len(lines)-keepChanges:]
+	}
+	var uf undoFile
+	if ub, err := os.ReadFile(ch.undoPath); err == nil {
+		_ = json.Unmarshal(ub, &uf)
+	}
+	undone := map[int]bool{}
+	for _, id := range uf.Undone {
+		undone[id] = true
+	}
+	for _, l := range lines {
+		var c Change
+		if json.Unmarshal([]byte(l), &c) != nil || c.ID == 0 {
+			continue
+		}
+		c.undo = uf.Undo[c.ID]
+		c.Undone = undone[c.ID]
+		c.Undoable = c.undo != nil
+		ch.list = append(ch.list, &c)
+	}
+}
+
+// saveUndo writes the undo file (call with ch.mu held).
+func (ch *Changes) saveUndoLocked() {
+	uf := undoFile{Undo: map[int]*req{}}
+	for _, c := range ch.list {
+		if c.undo != nil && !holdsSecret(c.undo.Body) {
+			uf.Undo[c.ID] = c.undo
+		}
+		if c.Undone {
+			uf.Undone = append(uf.Undone, c.ID)
+		}
+	}
+	b, _ := json.Marshal(uf)
+	tmp := ch.undoPath + ".tmp"
+	if os.WriteFile(tmp, b, 0o600) == nil {
+		_ = os.Rename(tmp, ch.undoPath)
+	}
 }
 
 func (ch *Changes) List() []Change {
@@ -535,7 +615,11 @@ func (ch *Changes) record(c *Client, who string, pub Preview, st int, ok bool, d
 
 func (ch *Changes) recordAt(host, who string, pub Preview, st int, ok bool, d any, undo *req) Change {
 	ch.mu.Lock()
-	e := &Change{ID: len(ch.list) + 1, Time: time.Now().Format("2006-01-02 15:04:05"), Host: host, By: who,
+	id := 1
+	if n := len(ch.list); n > 0 {
+		id = ch.list[n-1].ID + 1
+	}
+	e := &Change{ID: id, Time: time.Now().Format("2006-01-02 15:04:05"), Host: host, By: who,
 		Method: pub.Method, Path: pub.Path, Target: pub.Target, Description: pub.Description, Before: pub.Before, After: pub.After,
 		Status: st, OK: ok}
 	if !ok {
@@ -545,6 +629,12 @@ func (ch *Changes) recordAt(host, who string, pub Preview, st int, ok bool, d an
 	}
 	e.Undoable = e.undo != nil
 	ch.list = append(ch.list, e)
+	if len(ch.list) > keepChanges {
+		ch.list = ch.list[len(ch.list)-keepChanges:]
+	}
+	if e.undo != nil && ch.undoPath != "" {
+		ch.saveUndoLocked()
+	}
 	out := *e
 	ch.mu.Unlock()
 	ch.logLine(e)
@@ -566,6 +656,10 @@ func (ch *Changes) Undo(c *Client, id int, who string, requireUnlock bool) error
 		ch.mu.Unlock()
 		return aerr("nothing to undo for that change")
 	}
+	if e.Host != "" && e.Host != c.Host() {
+		ch.mu.Unlock()
+		return aerr("that change was made on another console (%s)", e.Host)
+	}
 	u := e.undo
 	ch.mu.Unlock()
 	st, d := c.Request(u.Method, u.Path, u.Body)
@@ -573,6 +667,9 @@ func (ch *Changes) Undo(c *Client, id int, who string, requireUnlock bool) error
 	if ok {
 		ch.mu.Lock()
 		e.Undone = true
+		if ch.undoPath != "" {
+			ch.saveUndoLocked()
+		}
 		ch.mu.Unlock()
 	}
 	ch.record(c, who, Preview{Method: u.Method, Path: u.Path, Target: e.Target, Description: fmt.Sprintf("Undo of change #%d", id),

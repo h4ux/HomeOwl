@@ -84,7 +84,8 @@ function needsYou(m) {
   const out = [];
   m.devices.filter(d => !d.online).forEach(d => out.push({ t: `${d.name} is ${d.stateLabel === "Disconnected" ? "offline" : d.stateLabel.toLowerCase()}${d.lastSeen ? " · " + ago(d.lastSeen) : ""}`, btn: `<button class="btn sm primary" data-dev="${esc(d.mac)}">Debug</button>` }));
   m.wanLinks.filter(l => l.enabled && l.status && l.status !== "ok").forEach(l => out.push({ t: `Internet via ${l.isp || l.name} is down`, btn: `<button class="btn sm" data-goto="networks">Show</button>` }));
-  arr(S.alerts?.duplicates).forEach(x => out.push({ t: `${x.name} is checked in ${x.count === 2 ? "twice" : x.count + " times"} (it got a new Wi-Fi address) — the same device?`, btn: `<button class="btn sm primary" data-cimerge="${esc(x.ids.join(","))}">Merge…</button>` })); // merge.go
+  arr(S.alerts?.duplicates).forEach(x => out.push({ t: x.exact ? `${x.name} is checked in ${x.count === 2 ? "twice" : x.count + " times"} (it got a new Wi-Fi address) — the same device?`
+    : `${x.names.join(", ")}${x.person ? ` (${x.person})` : ""} look alike — the same device checked in again?`, btn: `<button class="btn sm primary" data-cimerge="${esc(x.ids.join(","))}">Merge…</button>` })); // merge.go
   arr(S.alerts?.attention).forEach(x => out.push({ t: `${x.name} stopped using its NextDNS setup${x.since ? " · last seen " + ago(x.since * 1000) : ""}`, btn: `<button class="btn sm" data-goto="checkins">Show</button>` })); // setupwatch.go
   groupFindings(S.findings.filter(f => (f.sev === "critical" || f.sev === "high") && !f.dev)).forEach(g => {
     const f = g.list[0], acts = g.list.flatMap(x => x.actions);
@@ -621,25 +622,31 @@ V.history = m => {
 };
 
 // ---- changes
-V.changes = () => `<div class="head"><div><h1>Changes ${hint("Everything HomeOwl changed since it started. Also saved to changes-log.jsonl in HomeOwl's data folder.")}</h1></div><button class="btn" id="btn-reload-changes">Refresh</button></div>
+V.changes = () => `<div class="head"><div><h1>Changes ${hint("Everything HomeOwl changed on your consoles, kept across restarts and updates (also in changes-log.jsonl in HomeOwl's data folder). Revert sends the previous values back, or deletes what HomeOwl added. A change that holds a password can be reverted only until HomeOwl restarts.")}</h1></div><button class="btn" id="btn-reload-changes">Refresh</button></div>
+  <div id="changes-live"></div>
   <div class="card" id="changes-body"><div class="empty">${S.source === "live" ? "Loading…" : "Changes are only available with a live connection."}</div></div>`;
+const chgTime = c => { const t = Date.parse(c.time); return isNaN(t) ? esc(c.time) : fmtTime(t); };
 async function loadChanges() {
   if (S.source !== "live") return;
   let list = []; try { list = await api("/api/changes"); } catch { }
   const el = $("#changes-body"); if (!el) return;
-  el.innerHTML = list.length ? table("changes", [
+  const live = list.filter(c => c.ok && c.undoable && !c.undone).reverse();
+  $("#changes-live").innerHTML = live.length ? `<div class="card section" style="margin-bottom:16px"><h2>Still in place — can be reverted (${live.length})</h2>
+    <div class="ap-blocks">${live.map(c => `<div class="ap-block"><div><b>${esc(c.description || c.target)}</b><div class="fine muted">#${c.id} · ${chgTime(c)}${c.by ? ` · by ${esc(c.by)}` : ""}${Object.keys(c.after || {}).length ? " · " + Object.keys(c.after).map(k => `${esc(k)}: ${esc(fmtVal(c.after[k]))}`).join(" · ") : ""}</div></div>
+      <button class="btn sm" data-undo="${c.id}">Revert</button></div>`).join("")}</div></div>` : "";
+  el.innerHTML = list.length ? `<h2 style="margin:0 0 8px">All changes</h2>` + table("changes", [
     { k: "description", label: "", fmt: c => `${esc(c.description || c.target)} <span class="fine">#${c.id}${c.by ? ` · by ${esc(c.by)}` : ""}</span>` },
-    { k: "time", label: "When", fmt: c => esc(c.time), sort: c => -c.id },
-    { k: "ok", label: "", fmt: c => (c.ok ? `<span class="tag good">ok</span>` : `<span class="tag bad" title="${esc(c.error || "")}">failed</span>`) + (c.undone ? ` <span class="tag">undone</span>` : "") },
+    { k: "time", label: "When", fmt: c => `<span style="white-space:nowrap">${chgTime(c)}</span>`, sort: c => -c.id },
+    { k: "ok", label: "", fmt: c => (c.ok ? `<span class="tag good">ok</span>` : `<span class="tag bad" title="${esc(c.error || "")}">failed</span>`) + (c.undone ? ` <span class="tag">reverted</span>` : "") },
     { k: "after", label: "Changed", fmt: c => Object.keys(c.after || {}).map(k => `<span class="mono fine">${esc(k)}: ${esc(fmtVal(c.before?.[k]))} → <b>${esc(fmtVal(c.after[k]))}</b></span>`).join(" · ") || "–" },
     { k: "path", label: "Request", fmt: c => `<span class="mono fine">${esc(c.method)} ${esc(c.path)}</span>` },
-    { k: "undo", label: "", fmt: c => c.undoable && !c.undone ? `<button class="btn sm" data-undo="${c.id}">Undo</button>` : "" },
+    { k: "undo", label: "", fmt: c => c.undoable && !c.undone ? `<button class="btn sm" data-undo="${c.id}">Revert</button>` : "" },
   ], list.slice().reverse(), { search: true }) : `<div class="empty">No changes made yet.</div>`;
 }
 document.addEventListener("click", e => {
   const u = e.target.closest("[data-undo]"); if (!u) return;
-  openModal({ title: `Undo change #${u.dataset.undo}?`, body: "<p>This sends the previous values back to the console.</p>", buttons: [{ label: "Cancel" }, { label: "Undo", cls: "primary", onClick: async () => {
-    closeModal(); try { if (!S.write) await setWrite(true); await api("/api/undo", { id: +u.dataset.undo }); toast("Undone", "ok"); loadChanges(); setTimeout(() => collectLive(true, true).catch(() => { }), 2000); } catch (err) { toast(err.message, "err"); loadChanges(); } } }] });
+  openModal({ title: `Revert change #${u.dataset.undo}?`, body: "<p>This sends the previous values back to the console, or deletes what HomeOwl added. The revert is logged too.</p>", buttons: [{ label: "Cancel" }, { label: "Revert", cls: "primary", onClick: async () => {
+    closeModal(); try { if (!S.write) await setWrite(true); await api("/api/undo", { id: +u.dataset.undo }); toast("Reverted", "ok"); loadChanges(); setTimeout(() => collectLive(true, true).catch(() => { }), 2000); } catch (err) { toast(err.message, "err"); loadChanges(); } } }] });
 });
 
 // ---- cheatsheet
