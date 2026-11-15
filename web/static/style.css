@@ -854,3 +854,4 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .iss-fix{margin-top:10px}.iss-fix .pv{margin:8px 0}
 #cl-issue{max-width:420px}
 .ap-grace{display:flex;gap:6px 12px;align-items:flex-end;flex-wrap:wrap;margin:8px 0}.ap-grace label{margin:0}.ap-grace select{width:auto}
+.al-ntfy-row{display:flex;gap:8px;align-items:center;margin-top:5px}.al-ntfy-row input{flex:1;margin:0}.al-ntfy-row .btn{white-space:nowrap}

@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", archive: "unknown" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", approval_done: "unknown", archive: "unknown" };
 
 // demo: two fictional new devices
 function alFromBundle() {
@@ -67,6 +67,16 @@ document.addEventListener("click", e => {
     api(`/api/approval/${op}`, { mac }).then(() => toast({ keep: "Kept blocked", block: "Blocked", approve: "Approved — it can connect now" }[op], "ok")).catch(err => toast(err.message, "err"));
     return;
   }
+  if (e.target.id === "al-ntfy-gen") {
+    const abc = "abcdefghijkmnpqrstuvwxyz23456789", r = crypto.getRandomValues(new Uint8Array(20));
+    const topic = "homeowl-" + [...r].map(x => abc[x % abc.length]).join(""), url = "https://ntfy.sh/" + topic;
+    $("#al-ntfy").value = url;
+    const how = $("#al-ntfy-how"); how.hidden = false;
+    how.innerHTML = `<div class="msg"><b>Now subscribe on each phone</b> (yours, and the other parent's):
+      <ol class="fine"><li>Install the free <b>ntfy</b> app (App Store or Google Play).</li><li>Tap <b>+</b>, enter the topic <span class="mono">${esc(topic)}</span> and subscribe (server: ntfy.sh).</li><li>Back here: <b>Save</b>, then <b>Send a test</b>.</li></ol>
+      <div class="cmd"><code>${esc(topic)}</code><button class="btn sm" data-copy="${esc(topic)}">Copy</button></div></div>`;
+    return;
+  }
   if (e.target.id === "al-test") { api("/api/alerts/test", {}).then(() => toast("Test sent", "ok")).catch(err => toast(err.message, "err")).finally(() => setTimeout(renderAlertSettings, 300)); return; }
   if (e.target.id === "al-save") {
     const body = { new_device: $("#al-new").value, setup: !!$("#al-setup")?.checked, macos: !!$("#al-mac")?.checked };
@@ -94,8 +104,9 @@ async function renderAlertSettings() {
     <h3>Where alerts go</h3>
     <p class="fine">Always to <a href="#" data-goto="alerts">Records › Alerts</a>. Also:</p>
     ${st.macos_possible ? `<label class="check"><input type="checkbox" id="al-mac" ${st.macos ? "checked" : ""}> <span>A notification on this Mac</span></label>` : ""}
-    <label>Phone push with ntfy ${saved("ntfy", "not set")}<input id="al-ntfy" placeholder="https://ntfy.sh/a-long-secret-topic-name" autocomplete="off"></label>
-    <p class="fine muted">Install the free ntfy app, subscribe to a topic name nobody can guess, and paste its address here. Anyone who knows the topic can read the alerts.</p>
+    <label>Phone push with ntfy ${saved("ntfy", "not set")}<span class="al-ntfy-row"><input id="al-ntfy" placeholder="https://ntfy.sh/a-long-secret-topic-name" autocomplete="off"><button class="btn sm" id="al-ntfy-gen" type="button">Generate a private topic</button></span></label>
+    <div id="al-ntfy-how" hidden></div>
+    <p class="fine muted">Install the free ntfy app and subscribe to a topic nobody can guess (Generate makes one). Anyone who knows the topic can read the alerts, so keep it to the family. New-device alerts get <b>Approve</b> and <b>Block</b> buttons that work from anywhere: a tap goes back through ntfy, and HomeOwl only acts on its own signed, one-time answers.</p>
     <label>Webhook ${saved("webhook", "not set")}<input id="al-hook" placeholder="https://… (Home Assistant, Slack, Discord, n8n)" autocomplete="off"></label>
     <p class="fine muted">HomeOwl posts JSON with <span class="mono">title</span>, <span class="mono">body</span> and <span class="mono">kind</span>, plus <span class="mono">text</span> and <span class="mono">content</span>, so Slack and Discord show it as is. Passwords are never included.</p>
     ${st.error ? `<div class="msg err">Last alert couldn't be sent: ${esc(st.error)}</div>` : ""}

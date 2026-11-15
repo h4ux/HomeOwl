@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/h4ux/homeowl/internal/alerts"
-	"github.com/h4ux/homeowl/internal/config"
 )
 
 func TestApprovalGraceAndLinks(t *testing.T) {
@@ -70,14 +70,16 @@ func TestApprovalGraceAndLinks(t *testing.T) {
 	if !strings.Contains(al.Body, "1 hour") {
 		t.Fatalf("alert says when: %+v", al)
 	}
-	// the push gets Approve and Block links (not stored in the alert)
-	_ = a.Cfg.Update(func(c *config.Config) { c.LAN.Enabled = true })
+	// the push gets Approve and Block buttons that post to a private reply topic (tokens never stored in the alert)
+	if err := a.Sec.Set(slotNtfy, "https://ntfy.example.com/family-alerts"); err != nil {
+		t.Fatal(err)
+	}
 	acts := a.pushActions(al)
-	if len(acts) != 2 || acts[0].Label != "Approve" || acts[1].Label != "Block" {
+	if len(acts) != 2 || acts[0].Label != "Approve" || acts[1].Label != "Block" || !strings.HasPrefix(acts[0].URL, "https://ntfy.example.com/family-alerts-r") || acts[0].Body == "" {
 		t.Fatalf("push actions: %v", acts)
 	}
 	if _, ok := al.Data["actions"]; ok {
-		t.Fatal("links aren't stored with the alert")
+		t.Fatal("tokens aren't stored with the alert")
 	}
 	// grace over: blocked
 	st := a.approval.load()
@@ -89,30 +91,32 @@ func TestApprovalGraceAndLinks(t *testing.T) {
 	if c := got(); len(c) != 1 || c[0] != "block-sta 02:00:00:00:00:30" {
 		t.Fatalf("blocked after the grace period: %v", c)
 	}
-	// the push's Approve link: works once, only with a genuine token
+	// a tap on Approve: works once, only with a genuine, current token
 	tok := a.approvalToken("approve", "02:00:00:00:00:30", time.Now().Add(time.Hour))
-	call := func(method, tk string) int {
-		w := httptest.NewRecorder()
-		a.approvalLinkAPI(w, httptest.NewRequest(method, "/api/approval-link?t="+tk, nil))
-		return w.Code
+	if err := a.useDecision(tok[:len(tok)-2] + "xx"); err == nil {
+		t.Fatal("tampered")
 	}
-	if c := call("GET", tok); c != 200 || len(got()) != 1 {
-		t.Fatalf("GET only asks: %d %v", c, got())
+	if err := a.useDecision(a.approvalToken("approve", "02:00:00:00:00:30", time.Now().Add(-time.Minute))); err == nil {
+		t.Fatal("expired")
 	}
-	if c := call("POST", tok[:len(tok)-2]+"xx"); c != 403 {
-		t.Fatalf("tampered: %d", c)
-	}
-	if c := call("POST", a.approvalToken("approve", "02:00:00:00:00:30", time.Now().Add(-time.Minute))); c != 403 {
-		t.Fatalf("expired: %d", c)
-	}
-	if c := call("POST", tok); c != 200 {
-		t.Fatalf("approved: %d", c)
+	if err := a.useDecision(tok); err != nil {
+		t.Fatal(err)
 	}
 	if c := got(); c[len(c)-1] != "unblock-sta 02:00:00:00:00:30" || a.approval.load().Approved["02:00:00:00:00:30"] == 0 {
 		t.Fatalf("unblocked and approved: %v", c)
 	}
-	if c := call("POST", tok); c != 410 {
-		t.Fatalf("used once: %d", c)
+	if err := a.useDecision(tok); err == nil {
+		t.Fatal("used once")
+	}
+	// the reply stream: ntfy's JSON lines
+	stream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"event":"open"}` + "\n" + `{"id":"m1","event":"message","message":"hello"}` + "\n"))
+	}))
+	defer stream.Close()
+	var seen []string
+	last, err := listenReplies(context.Background(), stream.URL, "10m", func(m string) { seen = append(seen, m) })
+	if err != nil || last != "m1" || len(seen) != 1 || seen[0] != "hello" {
+		t.Fatalf("stream: %v %q %v", err, last, seen)
 	}
 	// block now, from the grace period
 	tab := map[string]any{"mac": "02:00:00:00:00:31", "hostname": "tablet", "essid": "Example Home"}

@@ -42,8 +42,8 @@ type Channels struct {
 	Actions []PushAction
 }
 
-// PushAction is a push button that POSTs to its URL (a signed one-time link).
-type PushAction struct{ Label, URL string }
+// PushAction is a push button that POSTs Body to URL (a signed one-time decision, to HomeOwl's reply topic).
+type PushAction struct{ Label, URL, Body string }
 
 // Store keeps the newest alerts in a JSON file.
 type Store struct {
@@ -205,8 +205,12 @@ func ntfy(ctx context.Context, ch Channels, a Alert) error {
 	}
 	var acts []string
 	for _, x := range ch.Actions {
-		if CheckURL(x.URL) == nil && !strings.ContainsAny(x.Label+x.URL, ",;") {
-			acts = append(acts, "http, "+x.Label+", "+x.URL+", method=POST, clear=true")
+		if CheckURL(x.URL) == nil && !strings.ContainsAny(x.Label+x.URL+x.Body, ",;=") {
+			a := "http, " + x.Label + ", " + x.URL + ", method=POST, clear=true"
+			if x.Body != "" {
+				a += ", body=" + x.Body
+			}
+			acts = append(acts, a)
 		}
 	}
 	if len(acts) > 0 {

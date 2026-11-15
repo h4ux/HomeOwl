@@ -35,11 +35,11 @@ func TestStore(t *testing.T) {
 }
 
 func TestDeliver(t *testing.T) {
-	var ntfyTitle, ntfyBody string
+	var ntfyTitle, ntfyBody, ntfyActions string
 	var hook map[string]any
 	nt := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		ntfyTitle, ntfyBody = r.Header.Get("Title"), string(b)
+		ntfyTitle, ntfyBody, ntfyActions = r.Header.Get("Title"), string(b), r.Header.Get("Actions")
 	}))
 	defer nt.Close()
 	wh := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _ = json.NewDecoder(r.Body).Decode(&hook) }))
@@ -50,6 +50,13 @@ func TestDeliver(t *testing.T) {
 	}
 	if ntfyTitle != "New device" || ntfyBody != "Phone" || hook["text"] != "New device — Phone" || hook["kind"] != "new_device" {
 		t.Fatalf("ntfy %q %q, hook %v", ntfyTitle, ntfyBody, hook)
+	}
+	ch := Channels{Ntfy: nt.URL + "/topic", Actions: []PushAction{{Label: "Approve", URL: "https://ntfy.example.com/topic-r1", Body: "abc.def"}, {Label: "Bad", URL: "https://x", Body: "a,b"}}}
+	if errs := Deliver(context.Background(), ch, Alert{Kind: "approval", Title: "iPad joined"}); len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	if ntfyActions != "http, Approve, https://ntfy.example.com/topic-r1, method=POST, clear=true, body=abc.def" {
+		t.Fatalf("actions: %q", ntfyActions)
 	}
 	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(403) }))
 	defer bad.Close()

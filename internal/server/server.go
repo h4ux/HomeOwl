@@ -168,6 +168,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.setupWatchLoop(ctx)
 	go a.mdmLoop(ctx)
 	go a.archiveLoop(ctx)
+	go a.replyLoop(ctx) // Approve / Block from a phone notification (approvallink.go)
 	go a.appBlocksLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
@@ -481,7 +482,7 @@ func (a *App) routes() http.Handler {
 
 // The device check-in page also works over plain HTTP, so a phone can open it without a certificate warning.
 // It only shows the device itself and the family's first names, and only queues a request for an admin.
-var plainHTTPOK = map[string]bool{"/api/approval-link": true, "/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true,
+var plainHTTPOK = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true,
 	"/wifi": true, "/wifi.js": true, "/qr.js": true, "/api/wifi": true} // the guest card (Settings › Access › Easy names)
 
 // guard applies the Host check and sends plain-HTTP visitors from other devices to HTTPS.

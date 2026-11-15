@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.78] — 2026-11-15
+
+- Approve and Block from the phone notification now work from anywhere: a tap posts a signed one-time answer to a
+  private ntfy reply topic that HomeOwl listens to (outgoing only), instead of calling HomeOwl. Each decision is
+  announced on the alert topic ("✓ iPad approved"), so the other parent sees it. The web link endpoint is gone.
+- Settings › Alerts: "Generate a private topic" makes a random ntfy topic and shows how to subscribe on each phone.
+
 ## [0.1.77] — 2026-11-15
 
 - The 0.1.76 changes, released: its build stopped on a test race (push links were worked out for every alert, not
