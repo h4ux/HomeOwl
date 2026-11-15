@@ -4,6 +4,10 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.84] — 2026-11-15
+
+- Menu: "Smart home" is now "Smart", so it fits on one line in the sidebar.
+
 ## [0.1.83] — 2026-11-15
 
 - The device's own page. Once a device is approved, its check-in page (the HomeOwl icon on the Home Screen) shows:
@@ -24,7 +28,7 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 - A reorganised menu. **Home**: Today, Who's home, Alerts. **Devices** (new): All devices and New devices (check-ins,
   approval, grace period, merging, setup — no longer a hidden page). **Network**: Overview, Suggestions, Wi-Fi (now
-  with Guest Wi-Fi), Networks, UniFi gear, Firmware. **Family**: People & groups, Apps, Reports. **Smart home** (new):
+  with Guest Wi-Fi), Networks, UniFi gear, Firmware. **Family**: People & groups, Apps, Reports. **Smart** (new):
   Cameras, Doors, UPS. **History** (was Records): Changes, Config history, Events. Analytics and System are unchanged,
   and every page keeps its address.
 

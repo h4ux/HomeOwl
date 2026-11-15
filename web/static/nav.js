@@ -38,7 +38,7 @@ const NAV = [
     { label: "Apps", views: [["apps", "Apps"], ["relay", "Private Relay"]] },
     { label: "Reports", views: [["reports", "Reports"]] },
   ] },
-  { id: "smart", name: "Smart home", pages: [
+  { id: "smart", name: "Smart", pages: [
     { label: "Cameras", views: [["cameras", "Cameras"]] },
     { label: "Doors", views: [["doors", "Doors"]] },
     { label: "UPS", views: [["ups", "UPS"]] },
