@@ -158,10 +158,12 @@ const ND_MODELS = [
     ["Mac16,2", "iMac (M4)"], ["Mac15,4", "iMac (M3)"], ["iMac21,1", "iMac (M1)"], ["Mac14,13", "Mac Studio (M2 Max)"]]],
 ];
 const ndModelKnown = id => ND_MODELS.some(([, l]) => l.some(([k]) => k === id));
-function ndModelPick(pre, cur) {
-  const other = cur && !ndModelKnown(cur);
-  return `<label>Device model ${hint("iPhone, iPad and Mac: the setup tells NextDNS the model, so its logs show it next to the device's name. Leave it on Not said for other devices.")}<select id="${pre}-model">
-    <option value="">Not said</option>
+const ndModelName = id => ND_MODELS.flatMap(([, l]) => l).find(([k]) => k === id)?.[1] || id;
+function ndModelPick(pre, cur, found) {
+  const other = cur && cur !== "-" && !ndModelKnown(cur);
+  return `<label>Device model ${hint("iPhone, iPad and Mac: the setup tells NextDNS the model, so its logs show it next to the device's name. Automatic uses the model the device announced on the home network when it checked in (Apple devices do; others announce nothing, and then no model is sent).")}<select id="${pre}-model">
+    <option value="">${found ? `Automatic — ${esc(ndModelName(found))} (found on the device)` : "Automatic — none found on the device yet"}</option>
+    <option value="-" ${cur === "-" ? "selected" : ""}>None</option>
     ${ND_MODELS.map(([g, l]) => `<optgroup label="${g}">${l.map(([k, n]) => `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</optgroup>`).join("")}
     <option value="*" ${other ? "selected" : ""}>Other — type its model identifier…</option></select></label>
     <label id="${pre}-modelwrap" ${other ? "" : "hidden"}>Model identifier<input id="${pre}-modelid" value="${other ? esc(cur) : ""}" placeholder="iPhone17,1" spellcheck="false" autocomplete="off"></label>`;
@@ -176,7 +178,7 @@ function changeSetup(id) {
   if (!nd.profiles.length && !types.length) return toast("Nothing to choose yet: add a NextDNS API key in Settings › Analytics, or a profile type in Settings › Device profiles", "err");
   openModal({ title: `Setup for ${x.name}`, body: `
     ${nd.profiles.length ? `<label>NextDNS profile<select id="cis-nd"><option value="">None</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === x.nd_profile ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
-      ${ndModelPick("cis", x.nd_model || "")}` : ""}
+      ${ndModelPick("cis", x.nd_model || "", x.det_model || "")}` : ""}
     ${types.length ? `<label>Profile type (Wi-Fi and VPN)<select id="cis-type">
       <option value="" ${!x.type_id ? "selected" : ""}>${pt ? `${esc(personLabel(x))}'s: ${esc(pt.name)}` : "Its person's (none yet)"}</option>
       ${types.map(t => `<option value="${esc(t.id)}" ${x.type_id === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}
@@ -487,7 +489,7 @@ async function approveCheckin(id) {
   const nd = S.ciND, ndDefault = known ? nd.by_person[known.id] || "" : "";
   const ndPick = nd.profiles.length ? `<label>NextDNS profile for the device's setup
       <select id="ci-nd"><option value="">None — don't offer a setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === ndDefault ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
-    ${ndModelPick("ci", "")}
+    ${ndModelPick("ci", "", x.det_model || "")}
     <p class="fine">After approval, the device's check-in page offers to set it up with encrypted DNS through this profile, under its name, so it's recognised on any network (a profile on iPhone, iPad and Mac; Private DNS on Android).</p>` : "";
   const opts = S.ciPeople.map(p => `<option value="${esc(p.id)}" ${p.id === known?.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
   openModal({ title: "Approve device check-in", body: `

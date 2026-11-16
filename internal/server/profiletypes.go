@@ -310,8 +310,8 @@ func (a *App) setupHash(x CheckIn) string {
 	if ex.Icon != "" { // only when set, so devices installed before the choice existed don't all show an update
 		parts = append(parts, ex.Icon)
 	}
-	if x.NDProfile != "" && x.NDModel != "" { // likewise: only devices given a model
-		parts = append(parts, x.NDModel)
+	if m := ndModelOf(x); x.NDProfile != "" && m != "" { // likewise: only devices with a model
+		parts = append(parts, m)
 	}
 	if x.NDProfile != "" && !ex.DNS.empty() { // likewise: only devices whose DNS setting gets rules
 		parts = append(parts, ex.DNS)

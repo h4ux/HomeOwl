@@ -46,8 +46,8 @@ var ndModelRE = regexp.MustCompile(`^(iPhone|iPad|iPod|Mac|MacBookAir|MacBookPro
 // appleDoH is the profile's encrypted-DNS address. With the device's model it's NextDNS's Apple form
 // (https://apple.dns.nextdns.io/<profile>/<name>/Apple%20iPhone17%2C1), and NextDNS shows the model by the name.
 func appleDoH(x CheckIn) string {
-	if x.NDModel != "" && ndModelRE.MatchString(x.NDModel) {
-		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name) + "/" + url.PathEscape("Apple "+x.NDModel)
+	if m := ndModelOf(x); m != "" {
+		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name) + "/" + url.PathEscape("Apple "+m)
 	}
 	return "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
 }
@@ -177,6 +177,10 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		fail(w, 404, "This device isn't approved yet. Check in first, then come back once an admin has approved it.")
 		return
+	}
+	if x.NDProfile != "" && ndModelOf(x) == "" && x.NDModel != "-" { // not found at check-in: ask once more now
+		a.detectModel(mac, remoteIP(r), true)
+		x, _ = a.checkins.Registered(mac)
 	}
 	ex, _ := a.extrasFor(x)
 	if x.NDProfile == "" && len(ex.WiFi) == 0 && ex.VPN == nil {
@@ -477,7 +481,7 @@ var homePubCache struct {
 func (a *App) changeSetup(body map[string]any) (any, error) {
 	id, nd := s(body, "id"), s(body, "nd_profile")
 	model := strings.TrimSpace(s(body, "nd_model"))
-	if model != "" && !ndModelRE.MatchString(model) {
+	if model != "" && model != "-" && !ndModelRE.MatchString(model) {
 		return nil, errors.New("that isn't an Apple model identifier (like iPhone17,1)")
 	}
 	if has(body, "type_id") {

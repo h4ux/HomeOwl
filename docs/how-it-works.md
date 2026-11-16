@@ -87,6 +87,13 @@ configuration profile; the admin can also pick the **device model** (or type its
 `https://apple.dns.nextdns.io/<profile>/<device name>/Apple%20<model>`, and NextDNS shows the model next to the name.
 Changing the model later shows **Update ready** on the device's page. Android (Private DNS) and Windows have no model.
 
+The model is found by itself on **Automatic** (the default): Apple devices announce their model identifier over
+multicast DNS (`model=` in `_device-info._tcp`, `rpMd=` in `_companion-link._tcp`), so when a device checks in, opens
+its page or downloads its profile, HomeOwl asks that one device directly — a single query to its address, port 5353 —
+at most once every 10 minutes. What it answers is only used if it looks like a model identifier. A device that says
+nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) gets no model until an admin picks one;
+**None** sends no model at all.
+
 ## Built-in Tailscale
 
 HomeOwl can join your tailnet as its own device (Settings › Access › Built-in Tailscale) and get a

@@ -163,6 +163,19 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if got := appleDoH(CheckIn{NDProfile: "abc123", Name: "Test Device", NDModel: "iPhone19,2"}); got != "https://apple.dns.nextdns.io/abc123/Test%20Device/Apple%20iPhone19%2C2" {
 		t.Errorf("address %s", got)
 	}
+	// found on the device itself: used unless the admin chose one, or none
+	if got := ndModelOf(CheckIn{DetModel: "iPhone18,1"}); got != "iPhone18,1" {
+		t.Errorf("found: %q", got)
+	}
+	if got := ndModelOf(CheckIn{DetModel: "iPhone18,1", NDModel: "iPad16,3"}); got != "iPad16,3" {
+		t.Errorf("chosen wins: %q", got)
+	}
+	if got := ndModelOf(CheckIn{DetModel: "iPhone18,1", NDModel: "-"}); got != "" {
+		t.Errorf("none: %q", got)
+	}
+	if got := ndModelOf(CheckIn{DetModel: "<script>"}); got != "" {
+		t.Errorf("junk: %q", got)
+	}
 	if !regexp.MustCompile(`^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$`).MatchString(stableUUID("x")) || stableUUID("x") != stableUUID("x") {
 		t.Errorf("uuid %s", stableUUID("x"))
 	}

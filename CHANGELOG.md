@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.99] — 2026-11-16
+
+### Added
+- **The device model is found by itself.** When an iPhone, iPad or Mac checks in (or opens its page, or downloads its
+  profile), HomeOwl asks it for its model identifier over mDNS — one query to that device only — and the NextDNS
+  setup uses it. The Device model list starts on **Automatic** and shows what was found; picking a model overrides it,
+  and **None** sends no model.
+
 ## [0.1.98] — 2026-11-16
 
 ### Added

@@ -41,8 +41,11 @@ type CheckIn struct {
 	MergedInto string `json:"merged_into,omitempty"`
 	By         string `json:"by,omitempty"`
 	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
-	// Apple model identifier ("iPhone17,1") the setup reports to NextDNS, which then shows the model ("" = not said)
-	NDModel   string `json:"nd_model,omitempty"`
+	// Apple model identifier ("iPhone17,1") the setup reports to NextDNS, which then shows the model ("" = the one
+	// found on the device, "-" = none)
+	NDModel string `json:"nd_model,omitempty"`
+	// the model the device itself announced over mDNS (devmodel.go)
+	DetModel  string `json:"det_model,omitempty"`
 	ProfileAt int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
 	ProfileND string `json:"profile_nd,omitempty"` // the NextDNS profile the device has installed (≠ NDProfile: an update is ready)
 	// the device name the installed profile reports to NextDNS: it stays what it was at download when the device is
@@ -390,6 +393,9 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 			res["safari"] = u + "/hi"
 		}
 		if x, ok := a.checkins.Registered(mac); ok {
+			if x.DetModel == "" {
+				a.detectModel(mac, ip, false)
+			}
 			res["registered"] = a.deviceSetup(x)
 			res["mine"] = a.myDevice(x, c)
 		}
@@ -445,6 +451,7 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.approvalCheckedIn(mac)
+	a.detectModel(mac, ip, false)
 	a.checkinAlert(x)
 	send(w, 200, map[string]any{"ok": true})
 }
@@ -501,7 +508,7 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 		return nil, errors.New("that isn't a NextDNS profile ID")
 	}
 	model := strings.TrimSpace(s(body, "nd_model"))
-	if model != "" && !ndModelRE.MatchString(model) {
+	if model != "" && model != "-" && !ndModelRE.MatchString(model) {
 		return nil, errors.New("that isn't an Apple model identifier (like iPhone17,1)")
 	}
 	if pid != "" && x.MAC != "" {
