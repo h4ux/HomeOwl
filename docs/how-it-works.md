@@ -73,6 +73,9 @@ sequenceDiagram
 - **Profile types** decide what goes in the profile: which Wi-Fi networks it joins, a VPN, a Home Screen icon. One
   type can be the default for everyone. "Don't join our other Wi-Fi networks" lists open networks as don't-join and
   leaves password networks out, so a device can't join them without someone typing the password.
+- **Wi-Fi passwords come from UniFi.** If UniFi doesn't give HomeOwl a network's password (the UniFi account HomeOwl
+  signs in with may not be allowed to see them), that network is left out of profiles, and Settings › Device profiles
+  and the device's setup say so: a profile without the password would only make the device ask for it.
 - **Android and Windows** can't install these profiles: their page shows the NextDNS setting and the home Wi-Fi's
   name and password instead.
 - **NextDNS on the move:** the profile's encrypted DNS stays on at home, on mobile data and on other Wi-Fi. It stands

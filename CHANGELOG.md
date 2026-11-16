@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.100] — 2026-11-16
+
+### Fixed
+- **A device kept asking for the home Wi-Fi password after installing its profile.** When UniFi doesn't give HomeOwl a
+  network's password (the UniFi account HomeOwl uses may not be allowed to see Wi-Fi passwords), the network went into
+  the profile without one, so the device asked for it. It's now left out of the profile, and Settings › Device
+  profiles and the device's setup show **no Wi-Fi password**, with how to fix it.
+
 ## [0.1.99] — 2026-11-16
 
 ### Added

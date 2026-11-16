@@ -251,10 +251,27 @@ func wifiFor(all []map[string]any, ids []string, fixed bool) []wifiNet {
 			n.Enc = "None"
 		case "wpapsk":
 			n.Enc, n.Password = "Any", str(w, "x_passphrase")
+			if n.Password == "" { // UniFi didn't give the password: in the profile, the network would only ask for it
+				continue
+			}
 		default:
 			continue
 		}
 		out = append(out, n)
+	}
+	return out
+}
+
+// wifiNoPassword names the chosen password networks whose password UniFi didn't give HomeOwl (the UniFi account
+// HomeOwl signs in with may not be allowed to see Wi-Fi passwords). They're left out of profiles.
+func wifiNoPassword(all []map[string]any, ids []string) []string {
+	var out []string
+	for _, w := range all {
+		for _, id := range ids {
+			if str(w, "_id") == id && str(w, "security") == "wpapsk" && str(w, "x_passphrase") == "" {
+				out = append(out, str(w, "name"))
+			}
+		}
 	}
 	return out
 }
@@ -507,7 +524,7 @@ func (a *App) devTypesView() (map[string]any, error) {
 	for _, w := range all {
 		sec := str(w, "security")
 		wl = append(wl, map[string]any{"id": str(w, "_id"), "ssid": str(w, "name"), "guest": a.UniFi.IsGuestWLAN(w),
-			"usable": sec == "open" || sec == "wpapsk", "security": sec}) // never the password
+			"usable": sec == "open" || sec == "wpapsk", "security": sec, "no_password": sec == "wpapsk" && str(w, "x_passphrase") == ""}) // never the password
 	}
 	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID,
 		"setup_links": a.setupLinks(), "setup_net": a.setupNetView(), "setup_join": a.setupJoin(), "portal": a.Cfg.Get().Onboard.Portal, "skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}

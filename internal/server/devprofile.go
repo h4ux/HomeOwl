@@ -382,6 +382,13 @@ func (a *App) setupStatus(x CheckIn) map[string]any {
 		if t.VPN != nil && t.VPN.Type == "wireguard" {
 			st["wg"] = a.Sec.Get(deviceWGSlot(x.ID)) != "" // whether it's there, never the config
 		}
+		if len(t.WiFi) > 0 {
+			if all, err := a.wlans(); err == nil {
+				if miss := wifiNoPassword(all, t.WiFi); len(miss) > 0 {
+					st["wifi_no_password"] = miss
+				}
+			}
+		}
 	}
 	if x.NDProfile == "" {
 		st["state"] = "no_nextdns" // Wi-Fi and VPN only: nothing NextDNS could show

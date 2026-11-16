@@ -200,3 +200,18 @@ func TestProfileTypes(t *testing.T) {
 		t.Fatal("the device's page should know there's no icon")
 	}
 }
+
+func TestWiFiWithoutPassword(t *testing.T) {
+	all := []map[string]any{
+		{"_id": "w1", "name": "Example Home", "security": "wpapsk", "x_passphrase": "example-pass-123"},
+		{"_id": "w2", "name": "Example Upstairs", "security": "wpapsk"}, // UniFi didn't give the password
+		{"_id": "w4", "name": "Example Open", "security": "open"},
+	}
+	got := wifiFor(all, []string{"w1", "w2", "w4"}, true)
+	if len(got) != 2 || got[0].SSID != "Example Home" || got[0].Password != "example-pass-123" || got[1].SSID != "Example Open" {
+		t.Fatalf("networks: %+v", got)
+	}
+	if miss := wifiNoPassword(all, []string{"w1", "w2", "w4"}); len(miss) != 1 || miss[0] != "Example Upstairs" {
+		t.Fatalf("missing: %v", miss)
+	}
+}
