@@ -40,6 +40,18 @@ import (
 
 var ndProfileRE = regexp.MustCompile(`^[a-z0-9]{4,16}$`)
 
+// ndModelRE: an Apple model identifier ("iPhone17,1", "iPad16,3", "Mac16,10", "MacBookAir10,1").
+var ndModelRE = regexp.MustCompile(`^(iPhone|iPad|iPod|Mac|MacBookAir|MacBookPro|MacBook|Macmini|MacPro|iMac|iMacPro|AppleTV|Watch|RealityDevice)[0-9]{1,3},[0-9]{1,3}$`)
+
+// appleDoH is the profile's encrypted-DNS address. With the device's model it's NextDNS's Apple form
+// (https://apple.dns.nextdns.io/<profile>/<name>/Apple%20iPhone17%2C1), and NextDNS shows the model by the name.
+func appleDoH(x CheckIn) string {
+	if x.NDModel != "" && ndModelRE.MatchString(x.NDModel) {
+		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name) + "/" + url.PathEscape("Apple "+x.NDModel)
+	}
+	return "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
+}
+
 // ndProfileChoices lists the NextDNS profiles the admin can give a device, and each person's usual one.
 func (a *App) ndProfileChoices() map[string]any {
 	profiles := a.ndProfilesCached()
@@ -266,7 +278,7 @@ func (a *App) appURL(r *http.Request) (u string, trusted bool) {
 func mobileConfig(x CheckIn, ex profileExtras) []byte {
 	clip := ex.Clip
 	base := "io.github.h4ux.homeowl.device." + strings.ReplaceAll(x.MAC, ":", "")
-	doh := "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
+	doh := appleDoH(x)
 	var b bytes.Buffer
 	str := func(k, v string) {
 		b.WriteString("<key>" + k + "</key><string>")
@@ -464,6 +476,10 @@ var homePubCache struct {
 // new setup ("update ready"), and its NextDNS name moves to the new profile in People.
 func (a *App) changeSetup(body map[string]any) (any, error) {
 	id, nd := s(body, "id"), s(body, "nd_profile")
+	model := strings.TrimSpace(s(body, "nd_model"))
+	if model != "" && !ndModelRE.MatchString(model) {
+		return nil, errors.New("that isn't an Apple model identifier (like iPhone17,1)")
+	}
 	if has(body, "type_id") {
 		if t := s(body, "type_id"); t != "" && t != typeNone {
 			if _, ok := a.devTypes.Get(t); !ok {
@@ -521,6 +537,9 @@ func (a *App) changeSetup(body map[string]any) (any, error) {
 			c.TypeID = s(body, "type_id")
 		}
 		c.NDProfile, c.ProfileND, c.SetupChanged = nd, inst, time.Now().Unix()
+		if has(body, "nd_model") {
+			c.NDModel = model
+		}
 		if nd == "" {
 			c.SetupLost = 0
 		}

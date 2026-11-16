@@ -41,8 +41,10 @@ type CheckIn struct {
 	MergedInto string `json:"merged_into,omitempty"`
 	By         string `json:"by,omitempty"`
 	NDProfile  string `json:"nd_profile,omitempty"` // NextDNS profile the device's setup uses (devprofile.go)
-	ProfileAt  int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
-	ProfileND  string `json:"profile_nd,omitempty"` // the NextDNS profile the device has installed (≠ NDProfile: an update is ready)
+	// Apple model identifier ("iPhone17,1") the setup reports to NextDNS, which then shows the model ("" = not said)
+	NDModel   string `json:"nd_model,omitempty"`
+	ProfileAt int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
+	ProfileND string `json:"profile_nd,omitempty"` // the NextDNS profile the device has installed (≠ NDProfile: an update is ready)
 	// the device name the installed profile reports to NextDNS: it stays what it was at download when the device is
 	// renamed later
 	ProfileName string `json:"profile_name,omitempty"`
@@ -498,6 +500,10 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 	if nd != "" && !ndProfileRE.MatchString(nd) {
 		return nil, errors.New("that isn't a NextDNS profile ID")
 	}
+	model := strings.TrimSpace(s(body, "nd_model"))
+	if model != "" && !ndModelRE.MatchString(model) {
+		return nil, errors.New("that isn't an Apple model identifier (like iPhone17,1)")
+	}
 	if pid != "" && x.MAC != "" {
 		if err := a.An.AssignDevice(pid, "mac", x.MAC); err != nil {
 			return nil, err
@@ -522,7 +528,7 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 			log.Printf("check-in: naming %s: %v", x.MAC, err)
 		}
 	}
-	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile, c.PersonID, c.Main = x.Name, nd, pid, main }); err != nil {
+	if err := a.checkins.decide(x.ID, "approved", by, func(c *CheckIn) { c.Name, c.NDProfile, c.NDModel, c.PersonID, c.Main = x.Name, nd, model, pid, main }); err != nil {
 		return nil, err
 	}
 	if err := a.approvalSettle(x.MAC, x.Name, by); err != nil {

@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.98] — 2026-11-16
+
+### Added
+- **Device model in the NextDNS setup.** Approving a device and its **Set up…** dialog have a **Device model** list
+  (iPhone, iPad and Mac models, or Other with any model identifier). The Apple profile then uses NextDNS's Apple
+  address — `apple.dns.nextdns.io/<profile>/<name>/Apple <model>` — so NextDNS shows the model by the device's name.
+
 ## [0.1.97] — 2026-11-16
 
 ### Added

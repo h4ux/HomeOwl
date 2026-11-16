@@ -139,6 +139,30 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "../x"}); err == nil {
 		t.Fatal("bad profile accepted")
 	}
+	// the device's model: NextDNS's Apple address, and an update for the device
+	for _, bad := range []string{"iPhone", "Pixel 9", "iPhone17,1/x", "../x"} {
+		if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456", "nd_model": bad}); err == nil {
+			t.Fatalf("model %q accepted", bad)
+		}
+	}
+	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456", "nd_model": "iPad16,3"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["update"] != true {
+		t.Fatal("a model is an update for the device")
+	}
+	if _, _, body := get("192.168.1.40"); !strings.Contains(body, "<string>https://apple.dns.nextdns.io/def456/Alex%27s%20iPad/Apple%20iPad16%2C3</string>") {
+		t.Fatalf("model address missing:\n%s", body)
+	}
+	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456"}); err != nil || a.checkins.List()[0].NDModel != "iPad16,3" {
+		t.Fatal("a change that doesn't mention the model keeps it")
+	}
+	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456", "nd_model": ""}); err != nil || a.checkins.List()[0].NDModel != "" {
+		t.Fatal("Not said clears it")
+	}
+	if got := appleDoH(CheckIn{NDProfile: "abc123", Name: "Test Device", NDModel: "iPhone19,2"}); got != "https://apple.dns.nextdns.io/abc123/Test%20Device/Apple%20iPhone19%2C2" {
+		t.Errorf("address %s", got)
+	}
 	if !regexp.MustCompile(`^[0-9A-F]{8}-[0-9A-F]{4}-5[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$`).MatchString(stableUUID("x")) || stableUUID("x") != stableUUID("x") {
 		t.Errorf("uuid %s", stableUUID("x"))
 	}

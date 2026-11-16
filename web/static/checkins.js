@@ -137,6 +137,37 @@ function setupCard(c) {
     { k: "id", label: "", fmt: x => `<div class="btnrow"><button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile || c.setup?.[x.id]?.type ? "Change…" : "Set up…"}</button>${done.length > 1 ? `<button class="btn sm ghost" data-cimerge="${esc(x.id)}" title="The same device checked in again under another Wi-Fi address">Merge…</button>` : ""}</div>` }], done)}</div>`;
 }
 // the profile type a device gets: picked for it ("-" = none), else its person's
+// Apple models for the NextDNS setup: the profile reports the model (apple.dns.nextdns.io/<profile>/<name>/Apple <id>)
+// and NextDNS shows it by the device's name. "Other…" takes any model identifier (Settings › General › About › Model
+// Identifier on a Mac; on iPhone and iPad, sites like everymac or the box).
+const ND_MODELS = [
+  ["iPhone", [["iPhone18,1", "iPhone 17 Pro"], ["iPhone18,2", "iPhone 17 Pro Max"], ["iPhone18,3", "iPhone 17"], ["iPhone18,4", "iPhone Air"],
+    ["iPhone17,1", "iPhone 16 Pro"], ["iPhone17,2", "iPhone 16 Pro Max"], ["iPhone17,3", "iPhone 16"], ["iPhone17,4", "iPhone 16 Plus"], ["iPhone17,5", "iPhone 16e"],
+    ["iPhone16,1", "iPhone 15 Pro"], ["iPhone16,2", "iPhone 15 Pro Max"], ["iPhone15,4", "iPhone 15"], ["iPhone15,5", "iPhone 15 Plus"],
+    ["iPhone15,2", "iPhone 14 Pro"], ["iPhone15,3", "iPhone 14 Pro Max"], ["iPhone14,7", "iPhone 14"], ["iPhone14,8", "iPhone 14 Plus"],
+    ["iPhone14,2", "iPhone 13 Pro"], ["iPhone14,3", "iPhone 13 Pro Max"], ["iPhone14,5", "iPhone 13"], ["iPhone14,4", "iPhone 13 mini"], ["iPhone14,6", "iPhone SE (3rd gen)"],
+    ["iPhone13,3", "iPhone 12 Pro"], ["iPhone13,4", "iPhone 12 Pro Max"], ["iPhone13,2", "iPhone 12"], ["iPhone13,1", "iPhone 12 mini"],
+    ["iPhone12,3", "iPhone 11 Pro"], ["iPhone12,5", "iPhone 11 Pro Max"], ["iPhone12,1", "iPhone 11"], ["iPhone12,8", "iPhone SE (2nd gen)"]]],
+  ["iPad", [["iPad16,3", "iPad Pro 11\" (M4)"], ["iPad16,5", "iPad Pro 13\" (M4)"], ["iPad15,3", "iPad Air 11\" (M3)"], ["iPad15,5", "iPad Air 13\" (M3)"],
+    ["iPad14,8", "iPad Air 11\" (M2)"], ["iPad14,10", "iPad Air 13\" (M2)"], ["iPad15,7", "iPad (A16)"], ["iPad13,18", "iPad (10th gen)"],
+    ["iPad16,1", "iPad mini (A17 Pro)"], ["iPad14,1", "iPad mini (6th gen)"]]],
+  ["Mac", [["Mac16,12", "MacBook Air 13\" (M4)"], ["Mac16,13", "MacBook Air 15\" (M4)"], ["Mac15,12", "MacBook Air 13\" (M3)"], ["Mac15,13", "MacBook Air 15\" (M3)"],
+    ["Mac14,2", "MacBook Air 13\" (M2)"], ["Mac14,15", "MacBook Air 15\" (M2)"], ["MacBookAir10,1", "MacBook Air (M1)"],
+    ["Mac16,1", "MacBook Pro 14\" (M4)"], ["Mac16,6", "MacBook Pro 14\" (M4 Pro)"], ["Mac16,7", "MacBook Pro 16\" (M4 Pro)"], ["Mac15,3", "MacBook Pro 14\" (M3)"],
+    ["MacBookPro17,1", "MacBook Pro 13\" (M1)"], ["Mac16,10", "Mac mini (M4)"], ["Mac16,11", "Mac mini (M4 Pro)"], ["Mac14,3", "Mac mini (M2)"], ["Macmini9,1", "Mac mini (M1)"],
+    ["Mac16,2", "iMac (M4)"], ["Mac15,4", "iMac (M3)"], ["iMac21,1", "iMac (M1)"], ["Mac14,13", "Mac Studio (M2 Max)"]]],
+];
+const ndModelKnown = id => ND_MODELS.some(([, l]) => l.some(([k]) => k === id));
+function ndModelPick(pre, cur) {
+  const other = cur && !ndModelKnown(cur);
+  return `<label>Device model ${hint("iPhone, iPad and Mac: the setup tells NextDNS the model, so its logs show it next to the device's name. Leave it on Not said for other devices.")}<select id="${pre}-model">
+    <option value="">Not said</option>
+    ${ND_MODELS.map(([g, l]) => `<optgroup label="${g}">${l.map(([k, n]) => `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</optgroup>`).join("")}
+    <option value="*" ${other ? "selected" : ""}>Other — type its model identifier…</option></select></label>
+    <label id="${pre}-modelwrap" ${other ? "" : "hidden"}>Model identifier<input id="${pre}-modelid" value="${other ? esc(cur) : ""}" placeholder="iPhone17,1" spellcheck="false" autocomplete="off"></label>`;
+}
+const ndModelVal = pre => { const v = $(`#${pre}-model`)?.value || ""; return v === "*" ? ($(`#${pre}-modelid`)?.value || "").trim() : v; };
+document.addEventListener("change", e => { const m = e.target.id?.match(/^(ci|cis)-model$/); if (m) { const w = $(`#${m[1]}-modelwrap`); if (w) w.hidden = e.target.value !== "*"; } });
 const ciPersonType = x => arr(S.ciTypes?.types).find(t => arr(t.people).includes(x.person_id));
 const ciTypeOf = (x, pick) => pick === "-" ? null : pick ? arr(S.ciTypes?.types).find(t => t.id === pick) : ciPersonType(x);
 function changeSetup(id) {
@@ -144,7 +175,8 @@ function changeSetup(id) {
   const nd = S.ciND || { profiles: [] }, types = arr(S.ciTypes?.types), pt = ciPersonType(x), st = S.checkins.setup?.[id] || {};
   if (!nd.profiles.length && !types.length) return toast("Nothing to choose yet: add a NextDNS API key in Settings › Analytics, or a profile type in Settings › Device profiles", "err");
   openModal({ title: `Setup for ${x.name}`, body: `
-    ${nd.profiles.length ? `<label>NextDNS profile<select id="cis-nd"><option value="">None</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === x.nd_profile ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>` : ""}
+    ${nd.profiles.length ? `<label>NextDNS profile<select id="cis-nd"><option value="">None</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === x.nd_profile ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
+      ${ndModelPick("cis", x.nd_model || "")}` : ""}
     ${types.length ? `<label>Profile type (Wi-Fi and VPN)<select id="cis-type">
       <option value="" ${!x.type_id ? "selected" : ""}>${pt ? `${esc(personLabel(x))}'s: ${esc(pt.name)}` : "Its person's (none yet)"}</option>
       ${types.map(t => `<option value="${esc(t.id)}" ${x.type_id === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}
@@ -155,6 +187,7 @@ function changeSetup(id) {
     <p class="fine">The device keeps its current settings until it installs the new ones: its check-in page will say <b>Update ready</b> (iPhone, iPad, Mac: install the profile again; Android: paste the new Private DNS host name).</p>`,
     buttons: [{ label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
       const body = { id, nd_profile: $("#cis-nd") ? $("#cis-nd").value : x.nd_profile || "" };
+      if ($("#cis-model")) body.nd_model = ndModelVal("cis");
       if ($("#cis-type")) body.type_id = $("#cis-type").value;
       const wg = $("#cis-wg")?.value.trim(); if (wg) body.wg = wg; else if ($("#cis-wg")?.dataset.rm) body.wg = "-";
       try { S.checkins = await api("/api/checkins/setup", body); closeModal(); toast("Saved — open the check-in page on the device to install it", "ok"); $("#ci-body").innerHTML = checkinsBody(S.checkins); }
@@ -454,6 +487,7 @@ async function approveCheckin(id) {
   const nd = S.ciND, ndDefault = known ? nd.by_person[known.id] || "" : "";
   const ndPick = nd.profiles.length ? `<label>NextDNS profile for the device's setup
       <select id="ci-nd"><option value="">None — don't offer a setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === ndDefault ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
+    ${ndModelPick("ci", "")}
     <p class="fine">After approval, the device's check-in page offers to set it up with encrypted DNS through this profile, under its name, so it's recognised on any network (a profile on iPhone, iPad and Mac; Private DNS on Android).</p>` : "";
   const opts = S.ciPeople.map(p => `<option value="${esc(p.id)}" ${p.id === known?.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
   openModal({ title: "Approve device check-in", body: `
@@ -466,7 +500,7 @@ async function approveCheckin(id) {
     buttons: [{ label: "Cancel" }, { label: x.user_id ? "Preview" : "Approve", cls: "primary", onClick: () => previewCheckin(x) }] });
 }
 async function previewCheckin(x) {
-  const alias = $("#ci-alias").value.trim(), person = $("#ci-person").value, ndp = $("#ci-nd")?.value || "", main = !!$("#ci-main")?.checked;
+  const alias = $("#ci-alias").value.trim(), person = $("#ci-person").value, ndp = $("#ci-nd")?.value || "", main = !!$("#ci-main")?.checked, model = ndModelVal("ci");
   if (!alias) return toast("Give the device a name", "err");
   const act = x.user_id ? { kind: "rest", resource: "user", id: x.user_id, fields: { name: alias }, description: `Check-in: name ${x.mac} “${alias}”` } : null;
   let pv = null;
@@ -478,11 +512,11 @@ async function previewCheckin(x) {
     <p>Device <span class="mono">${esc(x.mac)}</span> → <b>${esc(who)}</b> in People${main && person !== "-" ? ", and Who's home follows it" : ""}.</p>
     ${ndp ? `<p class="fine">Its check-in page will offer a setup through NextDNS profile <b>${esc(S.ciND.profiles.find(p => p.id === ndp)?.name || ndp)}</b>, named “${esc(alias)}”.</p>` : ""}
     <p class="fine">Approving also lets it on the network if device approval is holding it — there's nothing else to approve.</p>`,
-    buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person, alias, ndp, main) }] });
+    buttons: [{ label: "Cancel" }, { label: "Approve", cls: "primary", onClick: () => finishCheckin(x, act, person, alias, ndp, main, model) }] });
 }
-async function finishCheckin(x, act, person, alias, ndp, main) {
+async function finishCheckin(x, act, person, alias, ndp, main, model) {
   try {
-    const r = await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp, main });
+    const r = await api("/api/checkins/approve", { id: x.id, person_id: person, name: alias, nd_profile: ndp, nd_model: ndp ? model : "", main });
     closeModal(); toast(r.warning ? `Approved — ${r.warning}` : "Approved", r.warning ? "err" : "ok"); loadCheckins();
     S.apvAt = 0;
     setTimeout(() => collectLive(true, true).catch(() => { }), 2500);

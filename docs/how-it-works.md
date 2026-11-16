@@ -78,6 +78,15 @@ sequenceDiagram
 - **NextDNS on the move:** the profile's encrypted DNS stays on at home, on mobile data and on other Wi-Fi. It stands
   down on networks in a list (planes and hotels whose sign-in page needs ordinary DNS).
 
+## The device's NextDNS setup
+
+When an admin approves a device with a NextDNS profile, the device's check-in page offers encrypted DNS through that
+profile under the device's name, so NextDNS logs it by name on any network. On iPhone, iPad and Mac it's a
+configuration profile; the admin can also pick the **device model** (or type its model identifier, like
+`iPhone17,1`). Then the profile uses NextDNS's Apple address,
+`https://apple.dns.nextdns.io/<profile>/<device name>/Apple%20<model>`, and NextDNS shows the model next to the name.
+Changing the model later shows **Update ready** on the device's page. Android (Private DNS) and Windows have no model.
+
 ## Built-in Tailscale
 
 HomeOwl can join your tailnet as its own device (Settings › Access › Built-in Tailscale) and get a
