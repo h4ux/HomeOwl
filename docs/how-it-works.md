@@ -78,6 +78,22 @@ sequenceDiagram
 - **NextDNS on the move:** the profile's encrypted DNS stays on at home, on mobile data and on other Wi-Fi. It stands
   down on networks in a list (planes and hotels whose sign-in page needs ordinary DNS).
 
+## Built-in Tailscale
+
+HomeOwl can join your tailnet as its own device (Settings › Access › Built-in Tailscale) and get a
+`https://<name>.<tailnet>.ts.net` address. It joins with an auth key if you paste one (kept in the keychain), or
+Settings shows a link to approve it. Two things are separate:
+
+- **HomeOwl's device.** By default it belongs to the login that approved it, and its key expires like that login's
+  devices do. **Tags** (for example `tag:homeowl`) are asked for when it joins: a tagged device belongs to the tailnet,
+  its key doesn't expire, and your Tailscale policy can name it ("family may reach tag:homeowl"). The policy's
+  `tagOwners` must let the approving login — or the auth key — use the tag. A Tailscale OAuth client secret
+  (`tskey-client-…`) also works as the key: HomeOwl makes a tagged auth key from it (a tag is needed). Tags apply when
+  HomeOwl joins, so for a HomeOwl already on the tailnet, **Re-join with these tags** joins it again (same address).
+- **Signing in.** Over the tailnet HomeOwl knows who is connecting (Tailscale's WhoIs). With "Sign people in
+  automatically", a login linked to a HomeOwl user (Settings › Users) is signed in without a password; requests from
+  tagged devices are never signed in this way, since they don't belong to a person.
+
 ## Approving new devices
 
 With **Approve new devices** on, HomeOwl checks the network every minute.

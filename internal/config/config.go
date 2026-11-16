@@ -110,6 +110,20 @@ type Tailscale struct {
 	Enabled   bool   `json:"enabled"`    // run HomeOwl as its own device on your tailnet
 	Hostname  string `json:"hostname"`   // name on the tailnet → https://<hostname>.<tailnet>.ts.net
 	AutoLogin bool   `json:"auto_login"` // a tailnet login linked to a user signs in without a password
+	// Tags HomeOwl's device asks for when it joins ("tag:homeowl,tag:server"): a tagged device belongs to the tailnet,
+	// not to whoever approved it, so its key doesn't expire and the tailnet policy can name it
+	Tags string `json:"tags,omitempty"`
+}
+
+// TagList: the tags, one by one.
+func (t Tailscale) TagList() []string {
+	var out []string
+	for _, x := range strings.Split(t.Tags, ",") {
+		if x = strings.TrimSpace(x); x != "" {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 type MCPToken struct {

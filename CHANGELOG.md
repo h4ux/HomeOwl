@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.97] — 2026-11-16
+
+### Added
+- **Built-in Tailscale: tags.** Settings › Access › Built-in Tailscale › Tags (like `tag:homeowl`) are asked for when
+  HomeOwl joins the tailnet, so its device belongs to the tailnet (no key expiry) and your Tailscale policy can name it.
+  A Tailscale OAuth client secret (`tskey-client-…`) now works as the auth key too. Settings shows the device's tags
+  now, and **Re-join with these tags** applies them to a HomeOwl that joined before.
+
 ## [0.1.96] — 2026-11-15
 
 ### Added

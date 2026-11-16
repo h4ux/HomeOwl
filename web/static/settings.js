@@ -48,12 +48,16 @@ async function loadSettings() {
       ${!ts.built_in ? `<p class="muted">This build has no built-in Tailscale.</p>` : `
       <label class="check"><input type="checkbox" id="st-ts" ${ts.enabled ? "checked" : ""}> <span>Run HomeOwl as its own device on my tailnet</span></label>
       <div class="grid g2"><label>Name on the tailnet<input id="st-tsname" value="${esc(ts.hostname)}"></label>
-        <label>Auth key (optional)<input id="st-tskey" type="password" placeholder="tskey-auth-… — or approve with a link"></label></div>
+        <label>Auth key (optional)<input id="st-tskey" type="password" placeholder="tskey-auth-… or tskey-client-… — or approve with a link"></label></div>
+      <label>Tags ${hint("Tags HomeOwl asks for when it joins, like tag:homeowl. A tagged device belongs to the tailnet instead of the person who approved it, so its key doesn't expire, and your Tailscale policy can name it (who may reach HomeOwl). The policy's tagOwners must let you — or the auth key — use the tag. A Tailscale OAuth client secret (tskey-client-…) works as the key too, and needs a tag.")}<input id="st-tstags" value="${esc(arr(ts.tags).join(", "))}" placeholder="tag:homeowl" spellcheck="false"></label>
       <label class="check"><input type="checkbox" id="st-tsauto" ${ts.auto_login ? "checked" : ""}> <span>Sign people in automatically when their Tailscale login is linked to a HomeOwl user</span></label>
       <dl class="kv"><dt>Status</dt><dd>${tsState} ${st.error ? `<span class="bad-t fine">${esc(st.error)}</span>` : ""}</dd>
         ${st.login_url ? `<dt>Approve</dt><dd><a href="${esc(st.login_url)}" target="_blank" rel="noopener">Add HomeOwl to your tailnet →</a></dd>` : ""}
         ${st.url ? `<dt>Address</dt><dd><a class="mono" href="${esc(st.url)}" target="_blank" rel="noopener">${esc(st.url)}</a>${st.https ? "" : ` <span class="fine">(turn on HTTPS certificates in the Tailscale admin console for https)</span>`}</dd>` : ""}
-        ${st.tailnet ? `<dt>Tailnet</dt><dd>${esc(st.tailnet)}</dd>` : ""}</dl>
+        ${st.tailnet ? `<dt>Tailnet</dt><dd>${esc(st.tailnet)}</dd>` : ""}
+        ${st.url ? `<dt>Tags</dt><dd>${arr(st.tags).length ? st.tags.map(t => `<span class="mono">${esc(t)}</span>`).join(", ") : `<span class="muted">none — it belongs to the login that approved it</span>`}</dd>` : ""}</dl>
+      ${ts.enabled && st.url && arr(ts.tags).slice().sort().join() !== arr(st.tags).slice().sort().join() ? `<div class="msg warn">Tags apply when HomeOwl joins the tailnet. It joined before they were set, so it has ${arr(st.tags).length ? "other tags" : "none"} now.
+        <div class="btnrow" style="margin-top:8px"><button class="btn sm primary" id="st-tsrejoin">Re-join with these tags</button></div></div>` : ""}
       ${ts.enabled ? `<button class="btn sm" id="st-tslogout">Remove from tailnet</button>` : ""}`}
       <div class="btnrow" style="margin-top:12px"><button class="btn primary" id="st-access-save">Save access settings</button></div>
     </div>
@@ -452,7 +456,7 @@ document.addEventListener("click", async e => {
   if (id === "st-access-save") {
     const body = { refresh_minutes: +$("#st-refresh").value || 5, lan: { enabled: $("#st-lan").checked, port: +$("#st-port").value, tls: $("#st-tls").checked } };
     body.names = { checkin: $("#st-nm-ci").value.trim(), guest: $("#st-nm-guest").value.trim(), port80: $("#st-nm-80").checked };
-    if ($("#st-ts")) body.tailscale = { enabled: $("#st-ts").checked, hostname: $("#st-tsname").value.trim(), auto_login: $("#st-tsauto").checked, auth_key: $("#st-tskey").value.trim() };
+    if ($("#st-ts")) body.tailscale = { enabled: $("#st-ts").checked, hostname: $("#st-tsname").value.trim(), auto_login: $("#st-tsauto").checked, auth_key: $("#st-tskey").value.trim(), tags: $("#st-tstags").value.trim() };
     const oldPort = S.settings.lan.port;
     await post("/api/settings", body, "Access settings saved");
     setTimeout(() => { if (S.view === "settings") loadSettings(); }, 2000);   // names restart in the background
@@ -461,6 +465,10 @@ document.addEventListener("click", async e => {
   }
   if (id === "st-tslogout") openModal({ title: "Remove HomeOwl from your tailnet?", body: "<p>HomeOwl leaves the tailnet and built-in Tailscale is turned off. You can add it again later.</p>",
     buttons: [{ label: "Cancel" }, { label: "Remove", cls: "primary", onClick: async () => { closeModal(); await post("/api/tailscale/logout", {}, "Removed from the tailnet"); } }] });
+  if (id === "st-tsrejoin") openModal({ title: "Re-join the tailnet with the tags?", body: `<p>HomeOwl leaves the tailnet and joins again at once, asking for the tags. With an auth key it's back by itself in a few seconds;
+    otherwise Settings shows a new link to approve it. Its address stays the same. Anyone using HomeOwl over Tailscale is disconnected for that moment.</p>
+    <p class="fine">If your Tailscale policy restricts who may reach which devices, add a rule for the tag first, so people can still reach HomeOwl.</p>`,
+    buttons: [{ label: "Cancel" }, { label: "Re-join", cls: "primary", onClick: async () => { closeModal(); await post("/api/tailscale/rejoin", {}, "Joining again — this takes a few seconds"); setTimeout(loadSettings, 5000); } }] });
   if (id === "st-user-add") userModal(null);
   const ue = e.target.closest("[data-useredit]"); if (ue) userModal(S.settings.users.find(x => x.username === ue.dataset.useredit));
   if (id === "st-mypass") { e.preventDefault(); openModal({ title: "Change my password", body: `<label>Current password<input id="mp-cur" type="password" autocomplete="current-password"></label><label>New password<input id="mp-new" type="password" autocomplete="new-password" minlength="10"></label>`,

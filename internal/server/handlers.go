@@ -602,6 +602,20 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			}
 			c.MCP.Tokens = keep
 		})
+	case p == "tailscale/rejoin": // join again, so the tags (or another account) apply; the device's key is renewed
+		if tsnetx.FromTailnet(r) {
+			err = errors.New("you're connected over Tailscale, which this would cut — do it from your home network or this computer")
+			break
+		}
+		if !a.Cfg.Get().Tailscale.Enabled {
+			err = errors.New("turn on built-in Tailscale first")
+			break
+		}
+		if err = a.TS.Logout(); err == nil {
+			a.TS.Stop()
+			a.ApplyTailscale()
+			res = map[string]any{"ok": true}
+		}
 	case p == "tailscale/logout":
 		err = a.TS.Logout()
 		a.TS.Stop()
@@ -819,7 +833,7 @@ func (a *App) settingsView(who *Who, r *http.Request) map[string]any {
 		"refresh_minutes": c.RefreshMinutes,
 		"lan":             map[string]any{"enabled": c.LAN.Enabled, "port": c.LAN.Port, "tls": c.LAN.TLS, "extra_host": c.LAN.ExtraHost, "urls": a.urls(r), "error": nilIfEmpty(lanErr)},
 		"names":           a.namesView(),
-		"tailscale":       map[string]any{"enabled": c.Tailscale.Enabled, "hostname": c.Tailscale.Hostname, "auto_login": c.Tailscale.AutoLogin, "status": ts, "built_in": tsnetx.Available},
+		"tailscale":       map[string]any{"enabled": c.Tailscale.Enabled, "hostname": c.Tailscale.Hostname, "auto_login": c.Tailscale.AutoLogin, "tags": c.Tailscale.TagList(), "status": ts, "built_in": tsnetx.Available},
 		"mcp":             map[string]any{"mode": c.MCP.Mode, "tokens": toks, "tools": a.mcpToolSummary()},
 		"users":           a.Users.Users(),
 		"legacy_logins":   append(c.LegacyAdmins, c.LegacyViewers...),
@@ -895,6 +909,13 @@ func (a *App) saveSettings(who *Who, r *http.Request, body map[string]any) (any,
 		}
 		if has(t, "auto_login") {
 			nt.AutoLogin = b(t, "auto_login")
+		}
+		if has(t, "tags") {
+			tags, err := tsTags(s(t, "tags"))
+			if err != nil {
+				return nil, err
+			}
+			nt.Tags = tags
 		}
 		if key := s(t, "auth_key"); key != "" {
 			if err := a.Sec.Set("tailscale-auth-key", key); err != nil {
@@ -1224,3 +1245,25 @@ func orStr(v ...string) string {
 // <img> or a page on another site can't make HomeOwl act.
 var getOK = map[string]bool{"approval": true, "archive": true, "appblocks": true, "privaterelay": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
 	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "cameras/discover": true}
+
+var tsTagRE = regexp.MustCompile(`^tag:[A-Za-z0-9][A-Za-z0-9-]{0,62}$`)
+
+// tsTags: "homeowl, tag:server" → "tag:homeowl,tag:server" (the "tag:" is added when left out; at most 8).
+func tsTags(in string) (string, error) {
+	var out []string
+	for _, x := range strings.FieldsFunc(in, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+		if !strings.HasPrefix(x, "tag:") {
+			x = "tag:" + x
+		}
+		if !tsTagRE.MatchString(x) {
+			return "", errors.New(x + " isn't a Tailscale tag (tag: then letters, numbers and dashes)")
+		}
+		if !contains(out, x) {
+			out = append(out, x)
+		}
+	}
+	if len(out) > 8 {
+		return "", errors.New("at most 8 tags")
+	}
+	return strings.Join(out, ","), nil
+}

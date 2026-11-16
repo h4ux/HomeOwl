@@ -27,12 +27,14 @@ type Node struct {
 
 func New() *Node { return &Node{} }
 
-// Start joins the tailnet (first time: Status() returns a login URL to approve the device) and serves h.
-func (n *Node) Start(hostname, stateDir, authKey string, h http.Handler) error {
+// Start joins the tailnet (first time: Status() returns a login URL to approve the device) and serves h. Tags
+// ("tag:homeowl") are asked for when HomeOwl joins: the tailnet's policy must let the approving login, or the auth
+// key, own them. An OAuth client secret (tskey-client-…) as the key makes a tagged auth key itself (tags needed).
+func (n *Node) Start(hostname, stateDir, authKey string, tags []string, h http.Handler) error {
 	n.Stop()
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	s := &tsnet.Server{Hostname: hostname, Dir: stateDir, AuthKey: authKey, Logf: func(string, ...any) {},
+	s := &tsnet.Server{Hostname: hostname, Dir: stateDir, AuthKey: authKey, AdvertiseTags: tags, Logf: func(string, ...any) {},
 		UserLogf: func(f string, a ...any) { log.Printf("tailscale: "+f, a...) }}
 	if err := s.Start(); err != nil {
 		n.lastErr = err.Error()
@@ -123,6 +125,11 @@ func (n *Node) Status() map[string]any {
 		if dns != "" {
 			out["url"] = "https://" + dns
 		}
+		tags := []string{}
+		if st.Self.Tags != nil {
+			tags = st.Self.Tags.AsSlice()
+		}
+		out["tags"] = tags
 	}
 	out["https"] = len(st.CertDomains) > 0
 	if st.CurrentTailnet != nil {

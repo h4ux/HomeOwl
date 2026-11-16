@@ -265,7 +265,7 @@ func (a *App) ApplyTailscale() {
 	}
 	go func() {
 		key := a.Sec.Get("tailscale-auth-key")
-		if err := a.TS.Start(c.Hostname, filepath.Join(a.DataDir, "tailscale"), key, a.handler); err != nil {
+		if err := a.TS.Start(c.Hostname, filepath.Join(a.DataDir, "tailscale"), key, c.TagList(), a.handler); err != nil {
 			a.mu.Lock()
 			a.tsErr = err.Error()
 			a.mu.Unlock()
