@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.103] — 2026-11-16
+
+### Added
+- **iPhone 18 Pro, iPhone 18 Pro Max and iPhone Duo** in the device model list (iPhone19,2, iPhone19,3 / iPhone19,7
+  and iPhone19,4), so NextDNS shows them by name.
+
 ## [0.1.102] — 2026-11-16
 
 ### Fixed

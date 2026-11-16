@@ -126,7 +126,24 @@ func TestDeviceModelChoice(t *testing.T) {
 		t.Fatalf("admin: %+v", x)
 	}
 	// unlisted identifiers go out as they are
-	if ndModelLabel("iPhone19,2") != "Apple iPhone19,2" || ndModelLabel("Mac16,12") != "Apple MacBook Air 13-inch (M4)" {
+	if ndModelLabel("iPhone19,9") != "Apple iPhone19,9" || ndModelLabel("Mac16,12") != "Apple MacBook Air 13-inch (M4)" ||
+		ndModelLabel("iPhone19,2") != "Apple iPhone 18 Pro" || ndModelLabel("iPhone19,7") != "Apple iPhone 18 Pro Max" || ndModelLabel("iPhone19,4") != "Apple iPhone Duo" {
 		t.Fatal("labels")
+	}
+}
+
+func TestModelGroups(t *testing.T) {
+	seen := map[string]bool{}
+	names := map[string]bool{}
+	for _, g := range modelGroups() {
+		for _, m := range g["models"].([]map[string]string) {
+			if seen[m["id"]] || names[m["name"]] || !ndModelRE.MatchString(m["id"]) {
+				t.Errorf("duplicate or bad: %v", m)
+			}
+			seen[m["id"]], names[m["name"]] = true, true
+		}
+	}
+	if !seen["iPhone19,3"] || seen["iPhone19,7"] {
+		t.Error("the international Pro Max is named but not offered twice")
 	}
 }

@@ -160,7 +160,7 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456", "nd_model": ""}); err != nil || a.checkins.List()[0].NDModel != "" {
 		t.Fatal("Not said clears it")
 	}
-	if got := appleDoH(CheckIn{NDProfile: "abc123", Name: "Test Device", NDModel: "iPhone19,2"}, "Test Device"); got != "https://apple.dns.nextdns.io/abc123/Test%20Device/Apple%20iPhone19%2C2" {
+	if got := appleDoH(CheckIn{NDProfile: "abc123", Name: "Test Device", NDModel: "iPhone19,2"}, "Test Device"); got != "https://apple.dns.nextdns.io/abc123/Test%20Device/Apple%20iPhone%2018%20Pro" {
 		t.Errorf("address %s", got)
 	}
 	// found on the device itself: used unless the admin chose one, or none
