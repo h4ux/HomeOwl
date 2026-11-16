@@ -102,6 +102,16 @@ The device's own page shows the model too, with the one found ticked, and its ow
 before installing. An admin's choice in **Set up…** wins over both, and the device list shows each device's model and
 where it came from.
 
+**Name prefix.** Settings › Device profiles › Name in NextDNS puts a short prefix before the name a setup reports
+("HO" → "HO Alex's iPhone"), so the devices HomeOwl set up stand out in NextDNS. HomeOwl matches both names in the
+logs; changing the prefix shows **Update ready** on the devices.
+
+**The Home Screen icon knows its device.** The icon the iPhone and iPad profile adds opens `/hi?k=<key>`, with a key
+only that device's profile carries (an HMAC of its check-in under HomeOwl's local secret). A phone's private Wi-Fi
+address can change, and the check-in page otherwise knows a device only by its address; opened with the key from a
+new address, the device's check-in moves there — its person, approval, Who's home and UniFi name follow — instead of
+asking it to check in again. Another approved device's address is never taken over.
+
 ## Built-in Tailscale
 
 HomeOwl can join your tailnet as its own device (Settings › Access › Built-in Tailscale) and get a

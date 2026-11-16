@@ -92,7 +92,7 @@ func TestDeviceSetupProfile(t *testing.T) {
 		t.Error("no Home Screen icon unless it's an iPhone or iPad (macOS doesn't take one)")
 	}
 	_, _, ios := get("192.168.1.40", "?p=ios")
-	for _, want := range []string{"com.apple.webClip.managed", "<string>http://homeowl.lan:8555/hi</string>", "<key>Icon</key><data>iVBOR", "<key>IsRemovable</key><true/>"} {
+	for _, want := range []string{"com.apple.webClip.managed", "<string>http://homeowl.lan:8555/hi?k=", "<key>Icon</key><data>iVBOR", "<key>IsRemovable</key><true/>"} {
 		if !strings.Contains(ios, want) {
 			t.Errorf("iOS profile lacks %q", want)
 		}
@@ -160,7 +160,7 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456", "nd_model": ""}); err != nil || a.checkins.List()[0].NDModel != "" {
 		t.Fatal("Not said clears it")
 	}
-	if got := appleDoH(CheckIn{NDProfile: "abc123", Name: "Test Device", NDModel: "iPhone19,2"}); got != "https://apple.dns.nextdns.io/abc123/Test%20Device/Apple%20iPhone19%2C2" {
+	if got := appleDoH(CheckIn{NDProfile: "abc123", Name: "Test Device", NDModel: "iPhone19,2"}, "Test Device"); got != "https://apple.dns.nextdns.io/abc123/Test%20Device/Apple%20iPhone19%2C2" {
 		t.Errorf("address %s", got)
 	}
 	// found on the device itself: used unless the admin chose one, or none
@@ -192,5 +192,65 @@ func TestPersonNDProfile(t *testing.T) {
 	}
 	if ndDeviceLabel("  ") != "" || ndDeviceLabel("Kid's Phone (old)") != "Kids--Phone--old" {
 		t.Errorf("label %q", ndDeviceLabel("Kid's Phone (old)"))
+	}
+}
+
+func TestNDPrefix(t *testing.T) {
+	for _, c := range [][3]string{{"", "Alex's iPhone", "Alex's iPhone"}, {"HO", "Alex's iPhone", "HO Alex's iPhone"},
+		{"HO-", "Alex's iPhone", "HO-Alex's iPhone"}, {"HO", "", ""}} {
+		if got := withNDPrefix(c[0], c[1]); got != c[2] {
+			t.Errorf("%q + %q = %q", c[0], c[1], got)
+		}
+	}
+	a := checkinApp(t)
+	alex, _ := a.An.SavePerson(analytics.Person{Name: "Alex"})
+	for _, bad := range []string{"<b>", "way too long a prefix", "-x"} {
+		if _, err := a.saveNDPrefix(map[string]any{"prefix": bad}); err == nil {
+			t.Errorf("prefix %q accepted", bad)
+		}
+	}
+	if _, err := a.saveNDPrefix(map[string]any{"prefix": "HO"}); err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := hi(a, "POST", "192.168.1.40", `{"name":"Alex's iPad","kind":"tablet","person_id":"`+alex+`"}`, nil); code != 200 {
+		t.Fatal("check-in failed")
+	}
+	id := a.checkins.List()[0].ID
+	if _, err := a.approveCheckIn(map[string]any{"id": id, "name": "Alex's iPad", "nd_profile": "abc123"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	// the setup reports the prefixed name, and that NextDNS name is Alex's
+	_, out := hi(a, "GET", "192.168.1.40", "", nil)
+	nd := out["registered"].(map[string]any)["nextdns"].(map[string]any)
+	if nd["doh"] != "https://dns.nextdns.io/abc123/HO%20Alex%27s%20iPad" || nd["android"] != "HO--Alexs--iPad-abc123.dns.nextdns.io" {
+		t.Fatalf("setup: %v", nd)
+	}
+	linked := false
+	for _, p := range a.An.People() {
+		for _, d := range p.Devices {
+			if p.ID == alex && d.Kind == "ndev" && d.Key == "abc123/HO Alex's iPad" {
+				linked = true
+			}
+		}
+	}
+	if !linked {
+		t.Fatalf("ndev link: %+v", a.An.People())
+	}
+	r := httptest.NewRequest("GET", "http://homeowl.lan:8555/api/hi/profile", nil)
+	r.RemoteAddr = "192.168.1.40:51234"
+	w := httptest.NewRecorder()
+	a.hiProfile(w, r)
+	if body := w.Body.String(); !strings.Contains(body, "<string>https://dns.nextdns.io/abc123/HO%20Alex%27s%20iPad</string>") {
+		t.Fatalf("profile:\n%s", body)
+	}
+	if x := a.checkins.List()[0]; x.ProfileName != "HO Alex's iPad" {
+		t.Fatalf("installed name: %q", x.ProfileName)
+	}
+	// changing the prefix is an update for the device
+	if _, err := a.saveNDPrefix(map[string]any{"prefix": "HomeOwl-"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["update"] != true {
+		t.Fatal("a new prefix should show Update ready")
 	}
 }

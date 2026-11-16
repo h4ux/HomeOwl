@@ -45,11 +45,12 @@ var ndModelRE = regexp.MustCompile(`^(iPhone|iPad|iPod|Mac|MacBookAir|MacBookPro
 
 // appleDoH is the profile's encrypted-DNS address. With the device's model it's NextDNS's Apple form
 // (https://apple.dns.nextdns.io/<profile>/<name>/Apple%20iPhone17%2C1), and NextDNS shows the model by the name.
-func appleDoH(x CheckIn) string {
+// name is what NextDNS calls the device (CheckIn.Name, after the prefix: App.ndName).
+func appleDoH(x CheckIn, name string) string {
 	if m := ndModelOf(x); m != "" {
-		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name) + "/" + url.PathEscape(ndModelLabel(m))
+		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(name) + "/" + url.PathEscape(ndModelLabel(m))
 	}
-	return "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
+	return "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(name)
 }
 
 // ndProfileChoices lists the NextDNS profiles the admin can give a device, and each person's usual one.
@@ -154,10 +155,11 @@ func (a *App) deviceSetup(x CheckIn) map[string]any {
 		}
 		return res
 	}
-	label := ndDeviceLabel(x.Name)
+	ndn := a.ndName(x)
+	label := ndDeviceLabel(ndn)
 	res["model"] = modelView(x)
 	res["nextdns"] = map[string]any{
-		"doh":     "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name),
+		"doh":     "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(ndn),
 		"android": strings.TrimPrefix(label+"-", "-") + x.NDProfile + ".dns.nextdns.io",
 		"servers": []string{"45.90.28.0", "45.90.30.0", "2a07:a8c0::", "2a07:a8c1::"},
 	}
@@ -190,8 +192,9 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if x.ProfileND != "" && x.ProfileND != x.NDProfile && a.An.Open() {
 		_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+x.Name)
+		_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+orStr(x.ProfileName, a.ndName(x)))
 	}
-	a.checkins.Touch(x.ID, x.NDProfile, a.setupHash(x))
+	a.checkins.Touch(x.ID, x.NDProfile, a.setupHash(x), a.ndName(x))
 	a.fixedDownloaded(x, c, ex.WiFi)
 	ex.Mac = r.URL.Query().Get("p") == "mac"
 	if r.URL.Query().Get("p") == "ios" && ex.Icon != "none" { // iPhone and iPad: also a Home Screen icon
@@ -204,9 +207,14 @@ func (a *App) hiProfile(w http.ResponseWriter, r *http.Request) {
 			if r.TLS != nil {
 				scheme = "https"
 			}
-			ex.Clip = &webClip{URL: scheme + "://" + r.Host + "/hi", Icon: icon}
+			u := scheme + "://" + r.Host + "/hi"
+			if k := a.deviceKey(x); k != "" { // recognises the device even after its Wi-Fi address changes (devkey.go)
+				u += "?k=" + k
+			}
+			ex.Clip = &webClip{URL: u, Icon: icon}
 		}
 	}
+	ex.NDName = a.ndName(x)
 	body := mobileConfig(x, ex)
 	if sc := a.signer(); sc != nil { // signed with the Let's Encrypt certificate: iOS shows it as "Verified"
 		if signed, err := signProfile(body, sc); err == nil {
@@ -283,7 +291,7 @@ func (a *App) appURL(r *http.Request) (u string, trusted bool) {
 func mobileConfig(x CheckIn, ex profileExtras) []byte {
 	clip := ex.Clip
 	base := "io.github.h4ux.homeowl.device." + strings.ReplaceAll(x.MAC, ":", "")
-	doh := appleDoH(x)
+	doh := appleDoH(x, ex.NDName)
 	var b bytes.Buffer
 	str := func(k, v string) {
 		b.WriteString("<key>" + k + "</key><string>")
@@ -529,9 +537,10 @@ func (a *App) changeSetup(body map[string]any) (any, error) {
 	}
 	if x.NDProfile != "" && x.NDProfile != inst && a.An.Open() { // a choice that was never installed
 		_ = a.An.UnassignDevice("ndev", x.NDProfile+"/"+x.Name)
+		_ = a.An.UnassignDevice("ndev", x.NDProfile+"/"+a.ndName(x))
 	}
 	if nd != "" && pid != "" && a.An.Open() {
-		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+x.Name); err != nil {
+		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+a.ndName(x)); err != nil {
 			return nil, err
 		}
 	}

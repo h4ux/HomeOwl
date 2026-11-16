@@ -63,6 +63,9 @@ type Onboard struct {
 	// SkipWiFi: Wi-Fi networks where the profile's NextDNS stands down (planes, hotels: their sign-in pages need
 	// ordinary DNS). nil = the starting list of in-flight networks (internal/server/dnsskip.go); [] = none.
 	SkipWiFi []string `json:"skip_wifi"`
+	// NDPrefix goes before the device's name in what its setup reports to NextDNS ("HO" → "HO Alex's iPhone"), so
+	// devices set up by HomeOwl stand out there
+	NDPrefix string `json:"nd_prefix,omitempty"`
 	// Portal: UniFi's guest portal points at HomeOwl (internal/server/portal.go). Devices on the setup Wi-Fi get the
 	// check-in page; devices on the guest Wi-Fi get HomeOwl's sign-in page, which works as the portal did before.
 	Portal *Portal `json:"portal,omitempty"`

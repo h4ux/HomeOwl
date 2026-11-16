@@ -25,7 +25,7 @@ var ndNames = func(a *App, nd string, since time.Time) ([]analytics.NDName, erro
 func (a *App) ndWanted(x CheckIn) map[string]bool {
 	w := map[string]bool{}
 	add := func(y CheckIn) {
-		for _, n := range append([]string{y.Name, y.ProfileName}, y.NDNames...) {
+		for _, n := range a.ndNameList(y) {
 			if k := analytics.SameDeviceName(n); k != "" {
 				w[k] = true
 			}
@@ -80,7 +80,7 @@ func (a *App) ndMatched(x CheckIn) []string {
 		}
 	}
 	if len(out) == 0 && x.Name != "" {
-		out = append(out, x.Name)
+		out = append(out, a.ndName(x))
 	}
 	return out
 }
@@ -98,7 +98,7 @@ func (a *App) ndCandidates(x CheckIn) []map[string]any {
 		}
 	}
 	words := map[string]bool{}
-	for _, n := range append([]string{x.Name, x.ProfileName}, x.NDNames...) {
+	for _, n := range a.ndNameList(x) {
 		for _, w := range nameWords(n) {
 			words[w] = true
 		}

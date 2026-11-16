@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.102] — 2026-11-16
+
+### Fixed
+- **An approved iPhone opening its HomeOwl icon was asked to check in again** when its private Wi-Fi address had
+  changed. The icon now carries a key only that device's profile has, and opening it from a new address moves the
+  device's check-in there (person, approval, Who's home and UniFi name follow). Install the profile once more on the
+  phone to get the new icon.
+
+### Added
+- **Prefix for names in NextDNS.** Settings › Device profiles › Name in NextDNS: a short prefix like `HO` makes
+  devices set up by HomeOwl show as "HO Alex's iPhone" in NextDNS. HomeOwl knows them under both names; changing it
+  shows Update ready on the devices.
+
 ## [0.1.101] — 2026-11-16
 
 ### Changed

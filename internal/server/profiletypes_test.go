@@ -175,7 +175,7 @@ func TestProfileTypes(t *testing.T) {
 	if _, err := a.saveDevType(map[string]any{"id": two.ID, "name": "Two", "people": []any{alex}, "icon": "desktop"}); err == nil {
 		t.Fatal("unknown icon choice accepted")
 	}
-	if p := get("?p=ios"); !strings.Contains(p, "<string>http://homeowl.lan:8555/hi</string>") {
+	if p := get("?p=ios"); !strings.Contains(p, "<string>http://homeowl.lan:8555/hi?k=") { // with the device key (devkey.go)
 		t.Fatal("the default icon opens the check-in page")
 	}
 	h0 := a.setupHash(a.checkins.List()[0])

@@ -47,7 +47,7 @@ func TestDetectModel(t *testing.T) {
 	if nd, _ := out["registered"].(map[string]any)["nextdns"].(map[string]any); nd == nil {
 		t.Fatalf("setup: %v", out)
 	}
-	if got := appleDoH(a.checkins.List()[0]); !strings.HasSuffix(got, "/Apple%20iPhone%2017%20Pro") { // the marketing name
+	if got := appleDoH(a.checkins.List()[0], a.checkins.List()[0].Name); !strings.HasSuffix(got, "/Apple%20iPhone%2017%20Pro") { // the marketing name
 		t.Fatalf("address %s", got)
 	}
 	// asked at most once every 10 minutes
@@ -104,7 +104,7 @@ func TestDeviceModelChoice(t *testing.T) {
 	if m["current"] != "Mac16,12" || m["by"] != "found" || m["name"] != "MacBook Air 13-inch (M4)" {
 		t.Fatalf("model view: %v", m)
 	}
-	if got := appleDoH(a.checkins.List()[0]); got != "https://apple.dns.nextdns.io/abc123/Alex%27s%20Mac/Apple%20MacBook%20Air%2013-inch%20%28M4%29" {
+	if got := appleDoH(a.checkins.List()[0], a.checkins.List()[0].Name); got != "https://apple.dns.nextdns.io/abc123/Alex%27s%20Mac/Apple%20MacBook%20Air%2013-inch%20%28M4%29" {
 		t.Fatalf("address %s", got)
 	}
 	// it's changed there

@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/xml"
 	"errors"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -138,4 +139,39 @@ func onDemandXML(p plistW, r dnsRules) {
 	p.b.WriteString("<dict>\n")
 	p.str("Action", "Connect")
 	p.b.WriteString("</dict>\n</array>\n")
+}
+
+var ndPrefixRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._:·-]{0,11}$`)
+
+// saveNDPrefix sets the prefix of the device names setups report to NextDNS ("" = none).
+func (a *App) saveNDPrefix(body map[string]any) (map[string]any, error) {
+	p := strings.TrimRight(s(body, "prefix"), " ")
+	if p != "" && !ndPrefixRE.MatchString(p) {
+		return nil, errors.New("a short prefix: letters and numbers, up to 12 characters (like HO)")
+	}
+	if err := a.Cfg.Update(func(c *config.Config) { c.Onboard.NDPrefix = p }); err != nil {
+		return nil, err
+	}
+	return a.devTypesView()
+}
+
+// ndName is the name a device's setup reports to NextDNS: its name, after the prefix when there is one.
+func (a *App) ndName(x CheckIn) string {
+	return withNDPrefix(a.Cfg.Get().Onboard.NDPrefix, x.Name)
+}
+
+func withNDPrefix(p, name string) string {
+	switch {
+	case p == "" || name == "":
+		return name
+	case strings.ContainsAny(p[len(p)-1:], "-_:.·"):
+		return p + name
+	}
+	return p + " " + name
+}
+
+// ndNameList is every name the device may have in NextDNS: its name, with the prefix, what its installed profile
+// reports, and names linked to it.
+func (a *App) ndNameList(x CheckIn) []string {
+	return append([]string{x.Name, a.ndName(x), x.ProfileName}, x.NDNames...)
 }

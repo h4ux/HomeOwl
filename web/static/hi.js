@@ -15,8 +15,10 @@ function guessKind() {
   return "other";
 }
 
+// the key in the Home Screen icon's link: HomeOwl knows this device by it even after its Wi-Fi address changes
+const HI_KEY = new URLSearchParams(location.search).get("k") || "";
 async function call(method, body) {
-  const r = await fetch("/api/hi", { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+  const r = await fetch("/api/hi" + (method === "GET" && /^[0-9a-f]{32}$/.test(HI_KEY) ? `?k=${HI_KEY}` : ""), { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Something went wrong (HTTP ${r.status})`);
   return j;

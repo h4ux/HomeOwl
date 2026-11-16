@@ -414,6 +414,8 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.approvalAPI(strings.TrimPrefix(p, "approval/"), body, by)
 	case p == "skipwifi/save":
 		res, err = a.saveSkipWiFi(body)
+	case p == "ndprefix/save":
+		res, err = a.saveNDPrefix(body)
 	case p == "setupwifi/portal-preview" || p == "setupwifi/portal-apply":
 		res, err = a.portalAPI(strings.TrimPrefix(p, "setupwifi/portal-"), by)
 	case strings.HasPrefix(p, "setupwifi/"):

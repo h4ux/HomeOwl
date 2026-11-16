@@ -161,7 +161,7 @@ func (a *App) deviceLinksView() map[string]any {
 		}
 		g := []string{"mac|" + strings.ToLower(x.MAC)}
 		names := map[string]bool{}
-		for _, n := range append([]string{x.Name, x.ProfileName}, x.NDNames...) {
+		for _, n := range a.ndNameList(x) {
 			if n != "" {
 				names[n] = true
 			}

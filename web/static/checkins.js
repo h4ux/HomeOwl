@@ -220,9 +220,19 @@ async function renderDevTypes() {
     <p class="fine muted">For every device. One Wi-Fi name per line, exactly as the phone shows it.${r.skip_wifi_default ? " This is HomeOwl's starting list (British Airways). Add other airlines' networks exactly as the phone shows them." : ""}</p>
     <textarea id="dt-skip" rows="5" spellcheck="false" class="mono">${esc((r.skip_wifi || []).join("\n"))}</textarea>
     <div class="btnrow" style="margin-top:6px"><button class="btn" id="dt-skip-save">Save</button>${r.skip_wifi_default ? "" : `<button class="btn ghost" id="dt-skip-reset">Back to the starting list</button>`}</div>
+    <h3 style="margin-top:18px">Name in NextDNS ${hint("Goes before the device's name in what its setup reports to NextDNS, so the devices HomeOwl set up stand out in NextDNS's logs and device list. HomeOwl still knows them under both names. Changing it shows Update ready on the devices: their next install reports the new name.")}</h3>
+    <div class="dt-onboard"><label>Prefix<input id="dt-ndprefix" maxlength="12" value="${esc(r.nd_prefix || "")}" placeholder="e.g. HO" spellcheck="false" autocomplete="off"></label>
+      <button class="btn" id="dt-ndprefix-save">Save</button></div>
+    <p class="fine muted" id="dt-ndprefix-eg">${esc(ndPrefixExample(r.nd_prefix || ""))}</p>
     <div id="st-approval"></div>`;
   loadApproval();
 }
+// what NextDNS will call a device with this prefix (dnsskip.go withNDPrefix)
+function ndPrefixExample(p) {
+  const n = "Alex's iPhone";
+  return `NextDNS shows: ${p ? (/[-_:.·]$/.test(p) ? p + n : `${p} ${n}`) : n}`;
+}
+document.addEventListener("input", e => { if (e.target.id === "dt-ndprefix" && $("#dt-ndprefix-eg")) $("#dt-ndprefix-eg").textContent = ndPrefixExample(e.target.value.trim()); });
 // Setup Wi-Fi made by HomeOwl (setupwifi.go): a no-internet VLAN + a Wi-Fi with its own password, then the check-in link by IP
 function setupWiFiBlock(r) {
   const exists = r.onboard_ssid && r.wlans.some(w => w.ssid.toLowerCase() === r.onboard_ssid.toLowerCase());
@@ -453,6 +463,11 @@ document.addEventListener("click", e => {
   if (e.target.id === "dt-skip-save" || e.target.id === "dt-skip-reset") {
     const reset = e.target.id === "dt-skip-reset", ssids = $("#dt-skip").value.split("\n").map(s => s.trim()).filter(Boolean);
     api("/api/skipwifi/save", reset ? { reset: true } : { ssids }).then(r => { S.devTypes = r; toast(reset ? "Starting list back" : "Saved — devices show Update ready", "ok"); renderDevTypes(); }).catch(err => toast(err.message, "err"));
+    return;
+  }
+  if (e.target.id === "dt-ndprefix-save") {
+    const prefix = $("#dt-ndprefix").value.trim();
+    api("/api/ndprefix/save", { prefix }).then(r => { S.devTypes = r; toast(prefix ? `NextDNS names start with “${prefix}” — devices show Update ready` : "No prefix — devices show Update ready", "ok"); renderDevTypes(); }).catch(err => toast(err.message, "err"));
     return;
   }
   if (e.target.id === "dt-onboard-save") {

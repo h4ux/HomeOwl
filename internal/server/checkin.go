@@ -219,10 +219,14 @@ func (c *checkins) pendingFor(mac string) (CheckIn, bool) {
 	return CheckIn{}, false
 }
 
-// Touch records that the device fetched its setup profile (and which NextDNS profile was in it).
-func (c *checkins) Touch(id, nd, hash string) {
+// Touch records that the device fetched its setup profile (and which NextDNS profile and name were in it; "" =
+// its name as it is).
+func (c *checkins) Touch(id, nd, hash string, name ...string) {
 	c.Edit(id, func(x *CheckIn) {
 		x.ProfileAt, x.ProfileND, x.ProfileHash, x.ProfileName = time.Now().Unix(), nd, hash, x.Name
+		if len(name) > 0 && name[0] != "" {
+			x.ProfileName = name[0]
+		}
 	})
 }
 
@@ -376,6 +380,9 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	ip := remoteIP(r)
 	if r.Method == http.MethodGet {
+		if k := r.URL.Query().Get("k"); k != "" { // the device's own Home Screen icon (devkey.go)
+			a.keyFollow(k, c, mac)
+		}
 		people := []map[string]string{}
 		for _, p := range a.An.People() {
 			people = append(people, map[string]string{"id": p.ID, "name": p.Name, "kind": p.Kind})
@@ -522,7 +529,7 @@ func (a *App) approveCheckIn(body map[string]any, by string) (any, error) {
 		_ = a.cliTypes.Set(x.MAC, k, true)
 	}
 	if pid != "" && nd != "" { // the setup profile names the device in NextDNS's logs: those are this person's too
-		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+x.Name); err != nil {
+		if err := a.An.AssignDevice(pid, "ndev", nd+"/"+a.ndName(x)); err != nil {
 			return nil, err
 		}
 	}

@@ -68,7 +68,7 @@ func (a *App) setupSeen(x CheckIn) (last, cur time.Time, ip string, day int, err
 		}
 	}
 	from := func(y CheckIn) {
-		for _, n := range append([]string{y.Name, y.ProfileName}, y.NDNames...) {
+		for _, n := range a.ndNameList(y) {
 			add(x.NDProfile, n)
 			add(y.ProfileND, n)
 		}
@@ -154,6 +154,7 @@ func (a *App) setupWatch(now time.Time) {
 		installed := x.ProfileND != "" && x.ProfileND != x.NDProfile && !cur.IsZero() && cur.Unix() > x.SetupChanged
 		if installed { // the device uses the new profile now: the old NextDNS name can go
 			_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+x.Name)
+			_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+orStr(x.ProfileName, a.ndName(x)))
 		}
 		back := x.SetupLost > 0 && !last.IsZero() && last.Unix() > prev
 		lost := x.SetupLost == 0 && logsFresh(x.NDProfile) && setupLost(last, a.online.at(x.MAC), now)

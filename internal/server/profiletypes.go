@@ -152,12 +152,13 @@ type vpnPayload struct {
 }
 
 type profileExtras struct {
-	DNS  dnsRules // where the NextDNS setting stands down (dnsskip.go)
-	Icon string   // the type's Home Screen icon choice (see ProfileType.Icon)
-	Clip *webClip
-	Mac  bool
-	WiFi []wifiNet
-	VPN  *vpnPayload
+	NDName string   // what NextDNS calls the device (App.ndName)
+	DNS    dnsRules // where the NextDNS setting stands down (dnsskip.go)
+	Icon   string   // the type's Home Screen icon choice (see ProfileType.Icon)
+	Clip   *webClip
+	Mac    bool
+	WiFi   []wifiNet
+	VPN    *vpnPayload
 }
 
 // wlans reads the Wi-Fi networks from UniFi (cached a minute: the profile, the status and the update check all
@@ -326,6 +327,9 @@ func (a *App) setupHash(x CheckIn) string {
 	parts := []any{x.NDProfile, x.Name, ex.WiFi, ex.VPN}
 	if ex.Icon != "" { // only when set, so devices installed before the choice existed don't all show an update
 		parts = append(parts, ex.Icon)
+	}
+	if n := a.ndName(x); x.NDProfile != "" && n != x.Name { // likewise: only with a prefix
+		parts = append(parts, n)
 	}
 	if m := ndModelOf(x); x.NDProfile != "" && m != "" { // likewise: only devices with a model
 		parts = append(parts, ndModelLabel(m))
@@ -527,7 +531,7 @@ func (a *App) devTypesView() (map[string]any, error) {
 			"usable": sec == "open" || sec == "wpapsk", "security": sec, "no_password": sec == "wpapsk" && str(w, "x_passphrase") == ""}) // never the password
 	}
 	res := map[string]any{"types": types, "wlans": wl, "onboard_ssid": a.Cfg.Get().Onboard.SSID,
-		"setup_links": a.setupLinks(), "setup_net": a.setupNetView(), "setup_join": a.setupJoin(), "portal": a.Cfg.Get().Onboard.Portal, "skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi}
+		"setup_links": a.setupLinks(), "setup_net": a.setupNetView(), "setup_join": a.setupJoin(), "portal": a.Cfg.Get().Onboard.Portal, "skip_wifi": skipWiFiGlobal(a.Cfg.Get()), "skip_wifi_default": a.Cfg.Get().Onboard.SkipWiFi == nil, "skip_wifi_start": defaultSkipWiFi, "nd_prefix": a.Cfg.Get().Onboard.NDPrefix}
 	if err != nil {
 		res["wlan_error"] = err.Error()
 	}
