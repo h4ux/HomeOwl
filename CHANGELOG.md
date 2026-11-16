@@ -4,6 +4,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.108] — 2026-11-16
+
+### Added
+- **Tuya page views: Plan, Dollhouse and Rooms**, next to the cards (Cards · Plan · Dollhouse · Rooms, remembered
+  per browser). Every switch of a multi-gang switch is its own light to tap; what's on glows amber; tap a room for
+  its devices.
+  - **Plan**: the house from above, outside places (garden, pool, parking) in a dashed band below. **Arrange** lets
+    an admin drag rooms and switches and resize rooms; **Automatic layout** starts over.
+  - **Dollhouse**: the house from the side, floor by floor, each switch a window, outdoor lights on posts in the
+    garden beside it.
+  - **Rooms**: a card per room with its own colour or photo, its switches as pills on top.
+  - **Rooms…** sets each room's floor, whether it's outside, and its look. The layout is kept per house.
+- In these views the house banner is a single row.
+
 ## [0.1.107] — 2026-11-16
 
 ### Changed

@@ -289,3 +289,17 @@ policy on UniFi Network 9+, a LAN In rule with a port group on classic firewalls
 applied only when you click **Allow it**, it shows in **History › Changes** and can be undone there. HomeOwl scans
 again right after. Broadcasts don't cross networks, so devices elsewhere are found by their port, not by announcing.
 
+
+
+### Plan, Dollhouse and Rooms views
+
+The Tuya page can show a house four ways: **Cards** (one per device), **Plan** (the house from above, each switch a
+dot where it sits), **Dollhouse** (floor by floor, each switch a window, outdoor lights in the garden) and **Rooms**
+(a card per room with its own picture). The choice is kept in the browser. Lit things are amber; tapping one switches
+it, tapping a room opens its devices.
+
+A house's layout is kept with the house in HomeOwl's Tuya state: each room's place and size on the plan, its floor,
+whether it's outside, and its look, plus where each switch sits in its room. Until an admin arranges it, rooms are
+laid out in rows, and rooms named like a garden, pool or parking go outside. **Arrange** (Plan) drags rooms,
+corners and switches; **Rooms…** sets floors, outside and looks; a room photo is shrunk in the browser and kept like
+the house's.

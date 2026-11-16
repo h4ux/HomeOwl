@@ -369,9 +369,40 @@ func TestTuyaLookAndNames(t *testing.T) {
 	if w.Code != 200 || w.Header().Get("Content-Type") != "image/png" {
 		t.Fatalf("photo: %d %s", w.Code, w.Header().Get("Content-Type"))
 	}
+	// the house's drawing (Plan / Dollhouse / Rooms views) and a room's own picture
+	plan := map[string]any{"rooms": map[string]any{"Garden": map[string]any{"x": 10, "y": 500, "w": 5, "h": 9000, "out": true}, "Kitchen": map[string]any{"x": 0, "y": 0, "w": 300, "h": 200, "floor": 9}},
+		"dots": map[string]any{"bf00000000000003/switch_1": []any{0.5, 1.7}}}
+	if _, err := a.tuyaAPI(context.Background(), "home-plan", map[string]any{"id": "101", "plan": plan}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "room-look", map[string]any{"id": "101", "room": "Garden", "look": "photo", "photo": png}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "room-look", map[string]any{"id": "101", "room": "Bedroom", "look": "sea"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	w = httptest.NewRecorder()
+	a.tuyaBg(w, httptest.NewRequest("GET", "/api/tuya/bg?home=101&room=Garden", nil))
+	if w.Code != 200 {
+		t.Fatalf("room photo: %d", w.Code)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "home-plan", map[string]any{"id": "101", "plan": plan}, "admin"); err != nil { // saving the layout again keeps the looks
+		t.Fatal(err)
+	}
 	_ = a.tuyaSyncNow(true)
 	if h := a.tuyaView(true)["homes"].([]map[string]any)[0]; h["look"] != "photo" || h["photo"] == int64(0) {
 		t.Fatalf("the look survives a refresh of the homes: %v", h)
+	}
+	pl, _ := a.tuyaView(true)["homes"].([]map[string]any)[0]["plan"].(*tuyaPlan)
+	if pl == nil {
+		t.Fatal("the plan survives a refresh of the homes")
+	}
+	g, k := pl.Rooms["Garden"], pl.Rooms["Kitchen"]
+	if g.Out == nil || !*g.Out || k.Out != nil || g.W != 40 || g.H != 1000 || g.Look != "photo" || g.Photo == 0 || k.Floor != 6 || pl.Dots["bf00000000000003/switch_1"] != [2]float64{0.5, 1} {
+		t.Fatalf("plan clamped and looks kept: %+v", pl)
+	}
+	if _, err := a.tuyaAPI(context.Background(), "home-plan", map[string]any{"id": "nope", "plan": plan}, "admin"); err == nil {
+		t.Fatal("plan for no house")
 	}
 	if _, err := a.tuyaAPI(context.Background(), "home-look", map[string]any{"id": "101", "look": "../x"}, "admin"); err == nil {
 		t.Fatal("unknown look")

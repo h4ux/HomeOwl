@@ -18,7 +18,7 @@ async function loadTuya() {
   if ($("#tuya-body")) $("#tuya-body").innerHTML = tuyaBody(S.tuya);
 }
 { const _render = render; render = function () { _render(); if (S.view === "tuya") loadTuya(); }; }
-setInterval(() => { if (S.view === "tuya" && S.tuya?.mode && !document.hidden && $("#modal").hidden && !document.activeElement?.closest?.("#tuya-body input, #tuya-body select")) loadTuya(); }, 30000);
+setInterval(() => { if (S.view === "tuya" && S.tuya?.mode && !document.hidden && !S.tvArr && $("#modal").hidden && !document.activeElement?.closest?.("#tuya-body input, #tuya-body select")) loadTuya(); }, 30000);
 
 const tuyaAdmin = () => S.role === "admin";
 
@@ -48,13 +48,14 @@ function tuyaBody(d) {
     if (!h) return g.list.length ? `<section class="tuya-house">${homes.length ? `<h2 class="tuya-plain">No house <span class="fine muted">${plural(g.list.length, "device")}</span></h2>` : ""}${grid}</section>` : "";
     const all = arr(S.tuya.devices).filter(x => x.home === h.id), on = all.filter(x => x.online).length, lit = all.filter(x => arr(x.switches).some(s => s.on)).length;
     const lk = tuyaLookOf(h), sc = S.tuyaKind ? [] : arr(h.scenes);
-    return `<section class="tuya-house"><div class="tuya-banner ${lk.cls}" style="${esc(lk.style)}"><div class="tuya-banner-top">
+    const tv = S.tuyaView !== "cards";
+    return `<section class="tuya-house"><div class="tuya-banner ${lk.cls}${tv ? " slim" : ""}" style="${esc(lk.style)}"><div class="tuya-banner-top">
         <div><h2>${esc(h.name)}</h2><p>${plural(all.length, "device")} · ${on} online${lit ? ` · ${lit} on` : ""}</p></div>
         ${tuyaAdmin() ? `<button class="tuya-glass sm" data-tuyalook="${esc(h.id)}" title="Background">✎ Look</button>` : ""}</div>
       ${sc.length ? `<div class="tuya-scenes">${sc.map(x => `<button class="tuya-glass" data-tuyascene="${esc(x.id)}" data-home="${esc(h.id)}" ${tuyaAdmin() ? "" : "disabled title=\"Admins can run scenes\""}>▶ ${esc(x.name)}</button>`).join("")}</div>` : ""}</div>
-      ${S.tuyaKind ? "" : tuyaAutos(h)}${grid}</section>`;
+      ${S.tuyaKind ? "" : tuyaAutos(h)}${tv ? tvHouse(h, g.list) : grid}</section>`;
   };
-  const cards = all.length ? houseBar + kindBar + (groups.map(house).join("") || `<div class="card"><p class="muted">Nothing here.</p></div>`)
+  const cards = all.length ? houseBar + kindBar + tvViewBar() + (groups.map(house).join("") || `<div class="card"><p class="muted">Nothing here.</p></div>`)
     : d.mode ? `<div class="card"><p class="muted">${d.mode === "cloud" ? "The Tuya Cloud project has no devices yet. Link your Smart Life app account to the project (Devices › Link Tuya App Account), then Refresh." : "No devices yet. Scan the network below, or add one by hand."}</p></div>` : "";
   return head + cards + (tuyaAdmin() ? tuyaSettings(d) : !d.mode ? `<div class="card"><p class="muted">Tuya isn't set up. An admin can set it up here.</p></div>` : "");
 }
@@ -129,7 +130,11 @@ function tuyaHouses(d) {
 }
 
 async function tuyaDo(op, body, msg) {
-  try { S.tuya = await api(`/api/tuya/${op}`, body || {}); if (msg) toast(msg, "ok"); if ($("#tuya-body")) $("#tuya-body").innerHTML = tuyaBody(S.tuya); return true; }
+  try {
+    S.tuya = await api(`/api/tuya/${op}`, body || {}); if (msg) toast(msg, "ok"); if ($("#tuya-body")) $("#tuya-body").innerHTML = tuyaBody(S.tuya);
+    if (S.tvRoomOpen && !$("#modal").hidden && $("#modal-box .tv-roommodal") && op === "switch") tvRoomModal(...S.tvRoomOpen); // a room's devices, switched there
+    return true;
+  }
   catch (err) { toast(err.message, "err"); return false; }
 }
 

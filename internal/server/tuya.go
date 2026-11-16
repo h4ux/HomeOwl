@@ -73,6 +73,7 @@ type tuyaHome struct {
 	SceneErr    string       `json:"scene_error,omitempty"`
 	Look        string       `json:"look,omitempty"`  // the house's background: a preset, or "photo" (tuya-bg/<id>)
 	Photo       int64        `json:"photo,omitempty"` // when the photo was set (the page's cache key)
+	Plan        *tuyaPlan    `json:"plan,omitempty"`  // how the house is drawn (tuyaplan.go)
 }
 
 // where: the house and room a device shows under.
@@ -532,7 +533,7 @@ func (a *App) tuyaView(admin bool) map[string]any {
 	res["devices"] = out
 	hl := []map[string]any{}
 	for _, h := range homes {
-		x := map[string]any{"id": h.ID, "name": h.Name, "custom": h.Custom, "hidden": hidden[h.ID], "count": count[h.ID], "look": h.Look, "photo": h.Photo}
+		x := map[string]any{"id": h.ID, "name": h.Name, "custom": h.Custom, "hidden": hidden[h.ID], "count": count[h.ID], "look": h.Look, "photo": h.Photo, "plan": h.Plan}
 		if !hidden[h.ID] {
 			x["scenes"], x["automations"], x["scene_error"] = nz(h.Scenes), nz(h.Automations), h.SceneErr
 			rooms := []string{}
@@ -696,6 +697,18 @@ func (a *App) tuyaAPI(ctx context.Context, op string, body map[string]any, by st
 			return nil, errors.New("pick one of the backgrounds")
 		}
 		if err := a.tuyaSetLook(s(body, "id"), look, s(body, "photo")); err != nil {
+			return nil, err
+		}
+	case "home-plan":
+		if err := a.tuyaSetPlan(s(body, "id"), body["plan"]); err != nil {
+			return nil, err
+		}
+	case "room-look":
+		look := s(body, "look")
+		if look != "" && look != "photo" && !tuyaLookRE.MatchString(look) {
+			return nil, errors.New("pick one of the backgrounds")
+		}
+		if err := a.tuyaSetRoomLook(s(body, "id"), s(body, "room"), look, s(body, "photo")); err != nil {
 			return nil, err
 		}
 	case "scene", "automation":
@@ -1088,7 +1101,7 @@ func (a *App) tuyaHomes(cl *tuya.Cloud, list []tuya.Device) {
 	}
 	for i := range homes { // the look chosen here stays
 		if j := s.home(homes[i].ID); j >= 0 {
-			homes[i].Look, homes[i].Photo = s.Homes[j].Look, s.Homes[j].Photo
+			homes[i].Look, homes[i].Photo, homes[i].Plan = s.Homes[j].Look, s.Homes[j].Photo, s.Homes[j].Plan
 		}
 	}
 	for _, h := range s.Homes {
@@ -1222,7 +1235,25 @@ func (a *App) tuyaSetLook(id, look, photo string) error {
 	if i < 0 {
 		return errors.New("that house is gone")
 	}
-	file := tuyaBgFile(a.tuyaBgDir(), id)
+	if err := a.tuyaSavePhoto(id, look, photo); err != nil {
+		return err
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if i = st.home(id); i >= 0 {
+		st.Homes[i].Look = look
+		st.Homes[i].Photo = 0
+		if look == "photo" {
+			st.Homes[i].Photo = time.Now().Unix()
+		}
+		st.saveLocked()
+	}
+	return nil
+}
+
+// tuyaSavePhoto keeps (look "photo") or drops the picture stored under key: a house id, or "<house id>/<room>".
+func (a *App) tuyaSavePhoto(key, look, photo string) error {
+	file := tuyaBgFile(a.tuyaBgDir(), key)
 	if look == "photo" {
 		_, data, ok := strings.Cut(photo, ";base64,")
 		if !ok {
@@ -1244,22 +1275,16 @@ func (a *App) tuyaSetLook(id, look, photo string) error {
 	} else {
 		_ = os.Remove(file)
 	}
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	if i = st.home(id); i >= 0 {
-		st.Homes[i].Look = look
-		st.Homes[i].Photo = 0
-		if look == "photo" {
-			st.Homes[i].Photo = time.Now().Unix()
-		}
-		st.saveLocked()
-	}
 	return nil
 }
 
 // tuyaBg serves a house's photo to anyone signed in.
 func (a *App) tuyaBg(w http.ResponseWriter, r *http.Request) {
-	b, err := os.ReadFile(tuyaBgFile(a.tuyaBgDir(), r.URL.Query().Get("home")))
+	key := r.URL.Query().Get("home")
+	if room := r.URL.Query().Get("room"); room != "" { // a room's own picture (tuyaplan.go)
+		key += "/" + room
+	}
+	b, err := os.ReadFile(tuyaBgFile(a.tuyaBgDir(), key))
 	if err != nil {
 		http.NotFound(w, r)
 		return
