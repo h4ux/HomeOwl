@@ -98,6 +98,10 @@ at most once every 10 minutes. What it answers is only used if it looks like a m
 nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) gets no model until an admin picks one;
 **None** sends no model at all.
 
+Admins get links to each NextDNS profile and its logs on my.nextdns.io (a new tab, signed in to NextDNS there): on a
+person's card in Family, on New devices and in the person editor. HomeOwl sends nothing to build them; they're plain
+links with the profile id.
+
 The check-in form asks for the model as well (on iPhone, iPad and Mac), with the one the device announced already
 picked; the Approve dialog shows both — what the device said and what its owner chose — and the admin decides.
 After approval the device's own page shows the model too, with the one found ticked, and its owner can pick another (or "Don't say")

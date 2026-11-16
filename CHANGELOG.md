@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.105] — 2026-11-16
+
+### Added
+- **Open in NextDNS.** Each person's card in Family lists the NextDNS profiles their devices use, with links to the
+  profile and its logs on my.nextdns.io (new tab); the same links are on New devices and in the person editor.
+
 ## [0.1.104] — 2026-11-16
 
 ### Added

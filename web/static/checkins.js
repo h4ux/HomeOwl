@@ -136,7 +136,7 @@ function setupCard(c) {
   if (!done.length) return "";
   return `<div class="card section"><h2>Devices set up ${hint("After approval, a device's check-in page offers encrypted DNS through the NextDNS profile you chose, under the device's name. NextDNS then recognises it at home, on mobile data and on other Wi-Fi, and HomeOwl sees whether it's in use.")}</h2>${table("ci-setup", [
     { k: "name", label: "Device", fmt: x => `${CI_KIND[x.kind] || ""} ${esc(x.name)}<div class="fine muted">${personLabel(x)}</div>` },
-    { k: "nd_profile", label: "NextDNS profile", fmt: x => `${x.nd_profile ? esc(ndName(x.nd_profile)) : "–"}${c.setup?.[x.id]?.type ? `<div class="fine muted">type: ${esc(c.setup[x.id].type)}</div>` : ""}` },
+    { k: "nd_profile", label: "NextDNS profile", fmt: x => `${x.nd_profile ? `${esc(ndName(x.nd_profile))}<div class="fine">${ndLinks(x.nd_profile)}</div>` : "–"}${c.setup?.[x.id]?.type ? `<div class="fine muted">type: ${esc(c.setup[x.id].type)}</div>` : ""}` },
     { k: "status", label: "Setup", sort: x => ({ stopped: -1, active: 0, quiet: 1, not_seen: 2, offered: 3, unknown: 4 })[c.setup?.[x.id]?.state] ?? 5, fmt: x => setupState(x, c.setup?.[x.id]) },
     { k: "id", label: "", fmt: x => `<div class="btnrow"><button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile || c.setup?.[x.id]?.type ? "Change…" : "Set up…"}</button>${done.length > 1 ? `<button class="btn sm ghost" data-cimerge="${esc(x.id)}" title="The same device checked in again under another Wi-Fi address">Merge…</button>` : ""}</div>` }], done)}</div>`;
 }

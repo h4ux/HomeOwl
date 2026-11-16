@@ -263,7 +263,7 @@ async function loadPeople() {
   const card = p => `<div class="card person" id="pp-${esc(p.id)}">
     <div class="pp-top">${ppAvatar(p)}<div class="pp-title"><b>${esc(p.name)}</b><span class="fine muted">${ppCount(p)}</span></div>
       <div class="btnrow"><button class="btn sm" data-exgo="person|${esc(p.id)}">Explore</button>${isAdmin() ? `<button class="btn sm" data-ppedit="${esc(p.id)}">Edit</button>` : ""}</div></div>
-    ${ppDevChips(p)}<div class="pp-body"><div class="empty">Loading…</div></div></div>`;
+    ${isAdmin() ? ppNDLinks(p, meta) : ""}${ppDevChips(p)}<div class="pp-body"><div class="empty">Loading…</div></div></div>`;
   const tpl = GROUP_TPL.filter(g => !grps.some(x => x.name.toLowerCase() === g.name.toLowerCase()));
   fill("pp-list", `${ppl.length ? `<div class="grid g2">${ppl.map(card).join("")}</div>`
       : emptyState({ title: "Add the people in your home", text: "Pick each person's phone, laptop and tablet. Every chart can then be filtered by person, and Who's home knows when they're in.", btn: isAdmin() ? `<button class="btn primary" id="pp-add2">Add the first person</button>` : "" })}
@@ -391,6 +391,14 @@ async function ppSetup() {
   });
 }
 
+// the NextDNS profiles a person's devices are in (whole profiles, and NextDNS device names), linked to my.nextdns.io
+function ppNDLinks(p, meta) {
+  const ids = [...new Set(p.devices.flatMap(d => d.kind === "profile" ? [d.key] : d.kind === "ndev" ? [d.key.split("/")[0]] : []))].filter(id => ND_ID_RE.test(id));
+  if (!ids.length) return "";
+  const nameOf = id => arr(meta?.nd_profiles).find(x => x.id === id)?.name || id;
+  return `<div class="pp-nd fine"><span class="muted">NextDNS:</span> ${ids.map(id => ndLinks(id, nameOf(id))).join(" &nbsp; ")}</div>`;
+}
+
 function ppCount(p) {
   const prof = p.devices.filter(d => d.kind === "profile").length, gs = ppGroups(p), act = gs.filter(g => g.active).length;
   return [prof ? plural(prof, "NextDNS profile") : "", gs.length || !prof ? plural(act, "device") + (gs.length > act ? ` · ${gs.length - act} older` : "") : ""].filter(Boolean).join(" + ");
@@ -428,7 +436,7 @@ async function personModal(p, opts = {}) {
       <h3>Devices</h3><div id="pp-picker"></div>
       ${profs.length ? `<details class="pp-profs"${profs.some(x => x.mine) ? " open" : ""}><summary>Whole NextDNS profiles</summary>
         <p class="fine">Tick a profile if every device in it is ${group ? "this group's" : "this person's"}, e.g. a phone's own profile with generic names like “iPhone 16”.</p>
-        ${profs.map(x => `<label class="check"><input type="checkbox" data-ppprof="${esc(x.id)}" ${x.mine ? "checked" : ""}><span>${esc(x.name)} <span class="fine muted">${plural(x.devices || 0, "device")}${x.other ? ` · now ${esc(x.other.name)}'s` : ""}</span></span></label>`).join("")}</details>` : ""}`,
+        ${profs.map(x => `<label class="check"><input type="checkbox" data-ppprof="${esc(x.id)}" ${x.mine ? "checked" : ""}><span>${esc(x.name)} ${ndLinks(x.id)} <span class="fine muted">${plural(x.devices || 0, "device")}${x.other ? ` · now ${esc(x.other.name)}'s` : ""}</span></span></label>`).join("")}</details>` : ""}`,
     buttons: [...(p.id ? [{ label: "Delete", cls: "danger", onClick: () => confirmDelete(p) }] : []), { label: "Cancel" }, { label: "Save", cls: "primary", onClick: async () => {
       const name = $("#pp-name").value.trim(); if (!name) return toast(`Give the ${kind} a name`, "err");
       const sel = picker.selected(), out = new Map();

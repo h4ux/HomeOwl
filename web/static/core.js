@@ -813,3 +813,11 @@ function logicalDiagram(m) {
   const head = ["Internet", "Gateway", "Networks / VLANs", "Wi-Fi (SSIDs)"].map((t, i) => `<text class="t2" x="${COLX[i]}" y="12" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">${t}</text>`).join("");
   return `<div class="diagram"><svg width="${W}" height="${H + 10}" viewBox="0 0 ${W} ${H + 10}">${head}${e}${g}</svg></div>`;
 }
+
+// links to a NextDNS profile on my.nextdns.io, in a new tab: its page and its logs (signed in to NextDNS there)
+const ND_ID_RE = /^[a-z0-9]{4,16}$/;
+function ndLinks(id, label) {
+  if (!ND_ID_RE.test(id || "")) return "";
+  const base = `https://my.nextdns.io/${id}/`;
+  return `<span class="nd-links">${label ? `<a href="${base}" target="_blank" rel="noopener noreferrer" title="Open this NextDNS profile">${esc(label)} ↗</a>` : `<a href="${base}" target="_blank" rel="noopener noreferrer" title="Open this NextDNS profile">profile ↗</a>`} · <a href="${base}logs" target="_blank" rel="noopener noreferrer" title="Its logs on NextDNS">logs ↗</a></span>`;
+}
