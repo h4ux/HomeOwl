@@ -328,7 +328,7 @@ func (a *App) setupHash(x CheckIn) string {
 		parts = append(parts, ex.Icon)
 	}
 	if m := ndModelOf(x); x.NDProfile != "" && m != "" { // likewise: only devices with a model
-		parts = append(parts, m)
+		parts = append(parts, ndModelLabel(m))
 	}
 	if x.NDProfile != "" && !ex.DNS.empty() { // likewise: only devices whose DNS setting gets rules
 		parts = append(parts, ex.DNS)

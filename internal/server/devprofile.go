@@ -47,7 +47,7 @@ var ndModelRE = regexp.MustCompile(`^(iPhone|iPad|iPod|Mac|MacBookAir|MacBookPro
 // (https://apple.dns.nextdns.io/<profile>/<name>/Apple%20iPhone17%2C1), and NextDNS shows the model by the name.
 func appleDoH(x CheckIn) string {
 	if m := ndModelOf(x); m != "" {
-		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name) + "/" + url.PathEscape("Apple "+m)
+		return "https://apple.dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name) + "/" + url.PathEscape(ndModelLabel(m))
 	}
 	return "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name)
 }
@@ -63,7 +63,7 @@ func (a *App) ndProfileChoices() map[string]any {
 			}
 		}
 	}
-	return map[string]any{"profiles": profiles, "by_person": byPerson}
+	return map[string]any{"profiles": profiles, "by_person": byPerson, "models": modelGroups()}
 }
 
 var ndProfileCache struct {
@@ -155,6 +155,7 @@ func (a *App) deviceSetup(x CheckIn) map[string]any {
 		return res
 	}
 	label := ndDeviceLabel(x.Name)
+	res["model"] = modelView(x)
 	res["nextdns"] = map[string]any{
 		"doh":     "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(x.Name),
 		"android": strings.TrimPrefix(label+"-", "-") + x.NDProfile + ".dns.nextdns.io",

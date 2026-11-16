@@ -488,7 +488,7 @@ func (a *App) routes() http.Handler {
 
 // The device check-in page also works over plain HTTP, so a phone can open it without a certificate warning.
 // It only shows the device itself and the family's first names, and only queues a request for an admin.
-var plainHTTPOK = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/api/hi/request": true, "/api/hi/guest": true, "/api/hi/ndname": true,
+var plainHTTPOK = map[string]bool{"/welcome": true, "/welcome.js": true, "/api/welcome": true, "/hi": true, "/hi.js": true, "/style.css": true, "/icon.png": true, "/api/hi": true, "/api/hi/profile": true, "/api/hi/wifi": true, "/api/hi/request": true, "/api/hi/guest": true, "/api/hi/ndname": true, "/api/hi/model": true,
 	"/wifi": true, "/wifi.js": true, "/qr.js": true, "/api/wifi": true} // the guest card (Settings › Access › Easy names)
 
 // guard applies the Host check and sends plain-HTTP visitors from other devices to HTTPS.

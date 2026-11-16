@@ -45,7 +45,9 @@ type CheckIn struct {
 	// found on the device, "-" = none)
 	NDModel string `json:"nd_model,omitempty"`
 	// the model the device itself announced over mDNS (devmodel.go)
-	DetModel  string `json:"det_model,omitempty"`
+	DetModel string `json:"det_model,omitempty"`
+	// the model picked on the device's own page ("-" = none); an admin's NDModel wins over it
+	UserModel string `json:"user_model,omitempty"`
 	ProfileAt int64  `json:"profile_at,omitempty"` // when the device last downloaded its setup profile
 	ProfileND string `json:"profile_nd,omitempty"` // the NextDNS profile the device has installed (≠ NDProfile: an update is ready)
 	// the device name the installed profile reports to NextDNS: it stays what it was at download when the device is

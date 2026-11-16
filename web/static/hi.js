@@ -66,6 +66,33 @@ const iconNote = k => k === "none" ? ""
   : k === "app" ? `<p class="fine">It also puts a <b>HomeOwl</b> icon on the Home Screen that opens HomeOwl. It works at home.</p>`
   : `<p class="fine">It also puts a <b>HomeOwl</b> icon on the Home Screen that opens this page, for updates later. It works at home.</p>`;
 
+// which model this is (devmodel.go): the one found on the device is ticked; an admin's choice can't be changed here
+function modelPick(m) {
+  if (!m?.groups?.length) return "";
+  const known = id => m.groups.some(g => g.models.some(x => x.id === id));
+  const cur = m.current || (m.by === "device" ? "-" : "");
+  const opts = m.groups.map(g => `<optgroup label="${esc(g.group)}">${g.models.map(x => `<option value="${esc(x.id)}" ${x.id === cur ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</optgroup>`).join("")
+    + (cur && cur !== "-" && !known(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : "")
+    + `<option value="-" ${cur === "-" ? "selected" : ""}>Don't say</option>`;
+  const note = m.by === "admin" ? "An admin chose this model." : m.by === "found" ? "Found on this device — change it if it's wrong."
+    : m.by === "device" ? "Chosen here." : "HomeOwl couldn't tell — pick it, so NextDNS shows it.";
+  return `<label class="hi-model">This device is
+      <select id="hi-model" ${m.by === "admin" ? "disabled" : ""}>${cur ? "" : `<option value="" selected>Choose…</option>`}${opts}</select></label>
+    <p class="fine muted" id="hi-model-note">${esc(note)} NextDNS shows it next to the device's name.</p>`;
+}
+document.addEventListener("change", async e => {
+  if (e.target.id !== "hi-model") return;
+  const sel = e.target; sel.disabled = true;
+  try {
+    const r = await fetch("/api/hi/model", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: sel.value }), cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Something went wrong (HTTP ${r.status})`);
+    const open = $("#hi-setup-fold")?.open;
+    await start();
+    if (open && $("#hi-setup-fold")) $("#hi-setup-fold").open = true;
+  } catch (err) { sel.disabled = false; const n = $("#hi-model-note"); if (n) { n.textContent = err.message; n.className = "fine bad-t"; } }
+});
+
 // the device is approved: offer to set it up so it's recognised by name everywhere (devprofile.go)
 function registered(st) {
   const r = st.registered, nd = r.nextdns, pf = platform();
@@ -101,6 +128,7 @@ function registered(st) {
     : `${r.update ? `<div class="msg warn hi-update"><b>Update ready.</b> This device's settings changed. ${pf === "android" ? "Replace the Private DNS host name with the one below." : "Install the profile again — it replaces the old one."}</div>` : ""}<h3 style="margin:16px 0 6px">${r.update ? "Install the update" : "Set up this device"}</h3>
       ${extra ? `<p class="muted">It sets up:</p>${holds}<p class="fine">You can remove it any time.${pf === "android" || pf === "windows" ? " Wi-Fi and VPN install on iPhone, iPad and Mac; here you get the NextDNS part." : ""}</p>`
         : `<p class="muted">So HomeOwl and NextDNS recognise it by name at home, on mobile data and on other Wi-Fi. Nothing else changes, there are no passwords in it, and you can remove it any time.</p>`}
+      ${nd && (pf === "ios" || pf === "mac") ? modelPick(r.model) : ""}
       ${!nd ? (pf === "ios" || pf === "mac" ? how[pf] : `<p>Open this page on the iPhone, iPad or Mac to install it.</p>`)
         : how[pf] || `<p>iPhone, iPad or Mac: open this page on it. Android: Private DNS host name:</p>${copyRow(nd.android, "host name")}<p>Anything else: DNS-over-HTTPS address:</p>${copyRow(nd.doh, "address")}`}
       ${r.profile_at && (pf === "ios" || pf === "mac") ? `<p class="fine">Downloaded before on ${esc(new Date(r.profile_at * 1000).toLocaleDateString())}. Installing again replaces it.</p>` : ""}

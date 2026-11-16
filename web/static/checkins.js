@@ -126,8 +126,11 @@ function setupState(x, st) {
     + (st.wg === false ? ` <span class="tag warn" title="Its profile type has a WireGuard VPN, and each device needs its own config: paste it with Change…">needs WireGuard config</span>` : "")
     + (arr(st.wifi_no_password).length ? ` <span class="tag warn" title="UniFi didn't give HomeOwl the password of ${esc(st.wifi_no_password.join(", "))}, so it's left out of the profile (a profile without it would only ask for it). The UniFi account HomeOwl signs in with may not be allowed to see Wi-Fi passwords: give it a role that can (Site Admin or Super Admin), then install the profile again.">no Wi-Fi password</span>` : "");
   const note = st.state === "not_seen" ? `downloaded ${ago(st.downloaded * 1000)}, no queries under its name yet` : st.state === "offered" ? "open the check-in page on the device" : seen;
-  return `${tag}${upd}${note ? `<div class="fine muted">${esc(note)}</div>` : ""}`;
+  const model = x.nd_profile ? ciModelOf(x) : "";
+  return `${tag}${upd}${note ? `<div class="fine muted">${esc(note)}</div>` : ""}${model ? `<div class="fine muted">model: ${esc(ndModelName(model))}${x.nd_model && x.nd_model !== "-" ? " (set by an admin)" : x.user_model ? " (chosen on the device)" : " (found on the device)"}</div>` : ""}`;
 }
+// the model the setup reports, as the server picks it (devmodel.go ndModelOf)
+const ciModelOf = x => x.nd_model === "-" ? "" : x.nd_model || (x.user_model === "-" ? "" : x.user_model) || x.det_model || "";
 function setupCard(c) {
   const done = c.items.filter(x => x.status === "approved").sort((a, b) => b.time - a.time);
   if (!done.length) return "";
@@ -138,34 +141,17 @@ function setupCard(c) {
     { k: "id", label: "", fmt: x => `<div class="btnrow"><button class="btn sm" data-cisetup="${esc(x.id)}">${x.nd_profile || c.setup?.[x.id]?.type ? "Change…" : "Set up…"}</button>${done.length > 1 ? `<button class="btn sm ghost" data-cimerge="${esc(x.id)}" title="The same device checked in again under another Wi-Fi address">Merge…</button>` : ""}</div>` }], done)}</div>`;
 }
 // the profile type a device gets: picked for it ("-" = none), else its person's
-// Apple models for the NextDNS setup: the profile reports the model (apple.dns.nextdns.io/<profile>/<name>/Apple <id>)
-// and NextDNS shows it by the device's name. "Other…" takes any model identifier (Settings › General › About › Model
-// Identifier on a Mac; on iPhone and iPad, sites like everymac or the box).
-const ND_MODELS = [
-  ["iPhone", [["iPhone18,1", "iPhone 17 Pro"], ["iPhone18,2", "iPhone 17 Pro Max"], ["iPhone18,3", "iPhone 17"], ["iPhone18,4", "iPhone Air"],
-    ["iPhone17,1", "iPhone 16 Pro"], ["iPhone17,2", "iPhone 16 Pro Max"], ["iPhone17,3", "iPhone 16"], ["iPhone17,4", "iPhone 16 Plus"], ["iPhone17,5", "iPhone 16e"],
-    ["iPhone16,1", "iPhone 15 Pro"], ["iPhone16,2", "iPhone 15 Pro Max"], ["iPhone15,4", "iPhone 15"], ["iPhone15,5", "iPhone 15 Plus"],
-    ["iPhone15,2", "iPhone 14 Pro"], ["iPhone15,3", "iPhone 14 Pro Max"], ["iPhone14,7", "iPhone 14"], ["iPhone14,8", "iPhone 14 Plus"],
-    ["iPhone14,2", "iPhone 13 Pro"], ["iPhone14,3", "iPhone 13 Pro Max"], ["iPhone14,5", "iPhone 13"], ["iPhone14,4", "iPhone 13 mini"], ["iPhone14,6", "iPhone SE (3rd gen)"],
-    ["iPhone13,3", "iPhone 12 Pro"], ["iPhone13,4", "iPhone 12 Pro Max"], ["iPhone13,2", "iPhone 12"], ["iPhone13,1", "iPhone 12 mini"],
-    ["iPhone12,3", "iPhone 11 Pro"], ["iPhone12,5", "iPhone 11 Pro Max"], ["iPhone12,1", "iPhone 11"], ["iPhone12,8", "iPhone SE (2nd gen)"]]],
-  ["iPad", [["iPad16,3", "iPad Pro 11\" (M4)"], ["iPad16,5", "iPad Pro 13\" (M4)"], ["iPad15,3", "iPad Air 11\" (M3)"], ["iPad15,5", "iPad Air 13\" (M3)"],
-    ["iPad14,8", "iPad Air 11\" (M2)"], ["iPad14,10", "iPad Air 13\" (M2)"], ["iPad15,7", "iPad (A16)"], ["iPad13,18", "iPad (10th gen)"],
-    ["iPad16,1", "iPad mini (A17 Pro)"], ["iPad14,1", "iPad mini (6th gen)"]]],
-  ["Mac", [["Mac16,12", "MacBook Air 13\" (M4)"], ["Mac16,13", "MacBook Air 15\" (M4)"], ["Mac15,12", "MacBook Air 13\" (M3)"], ["Mac15,13", "MacBook Air 15\" (M3)"],
-    ["Mac14,2", "MacBook Air 13\" (M2)"], ["Mac14,15", "MacBook Air 15\" (M2)"], ["MacBookAir10,1", "MacBook Air (M1)"],
-    ["Mac16,1", "MacBook Pro 14\" (M4)"], ["Mac16,6", "MacBook Pro 14\" (M4 Pro)"], ["Mac16,7", "MacBook Pro 16\" (M4 Pro)"], ["Mac15,3", "MacBook Pro 14\" (M3)"],
-    ["MacBookPro17,1", "MacBook Pro 13\" (M1)"], ["Mac16,10", "Mac mini (M4)"], ["Mac16,11", "Mac mini (M4 Pro)"], ["Mac14,3", "Mac mini (M2)"], ["Macmini9,1", "Mac mini (M1)"],
-    ["Mac16,2", "iMac (M4)"], ["Mac15,4", "iMac (M3)"], ["iMac21,1", "iMac (M1)"], ["Mac14,13", "Mac Studio (M2 Max)"]]],
-];
-const ndModelKnown = id => ND_MODELS.some(([, l]) => l.some(([k]) => k === id));
-const ndModelName = id => ND_MODELS.flatMap(([, l]) => l).find(([k]) => k === id)?.[1] || id;
-function ndModelPick(pre, cur, found) {
+// Apple models for the NextDNS setup come from the server (applemodels.go), with S.ciND: the profile reports the
+// model's marketing name, and NextDNS shows it by the device's name. "Other…" takes any model identifier.
+const ndModels = () => arr(S.ciND?.models);
+const ndModelKnown = id => ndModels().some(g => arr(g.models).some(m => m.id === id));
+const ndModelName = id => ndModels().flatMap(g => arr(g.models)).find(m => m.id === id)?.name || id;
+function ndModelPick(pre, cur, found, picked) {
   const other = cur && cur !== "-" && !ndModelKnown(cur);
   return `<label>Device model ${hint("iPhone, iPad and Mac: the setup tells NextDNS the model, so its logs show it next to the device's name. Automatic uses the model the device announced on the home network when it checked in (Apple devices do; others announce nothing, and then no model is sent).")}<select id="${pre}-model">
-    <option value="">${found ? `Automatic — ${esc(ndModelName(found))} (found on the device)` : "Automatic — none found on the device yet"}</option>
+    <option value="">${picked && picked !== "-" ? `Automatic — ${esc(ndModelName(picked))} (chosen on the device)` : picked === "-" ? "Automatic — none (chosen on the device)" : found ? `Automatic — ${esc(ndModelName(found))} (found on the device)` : "Automatic — none found on the device yet"}</option>
     <option value="-" ${cur === "-" ? "selected" : ""}>None</option>
-    ${ND_MODELS.map(([g, l]) => `<optgroup label="${g}">${l.map(([k, n]) => `<option value="${esc(k)}" ${k === cur ? "selected" : ""}>${esc(n)}</option>`).join("")}</optgroup>`).join("")}
+    ${ndModels().map(g => `<optgroup label="${esc(g.group)}">${arr(g.models).map(m => `<option value="${esc(m.id)}" ${m.id === cur ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</optgroup>`).join("")}
     <option value="*" ${other ? "selected" : ""}>Other — type its model identifier…</option></select></label>
     <label id="${pre}-modelwrap" ${other ? "" : "hidden"}>Model identifier<input id="${pre}-modelid" value="${other ? esc(cur) : ""}" placeholder="iPhone17,1" spellcheck="false" autocomplete="off"></label>`;
 }
@@ -179,7 +165,7 @@ function changeSetup(id) {
   if (!nd.profiles.length && !types.length) return toast("Nothing to choose yet: add a NextDNS API key in Settings › Analytics, or a profile type in Settings › Device profiles", "err");
   openModal({ title: `Setup for ${x.name}`, body: `
     ${nd.profiles.length ? `<label>NextDNS profile<select id="cis-nd"><option value="">None</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === x.nd_profile ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
-      ${ndModelPick("cis", x.nd_model || "", x.det_model || "")}` : ""}
+      ${ndModelPick("cis", x.nd_model || "", x.det_model || "", x.user_model || "")}` : ""}
     ${types.length ? `<label>Profile type (Wi-Fi and VPN)<select id="cis-type">
       <option value="" ${!x.type_id ? "selected" : ""}>${pt ? `${esc(personLabel(x))}'s: ${esc(pt.name)}` : "Its person's (none yet)"}</option>
       ${types.map(t => `<option value="${esc(t.id)}" ${x.type_id === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}
@@ -490,7 +476,7 @@ async function approveCheckin(id) {
   const nd = S.ciND, ndDefault = known ? nd.by_person[known.id] || "" : "";
   const ndPick = nd.profiles.length ? `<label>NextDNS profile for the device's setup
       <select id="ci-nd"><option value="">None — don't offer a setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === ndDefault ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
-    ${ndModelPick("ci", "", x.det_model || "")}
+    ${ndModelPick("ci", "", x.det_model || "", x.user_model || "")}
     <p class="fine">After approval, the device's check-in page offers to set it up with encrypted DNS through this profile, under its name, so it's recognised on any network (a profile on iPhone, iPad and Mac; Private DNS on Android).</p>` : "";
   const opts = S.ciPeople.map(p => `<option value="${esc(p.id)}" ${p.id === known?.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
   openModal({ title: "Approve device check-in", body: `

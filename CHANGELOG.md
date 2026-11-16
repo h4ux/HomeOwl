@@ -4,6 +4,17 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.101] — 2026-11-16
+
+### Changed
+- **NextDNS shows the model's marketing name** — "Apple MacBook Air 13-inch (M4)" instead of "Apple Mac16,12".
+  Devices set up with a model show **Update ready** once, to get the clearer name.
+
+### Added
+- **Pick the model on the device itself.** The check-in page shows "This device is" with the model found ticked, and
+  its owner can change it (or choose "Don't say") before installing. An admin's choice in **Set up…** still wins, and
+  the device list shows each device's model and whether it was found, chosen on the device or set by an admin.
+
 ## [0.1.100] — 2026-11-16
 
 ### Fixed

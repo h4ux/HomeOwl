@@ -87,7 +87,8 @@ When an admin approves a device with a NextDNS profile, the device's check-in pa
 profile under the device's name, so NextDNS logs it by name on any network. On iPhone, iPad and Mac it's a
 configuration profile; the admin can also pick the **device model** (or type its model identifier, like
 `iPhone17,1`). Then the profile uses NextDNS's Apple address,
-`https://apple.dns.nextdns.io/<profile>/<device name>/Apple%20<model>`, and NextDNS shows the model next to the name.
+`https://apple.dns.nextdns.io/<profile>/<device name>/<model>`, and NextDNS shows the model next to the name — by its
+marketing name ("Apple MacBook Air 13-inch (M4)"), or the identifier for a model HomeOwl's list doesn't know yet.
 Changing the model later shows **Update ready** on the device's page. Android (Private DNS) and Windows have no model.
 
 The model is found by itself on **Automatic** (the default): Apple devices announce their model identifier over
@@ -96,6 +97,10 @@ its page or downloads its profile, HomeOwl asks that one device directly — a s
 at most once every 10 minutes. What it answers is only used if it looks like a model identifier. A device that says
 nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) gets no model until an admin picks one;
 **None** sends no model at all.
+
+The device's own page shows the model too, with the one found ticked, and its owner can pick another (or "Don't say")
+before installing. An admin's choice in **Set up…** wins over both, and the device list shows each device's model and
+where it came from.
 
 ## Built-in Tailscale
 

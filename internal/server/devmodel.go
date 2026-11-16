@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,15 +60,63 @@ func (a *App) detectModel(mac, ip string, wait bool) {
 	}
 }
 
-// ndModelOf is the model the device's setup reports: the admin's choice, else the one found on the device.
+// ndModelOf is the model the device's setup reports: an admin's choice, else the one picked on the device, else the
+// one found on it.
 func ndModelOf(x CheckIn) string {
 	switch {
 	case x.NDModel == "-":
 		return ""
 	case ndModelRE.MatchString(x.NDModel):
 		return x.NDModel
+	case x.UserModel == "-":
+		return ""
+	case ndModelRE.MatchString(x.UserModel):
+		return x.UserModel
 	case ndModelRE.MatchString(x.DetModel):
 		return x.DetModel
 	}
 	return ""
+}
+
+// hiModel: POST /api/hi/model {model} from the device's own page — which model it is ("" = the one found, "-" = none).
+func (a *App) hiModel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || !sameOrigin(r) || !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		fail(w, 403, "not allowed")
+		return
+	}
+	_, mac, ok := a.hiDevice(w, r)
+	if !ok {
+		return
+	}
+	x, ok := a.checkins.Registered(mac)
+	if !ok {
+		fail(w, 404, "This device isn't approved yet.")
+		return
+	}
+	if !a.checkins.allow(remoteIP(r)) {
+		fail(w, 429, "That's a lot of requests — try again later.")
+		return
+	}
+	m := strings.TrimSpace(s(readJSON(r), "model"))
+	if m != "" && m != "-" && !ndModelRE.MatchString(m) {
+		fail(w, 400, "That isn't a model this list knows.")
+		return
+	}
+	a.checkins.Edit(x.ID, func(c *CheckIn) { c.UserModel = m })
+	x, _ = a.checkins.Get(x.ID)
+	send(w, 200, map[string]any{"registered": a.deviceSetup(x)})
+}
+
+// modelView is the device page's model picker: the list, what's used now, and who decided.
+func modelView(x CheckIn) map[string]any {
+	by := "found"
+	switch {
+	case x.NDModel != "":
+		by = "admin"
+	case x.UserModel != "":
+		by = "device"
+	case x.DetModel == "":
+		by = ""
+	}
+	return map[string]any{"current": ndModelOf(x), "found": x.DetModel, "by": by, "name": modelName(ndModelOf(x)), "groups": modelGroups()}
 }

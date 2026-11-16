@@ -51,6 +51,10 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		a.hiRequest(w, r)
 		return
 	}
+	if p == "hi/model" { // which model the device is, from its own page (devmodel.go)
+		a.hiModel(w, r)
+		return
+	}
 	if p == "hi/ndname" { // "this is me": link a NextDNS device name to this device (ndnames.go)
 		a.hiNDName(w, r)
 		return

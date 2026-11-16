@@ -151,7 +151,7 @@ func TestDeviceSetupProfile(t *testing.T) {
 	if _, out := hi(a, "GET", "192.168.1.40", "", nil); out["registered"].(map[string]any)["update"] != true {
 		t.Fatal("a model is an update for the device")
 	}
-	if _, _, body := get("192.168.1.40"); !strings.Contains(body, "<string>https://apple.dns.nextdns.io/def456/Alex%27s%20iPad/Apple%20iPad16%2C3</string>") {
+	if _, _, body := get("192.168.1.40"); !strings.Contains(body, "<string>https://apple.dns.nextdns.io/def456/Alex%27s%20iPad/Apple%20iPad%20Pro%2011-inch%20%28M4%29</string>") {
 		t.Fatalf("model address missing:\n%s", body)
 	}
 	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456"}); err != nil || a.checkins.List()[0].NDModel != "iPad16,3" {
