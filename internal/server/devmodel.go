@@ -20,7 +20,15 @@ var deviceModel = func(ctx context.Context, ip string) string { return mdns.Mode
 
 var modelAsked struct {
 	sync.Mutex
-	at map[string]time.Time
+	at    map[string]time.Time
+	found map[string]string // what each device answered, for its check-in form before there's a check-in
+}
+
+// foundModel is what the device at mac last said it is ("" = nothing yet).
+func foundModel(mac string) string {
+	modelAsked.Lock()
+	defer modelAsked.Unlock()
+	return modelAsked.found[mac]
 }
 
 // detectModel asks the device at ip for its model and keeps it on its check-ins. At most once every 10 minutes
@@ -47,6 +55,12 @@ func (a *App) detectModel(mac, ip string, wait bool) {
 		if !ndModelRE.MatchString(m) {
 			return
 		}
+		modelAsked.Lock()
+		if modelAsked.found == nil {
+			modelAsked.found = map[string]string{}
+		}
+		modelAsked.found[mac] = m
+		modelAsked.Unlock()
 		for _, x := range a.checkins.List() {
 			if x.MAC == mac && x.DetModel != m && (x.Status == "pending" || x.Status == "approved") {
 				a.checkins.Edit(x.ID, func(c *CheckIn) { c.DetModel = m })

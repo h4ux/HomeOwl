@@ -16,9 +16,21 @@ function guessKind() {
 }
 
 // the key in the Home Screen icon's link: HomeOwl knows this device by it even after its Wi-Fi address changes
-const HI_KEY = new URLSearchParams(location.search).get("k") || "";
+// (a Mac gets no Home Screen icon from a profile, so the key is also kept in this browser and in the page's address,
+// for a bookmark or Safari's Add to Dock)
+const hiStore = { get: () => { try { return localStorage.getItem("hi-key") || ""; } catch { return ""; } }, set: v => { try { localStorage.setItem("hi-key", v); } catch { } } };
+let HI_KEY = new URLSearchParams(location.search).get("k") || hiStore.get();
+function keepKey(k) {
+  if (!/^[0-9a-f]{32}$/.test(k || "")) return;
+  HI_KEY = k; hiStore.set(k);
+  const u = new URL(location.href);
+  if (u.searchParams.get("k") !== k) { u.searchParams.set("k", k); history.replaceState(null, "", u); }
+}
 async function call(method, body) {
-  const r = await fetch("/api/hi" + (method === "GET" && /^[0-9a-f]{32}$/.test(HI_KEY) ? `?k=${HI_KEY}` : ""), { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+  const q = new URLSearchParams();
+  if (method === "GET" && /^[0-9a-f]{32}$/.test(HI_KEY)) q.set("k", HI_KEY);
+  if (method === "GET" && ["ios", "mac"].includes(platform())) q.set("probe", "1"); // HomeOwl asks the device its model
+  const r = await fetch("/api/hi" + (q.size ? `?${q}` : ""), { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `Something went wrong (HTTP ${r.status})`);
   return j;
@@ -68,6 +80,17 @@ const iconNote = k => k === "none" ? ""
   : k === "app" ? `<p class="fine">It also puts a <b>HomeOwl</b> icon on the Home Screen that opens HomeOwl. It works at home.</p>`
   : `<p class="fine">It also puts a <b>HomeOwl</b> icon on the Home Screen that opens this page, for updates later. It works at home.</p>`;
 
+// the check-in form's model list (iPhone, iPad, Mac): the one the device announced is suggested; the admin sees both
+function formModel(m) {
+  if (!m?.groups?.length || !["ios", "mac"].includes(platform())) return "";
+  const known = m.groups.some(g => g.models.some(x => x.id === m.found));
+  return `<label>Which model?
+      <select id="hi-fmodel"><option value="" ${m.found ? "" : "selected"}>Not sure</option>
+        ${m.groups.map(g => `<optgroup label="${esc(g.group)}">${g.models.map(x => `<option value="${esc(x.id)}" ${x.id === m.found ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</optgroup>`).join("")}
+        ${m.found && !known ? `<option value="${esc(m.found)}" selected>${esc(m.found)}</option>` : ""}</select></label>
+    ${m.found ? `<p class="fine muted" style="margin-top:-6px">Suggested by this device itself — change it if it's wrong.</p>` : ""}`;
+}
+
 // which model this is (devmodel.go): the one found on the device is ticked; an admin's choice can't be changed here
 function modelPick(m) {
   if (!m?.groups?.length) return "";
@@ -98,6 +121,7 @@ document.addEventListener("change", async e => {
 // the device is approved: offer to set it up so it's recognised by name everywhere (devprofile.go)
 function registered(st) {
   const r = st.registered, nd = r.nextdns, pf = platform();
+  keepKey(r.key);
   const apple = `<a class="btn primary" href="/api/hi/profile${pf === "ios" ? "?p=ios" : pf === "mac" ? "?p=mac" : ""}" download="HomeOwl.mobileconfig">Install the HomeOwl profile</a>`;
   const inc = r.includes || {}, wifi = inc.wifi || [], vpn = inc.vpn, extra = wifi.length || vpn || (inc.no_join || []).length;
   const setupWiFi = start.setup, moveNote = setupWiFi && wifi.length
@@ -119,7 +143,8 @@ function registered(st) {
         <p class="fine">If nothing happens (Chrome often blocks it), copy the link, open <b>Safari</b> and paste it in the address bar:</p>${copyRow(st.safari || location.href, "link")}`
       : `<ol class="hi-steps">${appStep("ios")}<li>Tap the button and choose <b>Allow</b>.</li><li>Open <b>Settings</b> › <b>Profile Downloaded</b> (near the top) › <b>Install</b>.</li></ol>${apple}
         ${iconNote(inc.icon)}${moveNote}${captive}`,
-    mac: `<ol class="hi-steps">${appStep("mac")}<li>Click the button to download the profile.</li><li>Open <b>System Settings</b> › <b>General</b> › <b>Device Management</b>, double-click <b>HomeOwl</b> and choose <b>Install</b>.</li></ol>${apple}`,
+    mac: `<ol class="hi-steps">${appStep("mac")}<li>Click the button to download the profile.</li><li>Open <b>System Settings</b> › <b>General</b> › <b>Device Management</b>, double-click <b>HomeOwl</b> and choose <b>Install</b>.</li></ol>${apple}
+      <p class="fine">A Mac takes no HomeOwl icon from a profile. For a shortcut to this page, choose <b>File</b> › <b>Add to Dock</b> in Safari (or bookmark it): it knows this Mac even if its Wi-Fi address changes.</p>`,
     android: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › <b>Private DNS</b>.</li><li>Choose <b>Private DNS provider hostname</b> and paste:</li></ol>${copyRow(nd.android, "host name")}`,
     windows: nd && `<ol class="hi-steps"><li>Open <b>Settings</b> › <b>Network &amp; internet</b> › your connection › <b>DNS server assignment</b> › <b>Edit</b> › <b>Manual</b>.</li>
       <li>Turn on IPv4, set Preferred DNS to <code>${esc(nd.servers[0])}</code> and Alternate to <code>${esc(nd.servers[1])}</code>.</li>
@@ -321,8 +346,9 @@ async function start() {
         </select></label>
       <label id="hi-newwrap" hidden>Name<input id="hi-newname" maxlength="40" placeholder="e.g. Alex"></label>
       <label>What is it?<select id="hi-kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === kind ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      ${formModel(st.model)}
       <label>Name for this device<input id="hi-name" maxlength="40" required placeholder="e.g. Alex's iPad"></label>
-      <label class="check hi-main" id="hi-mainwrap" hidden><input type="checkbox" id="hi-main"> <span><b id="hi-mainq">Is this your main phone?</b><br><span class="fine muted">HomeOwl uses it to see when you're home (Who's home). Only for the phone you carry with you.</span></span></label>
+      <label class="check hi-main" id="hi-mainwrap" hidden><input type="checkbox" id="hi-main"> <span><b id="hi-mainq">Is this your main phone?</b><br><span class="fine muted">HomeOwl uses it to see when you're home (Who's home). Only for the one you carry with you.</span></span></label>
       <button class="btn primary" type="submit">Send to HomeOwl</button>
       <div id="hi-msg" class="msg" role="status"></div>
     </form>`;
@@ -370,7 +396,7 @@ document.addEventListener("submit", async e => {
   const msg = $("#hi-msg"), sel = $("#hi-person").value;
   msg.className = "msg"; msg.textContent = "Sending…";
   try {
-    await call("POST", { name: $("#hi-name").value, kind: $("#hi-kind").value, person_id: sel === "__new" ? "" : sel, person_name: sel === "__new" ? $("#hi-newname").value : "", main: !$("#hi-mainwrap").hidden && $("#hi-main").checked });
+    await call("POST", { name: $("#hi-name").value, kind: $("#hi-kind").value, person_id: sel === "__new" ? "" : sel, person_name: sel === "__new" ? $("#hi-newname").value : "", main: !$("#hi-mainwrap").hidden && $("#hi-main").checked, model: $("#hi-fmodel")?.value || "" });
     done(false);
   } catch (err) { msg.className = "msg err"; msg.textContent = err.message; }
 });

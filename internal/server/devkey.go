@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"log"
+	"strings"
 )
 
 // Device keys. A phone's private Wi-Fi address can change (iOS "Rotating", a new network, a reset), and the
@@ -48,6 +49,11 @@ func (a *App) keyFollow(key string, c map[string]any, mac string) {
 	if y, taken := a.checkins.Registered(mac); taken && y.ID != x.ID {
 		return
 	}
+	// a device is in one place at a time: while its old address is still online, the key opened elsewhere (a shared
+	// bookmark) moves nothing
+	if list, err := a.onlineClients(staFresh); err != nil || findClientMAC(list, x.MAC) {
+		return
+	}
 	old := x.MAC
 	a.fixedMove(x, mac)
 	uid := orStr(str(c, "user_id"), str(c, "_id"))
@@ -66,4 +72,13 @@ func (a *App) keyFollow(key string, c map[string]any, mac string) {
 			log.Printf("device key: naming %s in UniFi: %v", x.Name, err)
 		}
 	}()
+}
+
+func findClientMAC(list []map[string]any, mac string) bool {
+	for _, c := range list {
+		if mac != "" && strings.EqualFold(str(c, "mac"), mac) {
+			return true
+		}
+	}
+	return false
 }

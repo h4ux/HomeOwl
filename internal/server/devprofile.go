@@ -140,7 +140,7 @@ func ndDeviceLabel(name string) string {
 
 // deviceSetup is what the device's own check-in page shows once it is approved.
 func (a *App) deviceSetup(x CheckIn) map[string]any {
-	res := map[string]any{"name": x.Name, "kind": x.Kind, "person": x.PersonName, "profile_at": x.ProfileAt,
+	res := map[string]any{"name": x.Name, "kind": x.Kind, "person": x.PersonName, "profile_at": x.ProfileAt, "key": a.deviceKey(x), // only ever to the device itself (devkey.go)
 		"update": x.ProfileAt > 0 && a.setupUpdate(x), "includes": a.includes(x)} // settings changed since the last install
 	if x.PersonID != "" && a.An.Open() {
 		for _, p := range a.An.People() {

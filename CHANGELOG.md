@@ -4,6 +4,20 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.104] — 2026-11-16
+
+### Added
+- **Model on the check-in form.** iPhones, iPads and Macs see "Which model?" with the model the device announced
+  already picked. The Approve dialog shows both — found on the device and chosen by its owner (marked when they
+  differ) — and the admin decides.
+- **Mac shortcut.** A Mac takes no HomeOwl icon from a profile, so the device's page now keeps its key in the browser
+  and in its address, and suggests Safari's File › Add to Dock: the shortcut knows the Mac even after its Wi-Fi
+  address changes.
+
+### Changed
+- A device key opened from a new address moves the device's check-in only when its old address is offline, so a
+  shared link can't move it to another device.
+
 ## [0.1.103] — 2026-11-16
 
 ### Added

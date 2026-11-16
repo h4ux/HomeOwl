@@ -40,7 +40,13 @@ func TestDeviceKey(t *testing.T) {
 	if a.checkins.List()[0].MAC != "aa:bb:cc:00:00:40" {
 		t.Fatal("moved without the key")
 	}
-	// the right key from a new address: the check-in, the person and the approval follow
+	// while the device's old address is online (the fake console lists .40), a key opened elsewhere moves nothing
+	a.keyFollow(key, c, "aa:bb:cc:00:00:41")
+	if a.checkins.List()[0].MAC != "aa:bb:cc:00:00:40" {
+		t.Fatal("moved while the old address is online")
+	}
+	// the old address gone: the check-in, the person and the approval follow
+	a.checkins.Edit(x.ID, func(y *CheckIn) { y.MAC = "aa:bb:cc:00:00:39" })
 	a.keyFollow(key, c, "aa:bb:cc:00:00:41")
 	y, ok := a.checkins.Registered("aa:bb:cc:00:00:41")
 	if !ok || y.ID != x.ID || y.UserID != "u41" {

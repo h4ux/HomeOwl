@@ -401,6 +401,12 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 		if u := a.certURL(); u != "" { // Chrome on iPhone can hand an https page to Safari (x-safari-https://)
 			res["safari"] = u + "/hi"
 		}
+		if _, ok := a.checkins.Registered(mac); !ok { // the check-in form: suggest the model the device announces
+			if r.URL.Query().Get("probe") == "1" && foundModel(mac) == "" { // iPhone, iPad, Mac (devmodel.go)
+				a.detectModel(mac, ip, true)
+			}
+			res["model"] = map[string]any{"found": foundModel(mac), "groups": modelGroups()}
+		}
 		if x, ok := a.checkins.Registered(mac); ok {
 			if x.DetModel == "" {
 				a.detectModel(mac, ip, false)
@@ -453,8 +459,12 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 	if seen == "" {
 		seen = str(c, "hostname")
 	}
+	model := strings.TrimSpace(s(body, "model")) // what they say it is; HomeOwl's own suggestion goes alongside
+	if model != "-" && !ndModelRE.MatchString(model) {
+		model = ""
+	}
 	x := CheckIn{IP: ip, MAC: mac, UserID: uid, Seen: seen, Vendor: str(c, "oui"), Network: str(c, "network"), Name: name, Kind: kind,
-		PersonID: pid, PersonName: pname, Onboard: a.onSetupWiFi(c), Main: b(body, "main")}
+		PersonID: pid, PersonName: pname, Onboard: a.onSetupWiFi(c), Main: b(body, "main"), UserModel: model, DetModel: foundModel(mac)}
 	if err := a.checkins.Add(x); err != nil {
 		fail(w, 400, err.Error())
 		return

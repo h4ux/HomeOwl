@@ -147,3 +147,41 @@ func TestModelGroups(t *testing.T) {
 		t.Error("the international Pro Max is named but not offered twice")
 	}
 }
+
+func TestCheckInFormModel(t *testing.T) {
+	a := checkinApp(t)
+	old := deviceModel
+	defer func() {
+		deviceModel = old
+		modelAsked.Lock()
+		modelAsked.at, modelAsked.found = nil, nil
+		modelAsked.Unlock()
+	}()
+	deviceModel = func(context.Context, string) string { return "Mac16,12" }
+	modelAsked.Lock()
+	modelAsked.at, modelAsked.found = nil, nil
+	modelAsked.Unlock()
+	// the form asks the device first (an iPhone, iPad or Mac page), and suggests what it says
+	r := httptest.NewRequest("GET", "http://homeowl.lan:8555/api/hi?probe=1", nil)
+	r.RemoteAddr = "192.168.1.40:51234"
+	w := httptest.NewRecorder()
+	a.hiAPI(w, r)
+	var out map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &out)
+	m, _ := out["model"].(map[string]any)
+	if m == nil || m["found"] != "Mac16,12" || len(m["groups"].([]any)) == 0 {
+		t.Fatalf("form model: %v", out["model"])
+	}
+	// they pick another: the admin gets both
+	if code, _ := hi(a, "POST", "192.168.1.40", `{"name":"Alex's Mac","kind":"laptop","person_name":"Alex","model":"Mac16,13"}`, nil); code != 200 {
+		t.Fatal("check-in failed")
+	}
+	x := a.checkins.List()[0]
+	if x.DetModel != "Mac16,12" || x.UserModel != "Mac16,13" || ndModelOf(x) != "Mac16,13" {
+		t.Fatalf("both models: %+v", x)
+	}
+	// junk is dropped, not refused
+	if code, _ := hi(a, "POST", "192.168.1.40", `{"name":"Alex's Mac","kind":"laptop","person_name":"Alex","model":"<x>"}`, nil); code != 200 || a.checkins.List()[0].UserModel != "" {
+		t.Fatalf("junk model: %+v", a.checkins.List()[0])
+	}
+}

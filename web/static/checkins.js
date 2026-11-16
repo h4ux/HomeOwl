@@ -491,6 +491,7 @@ async function approveCheckin(id) {
   const nd = S.ciND, ndDefault = known ? nd.by_person[known.id] || "" : "";
   const ndPick = nd.profiles.length ? `<label>NextDNS profile for the device's setup
       <select id="ci-nd"><option value="">None — don't offer a setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === ndDefault ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
+    ${x.det_model || (x.user_model && x.user_model !== "-") ? `<p class="fine">Model — found on the device: <b>${x.det_model ? esc(ndModelName(x.det_model)) : "nothing"}</b> · they chose: <b>${x.user_model && x.user_model !== "-" ? esc(ndModelName(x.user_model)) : "not sure"}</b>${x.det_model && x.user_model && x.user_model !== "-" && x.det_model !== x.user_model ? ` <span class="tag warn">different</span>` : ""}</p>` : ""}
     ${ndModelPick("ci", "", x.det_model || "", x.user_model || "")}
     <p class="fine">After approval, the device's check-in page offers to set it up with encrypted DNS through this profile, under its name, so it's recognised on any network (a profile on iPhone, iPad and Mac; Private DNS on Android).</p>` : "";
   const opts = S.ciPeople.map(p => `<option value="${esc(p.id)}" ${p.id === known?.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");

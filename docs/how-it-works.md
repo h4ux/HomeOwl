@@ -98,7 +98,9 @@ at most once every 10 minutes. What it answers is only used if it looks like a m
 nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) gets no model until an admin picks one;
 **None** sends no model at all.
 
-The device's own page shows the model too, with the one found ticked, and its owner can pick another (or "Don't say")
+The check-in form asks for the model as well (on iPhone, iPad and Mac), with the one the device announced already
+picked; the Approve dialog shows both — what the device said and what its owner chose — and the admin decides.
+After approval the device's own page shows the model too, with the one found ticked, and its owner can pick another (or "Don't say")
 before installing. An admin's choice in **Set up…** wins over both, and the device list shows each device's model and
 where it came from.
 
@@ -110,7 +112,9 @@ logs; changing the prefix shows **Update ready** on the devices.
 only that device's profile carries (an HMAC of its check-in under HomeOwl's local secret). A phone's private Wi-Fi
 address can change, and the check-in page otherwise knows a device only by its address; opened with the key from a
 new address, the device's check-in moves there — its person, approval, Who's home and UniFi name follow — instead of
-asking it to check in again. Another approved device's address is never taken over.
+asking it to check in again. Another approved device's address is never taken over, and nothing moves while the
+device's old address is still online (a shared link opened on another device). A Mac takes no icon from a profile, so
+the device's page also keeps the key in the browser and in its address — for a bookmark or Safari's Add to Dock.
 
 ## Built-in Tailscale
 
