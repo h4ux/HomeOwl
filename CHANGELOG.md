@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.107] — 2026-11-16
+
+### Changed
+- **Switch ports: 10/100 that's the device's full speed** is no longer shown as a problem. A UniFi UPS (its network
+  port is 10/100) or only cameras, plugs, printers and smart-home gear on a port: striped amber-and-green tile, the
+  speed in amber with an ⓘ saying why, and no "linked at 10/100" finding.
+
+### Fixed
+- A device named "Upstairs …" was taken for a UPS.
+
 ## [0.1.106] — 2026-11-16
 
 ### Added

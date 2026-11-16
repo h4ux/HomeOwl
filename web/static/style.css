@@ -966,3 +966,7 @@ html:has(body.mb){background:var(--panel)}body.mb{background:var(--panel);margin
 .nd-links a { text-decoration: none; }
 .nd-links a:hover { text-decoration: underline; }
 .pp-nd { margin: 2px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+
+/* 10/100 that is the device's full speed (portFE): amber and green, fine */
+.port.feok, .legend i.feok-i { background: repeating-linear-gradient(135deg, var(--med) 0 6px, var(--ok) 6px 12px); }
+.fe-t { color: var(--med); font-weight: 600; }

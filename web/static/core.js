@@ -108,7 +108,7 @@ function normalise(b) {
       const sNum = typeof s === "number" ? s : null, sStr = typeof s === "string" ? s.toUpperCase() : null;
       d = byMac[mac] = {
         id: x._id || x.id || mac, mac, name: x.name || x.model_name || x.model || x.shortname || mac, model: x.model_name || x.model || x.shortname, modelCode: x.model, type: x.type,
-        role: /ups/i.test(`${x.model} ${x.name} ${x.type}`) ? "ups" : x.type === "uap" ? "ap" : x.type === "usw" ? "sw" : "other", ip: x.ip || x.ipAddress, version: x.version || x.firmwareVersion,
+        role: /(^|[^a-z])ups([^a-z]|$)/i.test(`${x.model} ${x.name} ${x.type}`) ? "ups" : x.type === "uap" ? "ap" : x.type === "usw" ? "sw" : "other", ip: x.ip || x.ipAddress, version: x.version || x.firmwareVersion,
         state: sNum, stateLabel: sNum !== null ? (DEV_STATE[sNum] ?? `State ${sNum}`) : (sStr || "Not in device list"), online: sNum === 1 || sStr === "ONLINE",
         adopted: x.adopted !== false, partial: true, clients: 0, radios: [], ports: [], portsUp: 0, poeW: 0, lastSeen: num(x.last_seen), sources: {},
       };
@@ -117,7 +117,7 @@ function normalise(b) {
     d.sources[src] = x;
     if (src.startsWith("integration") && x.state) d.intState = String(x.state).toUpperCase();
   }
-  devices.forEach(d => { d.isUps = /ups/i.test(`${d.model} ${d.modelCode} ${d.name} ${d.type}`); if (d.isUps && d.role === "other") d.role = "ups"; if (d.role === "other") d.role = homeRole(d); });
+  devices.forEach(d => { d.isUps = /(^|[^a-z])ups([^a-z]|$)/i.test(`${d.model} ${d.modelCode} ${d.name} ${d.type}`); if (d.isUps && d.role === "other") d.role = "ups"; if (d.role === "other") d.role = homeRole(d); });
 
   // ---- clients
   let clients = [];
@@ -502,7 +502,7 @@ function analyse(m) {
   const sws = m.devices.filter(d => d.ports.length);
   const errPorts = sws.flatMap(s => s.ports.filter(p => p.up && (p.rxErr + p.txErr) > 100 && (p.rxErr + p.txErr) / Math.max(1, p.rxPkts) > 0.0005).map(p => `${s.name} port ${p.idx}: ${p.rxErr + p.txErr} errors`));
   if (errPorts.length) add("medium", "Ports", "Switch ports with transmission errors", "CRC/frame errors almost always mean a damaged cable, bad keystone/patch panel, or a failing port.", "Re-terminate or replace the cable; try another switch port.", errPorts);
-  const slow = sws.flatMap(s => s.ports.filter(p => p.up && p.speed && p.speed < 1000 && !p.sfp).map(p => {
+  const slow = sws.flatMap(s => s.ports.filter(p => p.up && p.speed && p.speed < 1000 && !p.sfp && !portFE(m, s, p)).map(p => {
     const dev = m.devices.find(d => d.uplinkMac === s.mac && d.uplinkPort === p.idx);
     return dev ? `${s.name} port ${p.idx} → ${dev.name} at ${p.speed} Mbps` : null;
   })).filter(Boolean);
@@ -702,7 +702,7 @@ function tbody(id) {
     const sub = more.map(c => cellHtml(c, r)).filter(h => !emptyCell(h));
     return `<tr class="${cls.trim()}" ${attr}>${t.vis.map(i => { const c = t.cols[i], h = cellHtml(c, r);
       if (i === t.ti) return `<td class="tt">${h}${sub.length ? `<div class="sub">${sub.join(" · ")}</div>` : ""}</td>`;
-      const btn = /<button|class="btn/.test(h);
+      const btn = /<button(?! class="hint")|class="btn/.test(h); // an ⓘ is not an action
       const nil = emptyCell(h);
       return `<td class="${c.num ? "n" : ""}${btn ? " acts" : ""}${nil ? " nil" : ""}" ${c.label && !btn ? `data-l="${esc(c.label)}"` : ""}>${nil ? (c.label ? `<span class="muted">–</span>` : "") : `<span class="tv">${h}</span>`}</td>`; }).join("")}</tr>`;
   }).join("");
@@ -820,4 +820,16 @@ function ndLinks(id, label) {
   if (!ND_ID_RE.test(id || "")) return "";
   const base = `https://my.nextdns.io/${id}/`;
   return `<span class="nd-links">${label ? `<a href="${base}" target="_blank" rel="noopener noreferrer" title="Open this NextDNS profile">${esc(label)} ↗</a>` : `<a href="${base}" target="_blank" rel="noopener noreferrer" title="Open this NextDNS profile">profile ↗</a>`} · <a href="${base}logs" target="_blank" rel="noopener noreferrer" title="Its logs on NextDNS">logs ↗</a></span>`;
+}
+
+// a 10/100 link that is the full speed of what's plugged in, so it's fine: a UniFi UPS (its network port is 10/100),
+// or only small things that have 10/100 ports (cameras, plugs, printers, smart-home gear). "" = a real slow link.
+const FE_KINDS = new Set(["bullet", "dome", "turret", "doorbell", "ptz", "camera", "reader", "door", "printer", "plug", "bulb", "thermostat", "vacuum", "ups", "iot"]);
+function portFE(m, s, p) {
+  if (!p.up || !p.speed || p.speed >= 1000 || p.sfp || p.isUplink) return "";
+  const devs = m.devices.filter(d => d.uplinkMac === s.mac && d.uplinkPort === p.idx);
+  const cls = m.clients.filter(c => c.wired && c.swMac === s.mac && c.swPort === p.idx);
+  if (devs.length === 1 && !cls.length && devs[0].isUps) return `${devs[0].name}: a UniFi UPS's network port is 10/100 Mbps, so this is its full speed (it only carries the UPS's status).`;
+  if (!devs.length && cls.length && cls.every(c => FE_KINDS.has(clientKind(c)))) return `${cls.length === 1 ? cls[0].label || cls[0].name : "These devices"}: ${ICON_LABEL[clientKind(cls[0])] || "this kind of device"} usually has a 10/100 Mbps port, so this is its full speed.`;
+  return "";
 }
