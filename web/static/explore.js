@@ -333,7 +333,7 @@ function ppGroups(p) {
 }
 function ppDevChips(p) {
   const gs = ppGroups(p); if (!gs.length) return "";
-  const chip = (g, i) => `<span class="dp-chip${g.active ? "" : " old"}">${g.online ? onDot(true) : ""}${cliIcon({ mac: g.mac, name: g.name }, 16)}<span title="${esc(g.items.map(x => `${x.name} (${x.mac ? "Wi-Fi address" : "NextDNS"})`).join("\n"))}">${esc(g.name)}</span>${g.items.length > 1 ? `<span class="dp-n">×${g.items.length}</span>` : ""}${isAdmin() && S.source === "live" ? `<button type="button" class="x" data-ppdev="${esc(p.id)}" data-ppdevi="${i}" title="Names, same device, rename" aria-label="Edit ${esc(g.name)}">✎</button>` : ""}</span>`;
+  const chip = (g, i) => `<span class="dp-chip${g.active ? "" : " old"}">${g.online ? onDot(true) : ""}${cliIcon({ mac: g.mac, name: g.name }, 16)}<span title="${esc(g.items.map(x => `${x.name} (${x.mac ? "Wi-Fi address" : "NextDNS"})`).join("\n"))}">${esc(g.name)}</span>${g.items.length > 1 ? `<span class="dp-n">×${g.items.length}</span>` : ""}${isAdmin() && S.source === "live" ? `<button type="button" class="x" data-ppdev="${esc(p.id)}" data-ppdevi="${i}" title="Names, same device, rename" aria-label="Edit ${esc(g.name)}">✎</button><button type="button" class="x" data-ppmove="${esc(p.id)}" data-ppdevi="${i}" title="Move to another person or group" aria-label="Move ${esc(g.name)}">⇄</button>` : ""}</span>`;
   const act = gs.filter(g => g.active), old = gs.filter(g => !g.active);
   // close spellings that may be one device: one tap to confirm
   const sug = [];
@@ -349,7 +349,23 @@ function ppDevChips(p) {
 async function ppLinks(path, body, msg) {
   try { S.devLinks = await api(path, body); toast(msg, "ok"); closeModal(); loadPeople(); } catch (e) { toast(e.message, "err"); }
 }
+// move one device (every name it has) to another person or group (devmove.go)
+function ppMove(p, g) {
+  const to = S.ex.meta.people.filter(x => x.id !== p.id), opt = x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`;
+  const ppl = to.filter(x => !isGroup(x)), grps = to.filter(isGroup);
+  openModal({ title: `Move ${g.name}`, body: `<p class="fine muted">Now ${esc(p.name)}'s. It moves with every name it has (Wi-Fi addresses and NextDNS), and its check-in follows.${grps.length ? "" : " For a server or the TV, make a group in Family first (e.g. Servers)."}</p>
+    <label>Move to<select id="pp-moveto"><option value="">Pick a person or group…</option>
+      ${ppl.length ? `<optgroup label="People">${ppl.map(opt).join("")}</optgroup>` : ""}${grps.length ? `<optgroup label="Groups (not in Who's home)">${grps.map(opt).join("")}</optgroup>` : ""}</select></label>`,
+    buttons: [{ label: "Cancel" }, { label: "Move", cls: "primary", onClick: async () => {
+      const pid = $("#pp-moveto").value; if (!pid) return toast("Pick where it goes", "err");
+      const keys = g.keys.map(k => { const [kind, ...rest] = k.split("|"); return { kind, key: rest.join("|") }; });
+      try { await api("/api/analytics/device-move", { person: pid, keys }); closeModal(); toast(`${g.name} → ${to.find(x => x.id === pid).name}`, "ok"); S.ex.meta = null; loadAnalytics(); } catch (e) { toast(e.message, "err"); }
+    } }] });
+}
+
 document.addEventListener("click", e => {
+  const mv = e.target.closest("[data-ppmove]");
+  if (mv) { const p = S.ex.meta.people.find(x => x.id === mv.dataset.ppmove), g = p && ppGroups(p)[+mv.dataset.ppdevi]; if (g) ppMove(p, g); return; }
   const l = e.target.closest("[data-pplink]");
   if (l) { ppLinks("/api/device-links/link", { keys: JSON.parse(l.dataset.pplink) }, "One device now"); return; }
   const a = e.target.closest("[data-ppapart]");
@@ -362,7 +378,7 @@ document.addEventListener("click", e => {
     <div class="pp-names">${g.items.map(x => `<div class="pp-name"><span>${x.online ? onDot(true) : ""}<b>${esc(x.name)}</b> <span class="fine muted">${x.mac ? `Wi-Fi address <span class="mono">${esc(x.mac)}</span>` : "NextDNS"}${x.seen ? ` · seen ${esc(ago(x.seen))}` : ""}</span></span>
       ${g.items.length > 1 ? `<button class="btn sm ghost" data-ppsep="${esc(x.k)}">Not this device</button>` : ""}${x.mac && canRename(x.mac) ? `<button class="btn sm ghost" data-rename="${esc(x.mac)}">Rename</button>` : ""}</div>`).join("")}</div>
     ${others.length ? `<label style="margin-top:12px">Same device as<select id="pp-same"><option value="">Pick one of ${esc(p.name)}'s devices…</option>${others.map((o, i) => `<option value="${i}">${esc(o.name)}${o.active ? "" : " (older)"}</option>`).join("")}</select></label>` : ""}`,
-    buttons: [{ label: "Close" }, ...(others.length ? [{ label: "Join them", cls: "primary", onClick: () => { const v = $("#pp-same").value; if (v === "") return toast("Pick the device it's the same as", "err"); ppLinks("/api/device-links/link", { keys: [...g.keys, ...others[+v].keys] }, "One device now"); } }] : [])] });
+    buttons: [{ label: "Move to…", onClick: () => ppMove(p, g) }, { label: "Close" }, ...(others.length ? [{ label: "Join them", cls: "primary", onClick: () => { const v = $("#pp-same").value; if (v === "") return toast("Pick the device it's the same as", "err"); ppLinks("/api/device-links/link", { keys: [...g.keys, ...others[+v].keys] }, "One device now"); } }] : [])] });
   setTimeout(() => $$("[data-ppsep]").forEach(b => b.addEventListener("click", () => ppLinks("/api/device-links/separate", { keys: [b.dataset.ppsep], from: g.keys }, "Separated"))), 0);
 });
 // which of a person's own devices (phones, tablets, computers) have their NextDNS setup (setupwatch.go)

@@ -1064,6 +1064,8 @@ func (a *App) analyticsAdmin(op string, body map[string]any) (any, error) {
 		return map[string]any{"ok": err == nil, "id": id}, err
 	case "person-delete":
 		return map[string]any{"ok": true}, A.DeletePerson(s(body, "id"))
+	case "device-move":
+		return a.deviceMove(body)
 	case "rule-save":
 		pats := []string{}
 		if l, ok := body["patterns"].([]any); ok {

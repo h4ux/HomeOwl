@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.106] — 2026-11-16
+
+### Added
+- **Move to…** on each device in Family (⇄ on its chip, and in its names dialog): pick another person or a group such
+  as Servers. The device moves with all its names (Wi-Fi addresses and NextDNS), and its check-in follows, so a later
+  address change doesn't hand it back; it stops being the old owner's main device.
+
 ## [0.1.105] — 2026-11-16
 
 ### Added
