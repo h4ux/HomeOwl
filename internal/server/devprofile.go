@@ -162,6 +162,8 @@ func (a *App) deviceSetup(x CheckIn) map[string]any {
 		"doh":     "https://dns.nextdns.io/" + x.NDProfile + "/" + url.PathEscape(ndn),
 		"android": strings.TrimPrefix(label+"-", "-") + x.NDProfile + ".dns.nextdns.io",
 		"servers": []string{"45.90.28.0", "45.90.30.0", "2a07:a8c0::", "2a07:a8c1::"},
+		"name":    ndn,             // the name NextDNS should see (the check-in page compares test.nextdns.io's answer)
+		"names":   a.ndNameList(x), // and every name it's known by there (older spellings, names linked with "this is me")
 	}
 	return res
 }
@@ -582,3 +584,7 @@ func profileParts(x CheckIn, ex profileExtras) []string {
 	}
 	return parts
 }
+
+// tailscalePeerAt: the device at this home address runs Tailscale (HomeOwl's own node sees it as a peer). A var, so
+// tests don't need a tailnet.
+var tailscalePeerAt = func(a *App, ip string) (string, bool) { return a.TS.PeerAt(ip) }

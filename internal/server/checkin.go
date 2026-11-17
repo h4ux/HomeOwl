@@ -413,6 +413,9 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 			}
 			res["registered"] = a.deviceSetup(x)
 			res["mine"] = a.myDevice(x, c)
+			if _, on := tailscalePeerAt(a, ip); on { // its Tailscale DNS may take over from the profile (hi.js)
+				res["tailscale"] = true
+			}
 		}
 		send(w, 200, res)
 		return

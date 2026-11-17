@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.110] — 2026-11-17
+
+### Added
+- **Tailscale DNS warning on the check-in page.** The page asks NextDNS's own test (test.nextdns.io, from the
+  device) where its DNS goes. If NextDNS doesn't see the device by its name, it says so; and when HomeOwl's
+  built-in Tailscale node sees the device as a peer, it names Tailscale DNS as the cause, with where to turn it off
+  on a Mac, iPhone or iPad. Names linked with "this is me" count as the device's own.
+
 ## [0.1.109] — 2026-11-17
 
 ### Fixed

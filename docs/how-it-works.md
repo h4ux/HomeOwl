@@ -101,6 +101,14 @@ nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) 
 To give a device to someone else, or to a group like Servers, use **Move to…** (⇄) on its chip in Family. Every name
 the device has moves together, and its check-in follows, so a later address change keeps it with the new owner.
 
+### Is the device's DNS really going through its profile?
+
+The check-in page asks NextDNS's own test, test.nextdns.io, from the device itself (the page's security policy
+allows that one address and only on that page). The answer says whether the DNS reaches NextDNS and by what device
+name. When it isn't this device's name (or one linked with "this is me"), something else answers its DNS. A common
+cause is Tailscale with **Use Tailscale DNS** on: HomeOwl's built-in Tailscale node can see the device is a peer (one
+of its addresses is the device's home address), and then the warning names Tailscale and says where to turn it off.
+
 Admins get links to each NextDNS profile and its logs on my.nextdns.io (a new tab, signed in to NextDNS there): on a
 person's card in Family, on New devices and in the person editor. HomeOwl sends nothing to build them; they're plain
 links with the profile id.

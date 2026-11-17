@@ -434,7 +434,11 @@ func securityHeaders(h http.Handler) http.Handler {
 		hd.Set("X-Frame-Options", "DENY")
 		hd.Set("Referrer-Policy", "no-referrer")
 		hd.Set("Cache-Control", "no-store")
-		hd.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+		connect := "'self'"
+		if r.URL.Path == "/hi" || r.URL.Path == "/hi.html" { // the check-in page asks NextDNS's own test where this device's DNS goes
+			connect += " https://test.nextdns.io"
+		}
+		hd.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src "+connect+"; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
 		if r.TLS != nil {
 			hd.Set("Strict-Transport-Security", "max-age=31536000")
 		}

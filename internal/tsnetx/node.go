@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -136,6 +137,35 @@ func (n *Node) Status() map[string]any {
 		out["tailnet"] = st.CurrentTailnet.Name
 	}
 	return out
+}
+
+// PeerAt says whether a device on the home network (its LAN address) is a Tailscale peer of this node: one of the
+// peer's endpoints is that address. Its Tailscale DNS may then be answering instead of the device's own settings.
+func (n *Node) PeerAt(ip string) (host string, ok bool) {
+	n.mu.Lock()
+	s := n.srv
+	n.mu.Unlock()
+	if s == nil || ip == "" {
+		return "", false
+	}
+	lc, err := s.LocalClient()
+	if err != nil {
+		return "", false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	st, err := lc.Status(ctx)
+	if err != nil {
+		return "", false
+	}
+	for _, p := range st.Peer {
+		for _, a := range append([]string{p.CurAddr}, p.Addrs...) {
+			if h, _, err := net.SplitHostPort(a); err == nil && h == ip {
+				return p.HostName, true
+			}
+		}
+	}
+	return "", false
 }
 
 // WhoIs identifies the tailnet user behind a connection.

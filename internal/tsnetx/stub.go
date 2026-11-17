@@ -19,9 +19,10 @@ func (n *Node) Start(hostname, dir, key string, tags []string, h http.Handler) e
 	_ = mark
 	return errNo
 }
-func (n *Node) Stop()                  {}
-func (n *Node) Logout() error          { return nil }
-func (n *Node) Status() map[string]any { return map[string]any{"available": false, "running": false} }
+func (n *Node) Stop()                           {}
+func (n *Node) Logout() error                   { return nil }
+func (n *Node) Status() map[string]any          { return map[string]any{"available": false, "running": false} }
+func (n *Node) PeerAt(ip string) (string, bool) { return "", false }
 func (n *Node) WhoIs(ctx context.Context, remoteAddr string) (Identity, error) {
 	return Identity{}, errNo
 }

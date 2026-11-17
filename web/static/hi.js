@@ -166,13 +166,44 @@ function registered(st) {
   // the status and the guest Wi-Fi up top; everything else folded
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
     ${r.person ? `<p class="muted">It belongs to <b>${esc(r.person)}</b>.</p>` : ""}
-    ${myStatus(mine, r)}<div id="hi-guest"></div>
+    ${myStatus(mine, r)}<div id="hi-dnscheck"></div><div id="hi-guest"></div>
     ${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
     ${wifi.length && pf !== "ios" && pf !== "mac" ? hiFold("Home Wi-Fi", `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>`) : ""}
     ${setup ? hiFold(settled ? "Set up this device again" : r.update || ss.update ? "Install the update" : "Set up this device", myNDLinked(mine) + setup, "hi-setup-fold") : ""}
     <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
   if ($("#hi-wifi")) homeWiFi();
   guestWiFi();
+  if (nd && (r.profile_at || ["active", "quiet", "stopped", "not_seen"].includes(ss.state))) dnsCheck(st);
+}
+
+// where this device's DNS really goes, asked from the device itself: NextDNS's own test answers with the profile and
+// the device name it sees. Not this device's name (or nothing) while it's set up means something else answers its
+// DNS; HomeOwl's Tailscale node can tell when that's Tailscale (the device is a peer).
+async function dnsCheck(st) {
+  const el = $("#hi-dnscheck"), r = st.registered, stopped = st.mine?.setup?.state === "stopped";
+  const mine = new Set([r.nextdns?.name, r.name, ...(r.nextdns?.names || [])].filter(Boolean).map(n => String(n).trim().toLowerCase()));
+  if (!el) return;
+  let t = null;
+  try {
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 5000);
+    const res = await fetch("https://test.nextdns.io/", { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: ctl.signal });
+    clearTimeout(timer); t = await res.json();
+  } catch { t = null; } // blocked or offline: say nothing rather than guess
+  const ts = !!st.tailscale, pf = platform();
+  if (!t && !(ts && stopped)) return; // no test: only a stopped device that runs Tailscale is worth a guess
+  const seen = String(t?.deviceName || "").trim(), right = t?.status === "ok" && mine.has(seen.toLowerCase());
+  if (right) return;
+  const tsHow = pf === "mac" ? `Click the Tailscale icon in the menu bar, then turn off <strong>Use Tailscale DNS settings</strong>.`
+    : pf === "ios" ? `Open the Tailscale app, tap your account › <strong>Settings</strong>, and turn off <strong>Use Tailscale DNS</strong>.`
+    : `In the Tailscale app's settings, turn off <strong>Use Tailscale DNS</strong>.`;
+  const what = !t ? "" : t.status !== "ok" ? `NextDNS's own test says this device's DNS isn't reaching NextDNS right now.`
+    : seen ? `NextDNS sees this device as <strong>${esc(seen)}</strong>, not by its own name, so its DNS isn't going through its HomeOwl profile.`
+    : `NextDNS sees this device without a name, so its DNS isn't going through its HomeOwl profile.`;
+  el.innerHTML = `<div class="hi-stat warn"><span class="hi-stat-ic" aria-hidden="true">!</span><div>
+    <b>${ts ? (t ? "Tailscale is answering this device's DNS" : "Tailscale may be answering this device's DNS") : "Its DNS goes elsewhere"}</b>
+    <div class="fine">${what}${ts ? ` This device runs Tailscale${t ? "" : ", and NextDNS's test couldn't be reached to check"}: with Tailscale DNS on, Tailscale answers every lookup and the profile is skipped. ${tsHow}` : ""}</div>
+    ${ts ? `<p class="fine muted">Need Tailscale's names on this device? Keep it on, and in the Tailscale admin console set NextDNS as the tailnet's DNS instead; then link the name NextDNS shows here with "this is me".</p>` : ""}
+    <p class="fine muted"><a href="https://test.nextdns.io" target="_blank" rel="noopener noreferrer">Check it yourself</a> — status should be ok and deviceName ${esc(r.nextdns?.name || r.name)}.</p></div></div>`;
 }
 
 // the guest Wi-Fi: a visitor scans the code off this screen
