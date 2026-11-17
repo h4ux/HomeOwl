@@ -197,7 +197,7 @@ document.addEventListener("click", e => {
 });
 
 // ---- "my device" (myhome.go): is it OK, how it's connected, what was blocked on it
-const agoS = t => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
+const agoS = t => { const m = Math.round((Date.now() / 1000 - t) / 60); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} day${Math.round(m / 1440) === 1 ? "" : "s"} ago`; };
 function myStatus(mine, r) {
   const ss = mine.setup || {};
   const [ok, title, note, fix] = {
@@ -213,7 +213,9 @@ function myStatus(mine, r) {
   const good = ok && !upd, unsure = ok === null && !upd;
   // stopped: the usual reasons on an iPhone, iPad or Mac
   const why = ss.state === "stopped" ? `<details class="hi-why"><summary>Why, and how to fix it</summary><ul>
-      <li>Open <b>Settings</b> › <b>General</b> › <b>VPN &amp; Device Management</b> › <b>DNS</b>: <b>HomeOwl</b> should be there and selected (not <b>Automatic</b>). If it's missing, install the profile again under <b>Set up this device</b>.</li>
+      ${platform() === "mac" ? `<li>Open <b>System Settings</b> › <b>Network</b> › <b>VPN &amp; Filters</b>: under <b>DNS</b>, <b>HomeOwl</b> should be there and <b>Enabled</b>. If it's missing, install the profile again under <b>Set up this device</b> (then <b>System Settings</b> › <b>General</b> › <b>Device Management</b>).</li>`
+        : `<li>Open <b>Settings</b> › <b>General</b> › <b>VPN &amp; Device Management</b> › <b>DNS</b>: <b>HomeOwl</b> should be there and selected (not <b>Automatic</b>). If it's missing, install the profile again under <b>Set up this device</b>.</li>`}
+      <li>Open <a href="https://test.nextdns.io" target="_blank" rel="noopener noreferrer">test.nextdns.io</a> on this device: <b>status</b> should be <b>ok</b> and <b>deviceName</b> this device's name. <b>unconfigured</b> means its DNS isn't reaching NextDNS.</li>
       <li>A VPN app that brings its own DNS takes over while it's on (Tailscale with <b>Use Tailscale DNS</b>, other VPNs, ad blockers). Turn that DNS option off, or the VPN off, and check again in a few minutes.</li>
       <li><b>iCloud Private Relay</b> and <b>Limit IP Address Tracking</b> send some traffic past NextDNS, but not all of it.</li></ul>
       <p class="fine">This clears by itself within about 15 minutes of NextDNS seeing the device again.</p></details>` : "";
