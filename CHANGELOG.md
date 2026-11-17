@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.109] — 2026-11-17
+
+### Fixed
+- **"Protection stopped" on a Mac** now says where to look on a Mac (System Settings › Network › VPN & Filters ›
+  DNS) instead of the iPhone's menus, and every device gets a check at test.nextdns.io. "1 days ago" reads
+  "1 day ago".
+
 ## [0.1.108] — 2026-11-16
 
 ### Added
