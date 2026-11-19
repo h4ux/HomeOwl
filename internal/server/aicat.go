@@ -108,6 +108,15 @@ type aiSuggestion struct {
 
 const aiChunk = 100 // domains per request
 
+// aiChunkFor: a model at home gets smaller groups: shorter answers, so progress shows sooner and a group fits its
+// context window
+func aiChunkFor(ac aiConf) int {
+	if ac.Provider == "ollama" {
+		return 25
+	}
+	return aiChunk
+}
+
 func (a *App) aiCategoriesOp(op string, body map[string]any, by string) (any, error) {
 	switch op {
 	case "ai-status":
@@ -132,6 +141,8 @@ func (a *App) aiCategoriesOp(op string, body map[string]any, by string) (any, er
 			return nil, err
 		}
 		return map[string]any{"started": started, "job": a.aiJobs.progress()}, nil
+	case "ai-stop":
+		return map[string]any{"stopped": a.aiJobs.aiStop()}, nil
 	case "ai-pending":
 		l, err := a.aiPendingView()
 		return map[string]any{"suggestions": l, "categories": aiCategoryList(a)}, err
@@ -405,25 +416,31 @@ func aiOllama(ctx context.Context, ac aiConf, cats, domains []string) (string, e
 		return "", err
 	}
 	body := map[string]any{
-		"model": ac.Model, "stream": false, "format": aiSchema(cats), "options": map[string]any{"temperature": 0},
+		// Ollama's default context (2–4K tokens) is smaller than the question plus the answer: it then drops the start
+		// and the model can write on without end. So: room for both, and a cap on the answer.
+		"model": ac.Model, "stream": false, "format": aiSchema(cats),
+		"options":  map[string]any{"temperature": 0, "num_ctx": 8192, "num_predict": 4096},
 		"messages": []map[string]string{{"role": "system", "content": aiSystem}, {"role": "user", "content": aiPrompt(cats, domains)}},
 	}
 	var r struct {
 		Message struct {
 			Content string `json:"content"`
 		} `json:"message"`
-		Error string `json:"error"`
+		Error      string `json:"error"`
+		DoneReason string `json:"done_reason"`
 	}
 	code, err := aiPost(ctx, base+"/api/chat", nil, body, &r)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return "", fmt.Errorf("%s took over %d minutes for 100 domains: a smaller model, or a faster computer, would keep up", ac.Model, int(aiTimeout(ac).Minutes()))
+		return "", fmt.Errorf("%s took over %d minutes for 25 domains: a smaller model, or a faster computer, would keep up", ac.Model, int(aiTimeout(ac).Minutes()))
 	case err != nil:
 		return "", fmt.Errorf("couldn't reach Ollama at %s: %v", base, err)
 	case r.Error != "":
 		return "", fmt.Errorf("Ollama: %s", r.Error)
 	case code != 200:
 		return "", fmt.Errorf("Ollama answered %d", code)
+	case r.DoneReason == "length":
+		return "", fmt.Errorf("%s's answer was cut off", ac.Model)
 	}
 	return r.Message.Content, nil
 }

@@ -485,7 +485,7 @@ function catsBody() {
   return `<div class="grid g2"><div class="card"><h2>Categories <span class="muted fine">(click to explore)</span></h2><div id="ct-cats"></div></div>
       <div class="card"><h2>${S.ex.catAll ? "All domains" : "Uncategorized domains"}</h2>
         <div class="filters"><div class="seg"><button data-excatall="0" class="${S.ex.catAll ? "" : "on"}">Uncategorized</button><button data-excatall="1" class="${S.ex.catAll ? "on" : ""}">All domains</button></div></div>
-        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with AI</button><button class="btn sm" id="ct-aireview" type="button" hidden>Review suggestions</button><button class="btn sm ghost" id="ct-aisetup" type="button" title="Choose the model">⚙ Model</button>
+        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with AI</button><button class="btn sm danger" id="ct-aistop" type="button" hidden>Stop</button><button class="btn sm" id="ct-aireview" type="button" hidden>Review suggestions</button><button class="btn sm ghost" id="ct-aisetup" type="button" title="Choose the model">⚙ Model</button>
           <button class="btn sm" id="ct-csv" type="button">Download CSV</button><button class="btn sm" id="ct-prompt" type="button">Copy prompt for a chat</button>
           <label class="btn sm" for="ct-import">Import CSV</label><input type="file" id="ct-import" accept=".csv,text/csv,text/plain" hidden>
           <div class="fine muted ct-aistat" id="ct-aistat"></div>
@@ -562,7 +562,8 @@ async function ctAIStatus() {
   const j = st.job || {}, last = st.last;
   if (rv) { rv.hidden = !st.pending; rv.textContent = `Review ${fmtNum(st.pending)} suggestion${st.pending === 1 ? "" : "s"}`; }
   if (b) { b.disabled = !!j.running; b.textContent = j.running ? `Asking ${st.label}…` : "Suggest with AI"; }
-  el.textContent = j.running ? `${st.label}: ${fmtNum(j.done)} of ${fmtNum(j.total)} domains asked, ${fmtNum(j.found)} suggestions so far`
+  if ($("#ct-aistop")) $("#ct-aistop").hidden = !j.running;
+  el.textContent = j.running ? `${st.label}: ${fmtNum(j.done)} of ${fmtNum(j.total)} domains asked, ${fmtNum(j.found)} suggestions so far${j.started ? ` · running ${Math.max(1, Math.round((Date.now() / 1000 - j.started) / 60))} min` : ""}`
     : last ? `Last run ${fmtTime(last.at * 1000)}${last.by === "daily" ? " (daily)" : ""}: ${fmtNum(last.asked)} new domain${last.asked === 1 ? "" : "s"} asked, ${fmtNum(last.found)} suggestion${last.found === 1 ? "" : "s"}${last.left ? `, ${fmtNum(last.left)} left for next time` : ""}${last.error ? ` · stopped: ${last.error}` : ""}${st.daily ? " · runs daily" : ""}`
     : st.ready ? `${st.label}${st.daily ? " · runs daily" : ""}` : "";
   clearTimeout(CT_POLL);
@@ -655,6 +656,7 @@ document.addEventListener("click", e => {
   if (id === "ct-ai") return ctAI();
   if (id === "ct-aisetup") return ctAISetup(null, false);
   if (id === "ct-aireview") return ctReviewPending(false);
+  if (id === "ct-aistop") return api("/api/analytics/ai-stop", {}).then(() => { toast("Stopping after the group in flight; everything asked so far is kept", "ok"); ctAIStatus(); }).catch(err => toast(err.message, "err"));
   if (id === "ct-csv") return ctCsv();
   if (id === "ct-prompt") return ctPrompt();
   const all = e.target.closest("[data-ctall]"); if (all) $$("[data-ctrow]").forEach(c => { c.checked = all.dataset.ctall === "1"; });

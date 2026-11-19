@@ -92,6 +92,23 @@ func TestAIJob(t *testing.T) {
 	if strings.Join(sent, " ") != "example-cdn.net example-video.com" {
 		t.Fatalf("retry sent %v", sent)
 	}
+	// Stop: the group in flight is cancelled, nothing of it is marked asked, the run ends
+	a.aiJobs.update(func(st *aiState) { delete(st.Asked, "example-video.com") })
+	aiCategorize = func(ctx context.Context, _ aiConf, _, doms []string) ([]aiSuggestion, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	run()
+	for i := 0; i < 100 && !a.aiJobs.aiStop(); i++ {
+		time.Sleep(5 * time.Millisecond)
+	}
+	wait()
+	a.aiJobs.mu.Lock()
+	st2 := a.aiJobs.load()
+	a.aiJobs.mu.Unlock()
+	if _, asked := st2.Asked["example-video.com"]; asked || st2.Last.Error != "stopped" {
+		t.Fatalf("after stop: asked=%v last=%+v", asked, st2.Last)
+	}
 	p, _ := a.analyticsAdmin("ai-pending", nil)
 	if l := p.(map[string]any)["suggestions"].([]aiPending); len(l) != 1 || l[0].Domain != "example-games.com" {
 		t.Fatalf("pending %+v", l)
@@ -174,6 +191,9 @@ func TestAIProviders(t *testing.T) {
 	l, err := aiCategorize(context.Background(), ac, []string{"Games", "Streaming"}, []string{"example-games.com", "x.example"})
 	if err != nil || len(l) != 1 || l[0].Category != "Games" {
 		t.Fatalf("ollama: %+v %v", l, err)
+	}
+	if opts, _ := got["options"].(map[string]any); opts["num_ctx"] != float64(8192) || opts["num_predict"] == nil || aiChunkFor(ac) != 25 {
+		t.Fatalf("ollama options: %v", got["options"])
 	}
 	if got["model"] != "llama3.1:8b" || got["stream"] != false || got["format"] == nil {
 		t.Fatalf("request: %v", got)

@@ -1101,7 +1101,7 @@ func (a *App) analyticsAdmin(op string, body map[string]any) (any, error) {
 			a.aiDone(doms) // reviewed suggestions leave the waiting list
 		}
 		return map[string]any{"saved": n, "skipped": nz(skipped)}, err
-	case "ai-status", "ai-setup", "ai-models", "ai-run", "ai-pending", "ai-dismiss":
+	case "ai-status", "ai-setup", "ai-models", "ai-run", "ai-stop", "ai-pending", "ai-dismiss":
 		return a.aiCategoriesOp(op, body, "admin")
 	case "recategorize":
 		_, err := A.RefreshCategories(true)

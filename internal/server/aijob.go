@@ -71,6 +71,18 @@ type aiJobs struct {
 	path string
 	pmu  sync.Mutex // progress
 	prog aiProgress
+	stop context.CancelFunc // the running job's
+}
+
+// aiStop ends the running job after nothing more than the group in flight (what was asked is kept).
+func (j *aiJobs) aiStop() bool {
+	j.pmu.Lock()
+	defer j.pmu.Unlock()
+	if j.stop == nil || !j.prog.Running {
+		return false
+	}
+	j.stop()
+	return true
 }
 
 func newAIJobs(dir string) *aiJobs { return &aiJobs{path: filepath.Join(dir, "ai-categories.json")} }
@@ -157,11 +169,16 @@ func (a *App) aiStart(by string) (bool, error) {
 	if !started {
 		return false, nil
 	}
-	go a.aiRun(ac, by)
+	ctx, cancel := context.WithCancel(context.Background())
+	j.setProgress(func(*aiProgress) { j.stop = cancel })
+	go func() {
+		defer cancel()
+		a.aiRun(ctx, ac, by)
+	}()
 	return true, nil
 }
 
-func (a *App) aiRun(ac aiConf, by string) {
+func (a *App) aiRun(job context.Context, ac aiConf, by string) {
 	j, now := a.aiJobs, time.Now()
 	info := aiRunInfo{At: now.Unix(), Model: ac.label(), By: by}
 	defer func() {
@@ -188,9 +205,14 @@ func (a *App) aiRun(ac aiConf, by string) {
 	}
 	j.setProgress(func(p *aiProgress) { p.Total = len(todo) })
 	cats := aiCategoryList(a)
-	for i := 0; i < len(todo); i += aiChunk {
-		part := todo[i:min(i+aiChunk, len(todo))]
-		ctx, cancel := context.WithTimeout(context.Background(), aiTimeout(ac))
+	chunk := aiChunkFor(ac)
+	for i := 0; i < len(todo); i += chunk {
+		part := todo[i:min(i+chunk, len(todo))]
+		if job.Err() != nil {
+			info.Error = "stopped"
+			return
+		}
+		ctx, cancel := context.WithTimeout(job, aiTimeout(ac))
 		asked := map[string]bool{}
 		for _, d := range part {
 			asked[d] = true
@@ -199,6 +221,9 @@ func (a *App) aiRun(ac aiConf, by string) {
 		cancel()
 		if err != nil {
 			info.Error = err.Error()
+			if job.Err() != nil {
+				info.Error = "stopped"
+			}
 			return // what was asked so far is saved; the rest is next run's
 		}
 		got = aiKeepKnown(got, asked, cats)

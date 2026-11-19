@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.117] — 2026-11-19
+
+### Fixed
+- **Ollama suggestions stuck at "0 of … domains asked".** Ollama's default context window is smaller than the
+  question plus 100 answers, and when it overflows the model can write on without end. HomeOwl now asks for an 8K
+  context and caps the answer, and sends a local model 25 domains at a time so progress shows sooner.
+
+### Added
+- A **Stop** button while suggestions run, and how long the run has been going. Everything asked so far is kept.
+
 ## [0.1.116] — 2026-11-19
 
 ### Fixed
