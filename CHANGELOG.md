@@ -4,6 +4,12 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.116] — 2026-11-19
+
+### Fixed
+- **Ollama suggestions on slower computers.** A group of 100 domains had 3 minutes, which a 14B model on a laptop can
+  need; a local model now gets 20 minutes per group (hosted ones keep 4), and a timeout says what to change.
+
 ## [0.1.115] — 2026-11-19
 
 ### Fixed

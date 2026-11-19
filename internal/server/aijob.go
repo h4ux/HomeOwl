@@ -190,7 +190,7 @@ func (a *App) aiRun(ac aiConf, by string) {
 	cats := aiCategoryList(a)
 	for i := 0; i < len(todo); i += aiChunk {
 		part := todo[i:min(i+aiChunk, len(todo))]
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), aiTimeout(ac))
 		asked := map[string]bool{}
 		for _, d := range part {
 			asked[d] = true

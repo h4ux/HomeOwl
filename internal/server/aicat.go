@@ -276,7 +276,17 @@ func aiKeepKnown(l []aiSuggestion, asked map[string]bool, cats []string) []aiSug
 	return out
 }
 
-var aiHTTP = &http.Client{Timeout: 3 * time.Minute}
+// aiHTTP: each request's context sets its time limit (aiTimeout)
+var aiHTTP = &http.Client{}
+
+// aiTimeout: how long one group of 100 may take. A model on a computer at home writes much slower than a hosted
+// one (a 14B model on a laptop can need several minutes), so Ollama gets far longer.
+func aiTimeout(ac aiConf) time.Duration {
+	if ac.Provider == "ollama" {
+		return 20 * time.Minute
+	}
+	return 4 * time.Minute
+}
 
 const aiSystem = "You sort internet domain names, seen in a family's DNS logs, into categories for a home network dashboard. " +
 	"For each domain, pick the one category from the list that fits the service it belongs to (a CDN or API domain goes with the app or company it serves). " +
@@ -406,6 +416,8 @@ func aiOllama(ctx context.Context, ac aiConf, cats, domains []string) (string, e
 	}
 	code, err := aiPost(ctx, base+"/api/chat", nil, body, &r)
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "", fmt.Errorf("%s took over %d minutes for 100 domains: a smaller model, or a faster computer, would keep up", ac.Model, int(aiTimeout(ac).Minutes()))
 	case err != nil:
 		return "", fmt.Errorf("couldn't reach Ollama at %s: %v", base, err)
 	case r.Error != "":
