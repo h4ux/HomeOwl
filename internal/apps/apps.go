@@ -86,6 +86,39 @@ func init() {
 	}
 }
 
+// Keep: a part of an app that can stay while the rest is blocked. Its own host goes on the allowlist (which wins
+// over the denylist in NextDNS), and the domains both parts share aren't blocked: YouTube Music streams from
+// googlevideo.com and shows ytimg.com pictures, like YouTube does. Only the website and the app's own domains are
+// blocked then, so the YouTube app may still partly work — pair it with Screen Time or Family Link for the app.
+type Keep struct {
+	Label  string   `json:"label"`
+	Shared []string `json:"shared"`
+	Allow  []string `json:"allow"`
+}
+
+var Keeps = map[string]Keep{
+	"youtube": {Label: "Keep YouTube Music", Shared: []string{"googlevideo.com", "ytimg.com"}, Allow: []string{"music.youtube.com"}},
+}
+
+// BlockRoots: the domains a block puts on the denylist (keep: without the ones the kept part needs).
+func BlockRoots(a App, keep bool) []string {
+	k, ok := Keeps[a.ID]
+	if !keep || !ok {
+		return a.Roots
+	}
+	var out []string
+	for _, r := range a.Roots {
+		shared := false
+		for _, s := range k.Shared {
+			shared = shared || s == r
+		}
+		if !shared {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 // Get finds an app by ID.
 func Get(id string) (App, bool) { a, ok := byID[id]; return a, ok }
 

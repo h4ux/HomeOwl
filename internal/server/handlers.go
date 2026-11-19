@@ -1083,6 +1083,19 @@ func (a *App) analyticsAdmin(op string, body map[string]any) (any, error) {
 		return map[string]any{"ok": true}, nil
 	case "rule-delete":
 		return map[string]any{"ok": true}, A.DeleteRule(s(body, "pattern"))
+	case "rules-import":
+		var rules [][2]string
+		for _, x := range anyArr(body["rules"]) {
+			m, _ := x.(map[string]any)
+			rules = append(rules, [2]string{s(m, "pattern"), s(m, "category")})
+		}
+		if len(rules) == 0 || len(rules) > 2000 {
+			return nil, errors.New("send 1 to 2000 rules")
+		}
+		n, skipped, err := A.SaveRules(rules)
+		return map[string]any{"saved": n, "skipped": nz(skipped)}, err
+	case "ai-status", "ai-key", "ai-categorize":
+		return a.aiCategoriesOp(op, body)
 	case "recategorize":
 		_, err := A.RefreshCategories(true)
 		return map[string]any{"ok": true}, err

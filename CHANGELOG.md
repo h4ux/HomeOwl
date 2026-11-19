@@ -4,6 +4,21 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.112] — 2026-11-19
+
+### Added
+- **Fill in uncategorized domains** (Family › Categories). *Suggest with Claude* sends the uncategorized domain names
+  (only the names) and your category list to Claude with your own Anthropic API key, kept in the keychain. Or
+  *Download CSV*, give it with *Copy prompt for a chat* to any AI chat, and *Import CSV* with its answer. Either way
+  every suggestion is shown for review, with its category changeable, before the ticked ones are saved as rules.
+- **Block YouTube but keep YouTube Music**, per NextDNS profile (Apps › Block). With *Keep YouTube Music* on, the
+  block leaves the streaming domains both share (googlevideo.com, ytimg.com) open and puts music.youtube.com on the
+  profile's allowlist. It stops the YouTube website; the YouTube app can partly keep working through the shared
+  domains, so pair it with Screen Time or Family Link.
+
+### Changed
+- Building needs Go 1.25 or later (the Anthropic Go SDK).
+
 ## [0.1.111] — 2026-11-19
 
 ### Fixed

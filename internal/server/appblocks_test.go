@@ -12,6 +12,7 @@ import (
 // fakeDeny is a NextDNS denylist per profile.
 type fakeDeny struct {
 	lists map[string]map[string]bool
+	allow map[string]map[string]bool
 	calls []string
 	fail  bool
 }
@@ -43,6 +44,78 @@ func (f *fakeDeny) NDDenyRemove(p, d string) error {
 	delete(f.lists[p], d)
 	f.calls = append(f.calls, "remove "+p+" "+d)
 	return nil
+}
+
+func (f *fakeDeny) NDAllowAdd(p, d string) error {
+	if f.allow == nil {
+		f.allow = map[string]map[string]bool{}
+	}
+	if f.allow[p] == nil {
+		f.allow[p] = map[string]bool{}
+	}
+	if f.allow[p][d] {
+		return errors.New("NextDNS API 400: duplicate")
+	}
+	f.allow[p][d] = true
+	return nil
+}
+func (f *fakeDeny) NDAllowRemove(p, d string) error {
+	delete(f.allow[p], d)
+	return nil
+}
+
+// Blocking YouTube but keeping YouTube Music: the shared streaming domains stay open and music.youtube.com goes on
+// the allowlist, for the chosen profiles only; switching it off blocks all of YouTube again.
+func TestAppBlockKeepMusic(t *testing.T) {
+	a := checkinApp(t)
+	f := &fakeDeny{lists: map[string]map[string]bool{}}
+	old := appDenyFor
+	appDenyFor = func(*App) ndDeny { return f }
+	defer func() { appDenyFor = old }()
+	if _, err := a.saveAppBlock(map[string]any{"app": "youtube", "profiles": []any{"abc123"}, "keep": true}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.lists["abc123"]["youtube.com"] || f.lists["abc123"]["googlevideo.com"] || f.lists["abc123"]["ytimg.com"] || !f.allow["abc123"]["music.youtube.com"] {
+		t.Fatalf("keep music: deny %v allow %v", f.lists, f.allow)
+	}
+	if _, err := a.saveAppBlock(map[string]any{"app": "youtube", "profiles": []any{"def456"}}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.lists["def456"]["googlevideo.com"] || f.allow["def456"]["music.youtube.com"] {
+		t.Fatal("another profile's full block got the music exception")
+	}
+	b := a.appBlocks.load()[0]
+	if _, err := a.saveAppBlock(map[string]any{"id": b.ID, "app": "youtube", "profiles": []any{"abc123"}}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.lists["abc123"]["googlevideo.com"] || f.allow["abc123"]["music.youtube.com"] {
+		t.Fatalf("keep off: deny %v allow %v", f.lists["abc123"], f.allow["abc123"])
+	}
+	// on again, then the block deleted: everything HomeOwl added is gone
+	if _, err := a.saveAppBlock(map[string]any{"id": b.ID, "app": "youtube", "profiles": []any{"abc123"}, "keep": true}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if f.lists["abc123"]["googlevideo.com"] || !f.allow["abc123"]["music.youtube.com"] {
+		t.Fatalf("keep on again: deny %v allow %v", f.lists["abc123"], f.allow["abc123"])
+	}
+	if err := a.deleteAppBlock(b.ID, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.lists["abc123"]) != 0 || len(f.allow["abc123"]) != 0 {
+		t.Fatalf("left behind: deny %v allow %v", f.lists["abc123"], f.allow["abc123"])
+	}
+	// an allowlist entry that was there before isn't HomeOwl's to remove
+	f.allow["abc123"] = map[string]bool{"music.youtube.com": true}
+	if _, err := a.saveAppBlock(map[string]any{"app": "youtube", "profiles": []any{"abc123"}, "keep": true}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	b = a.appBlocks.load()[1]
+	if err := a.deleteAppBlock(b.ID, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if !f.allow["abc123"]["music.youtube.com"] {
+		t.Fatal("removed an allowlist entry it didn't add")
+	}
 }
 
 func TestBlockedNow(t *testing.T) {

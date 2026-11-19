@@ -38,7 +38,7 @@ function renderAppBlocks() {
   if (!b.blocks.length) { el.innerHTML = ""; return; }
   el.innerHTML = `<div class="card"><h2>Blocked apps</h2><div class="ap-blocks">${b.blocks.map(x => `<div class="ap-block">
       <div>${apLogo(x.app, x.name)}<b>${esc(x.name)}</b> <span class="tag ${x.error ? "bad" : x.blocked_now ? "warn" : "good"}">${x.error ? "needs attention" : x.blocked_now ? "blocked now" : "allowed now"}</span>
-        <div class="fine muted">${esc(x.mode === "schedule" ? "Blocked " + x.when : "Always blocked")} · ${esc(apPeople(x.profiles))}</div>
+        <div class="fine muted">${esc(x.mode === "schedule" ? "Blocked " + x.when : "Always blocked")}${x.keep && b.keeps?.[x.app] ? ` · ${esc(b.keeps[x.app].label.replace(/^Keep /, ""))} allowed` : ""} · ${esc(apPeople(x.profiles))}</div>
         ${x.error ? `<div class="fine bad-t">${esc(x.error)}</div>` : ""}</div>
       <div class="btnrow"><button class="btn sm" data-apedit="${esc(x.id)}">Change</button><button class="btn sm danger" data-apdel="${esc(x.id)}">Unblock</button></div></div>`).join("")}</div></div>`;
 }
@@ -97,6 +97,8 @@ function apEdit(block, appId) {
   openModal({ title: block ? `Change the ${b.name || "app"} block` : "Block an app", body: `
     <label>App<select id="ap-app" ${block ? "disabled" : ""}>${Object.keys(byCat).map(c => `<optgroup label="${esc(c)}">${byCat[c].map(a => `<option value="${esc(a.id)}" ${a.id === b.app ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</optgroup>`).join("")}</select></label>
     <p class="fine muted" id="ap-doms"></p>
+    <div id="ap-keep" hidden><label class="check"><input type="checkbox" id="ap-keepon" ${b.keep ? "checked" : ""}> <b id="ap-keeplabel"></b></label>
+      <p class="fine muted" id="ap-keepnote"></p></div>
     <h3>For the people on these NextDNS profiles</h3><div>
       ${pf.length ? `<div class="ap-pf">${pf.map(p => `<label class="check"><input type="checkbox" value="${esc(p.id)}" ${b.profiles.includes(p.id) ? "checked" : ""}> <b>${esc(p.name)}</b> <span class="fine muted">${esc(p.people.join(", ") || "no one attached")}</span></label>`).join("")}</div>`
       : `<p class="bad-t fine">HomeOwl can't read your NextDNS profiles. Check the API key in Settings › Analytics.</p>`}
@@ -108,14 +110,26 @@ function apEdit(block, appId) {
       <p class="fine muted">A time that ends before it starts runs to the next morning (21:00 to 07:00 on Sunday is Sunday night). HomeOwl switches the block on and off, so it has to be running.</p></div>`,
     buttons: [{ label: "Cancel" }, { label: block ? "Save" : "Block", cls: "primary", onClick: async () => {
       const body = { id: block?.id || "", app: $("#ap-app").value, profiles: $$(".ap-pf input:checked").map(x => x.value),
-        mode: $("[data-apmode].on")?.dataset.apmode || "always", days: $$("[data-apday]:checked").map(x => +x.dataset.apday), from: $("#ap-from").value, to: $("#ap-to").value };
+        keep: !!$("#ap-keepon")?.checked && !$("#ap-keep").hidden, mode: $("[data-apmode].on")?.dataset.apmode || "always", days: $$("[data-apday]:checked").map(x => +x.dataset.apday), from: $("#ap-from").value, to: $("#ap-to").value };
       try { S.apps.blocks = { ...S.apps.blocks, ...(await api("/api/appblocks/save", body)) }; closeModal(); toast(`${apApp(body.app)?.name || "App"} ${body.mode === "schedule" ? "will be blocked on schedule" : "blocked"}`, "ok"); }
       catch (e) { toast(e.message, "err"); S.apps.blocks = null; }
       loadApps();
     } }] });
   apDoms();
 }
-function apDoms() { const a = apApp($("#ap-app")?.value); if ($("#ap-doms")) $("#ap-doms").textContent = a ? `Blocks ${a.roots.join(", ")} and their subdomains.` : ""; }
+// apDoms: what the block covers; an app with a part that can stay (YouTube Music) gets its switch
+function apDoms() {
+  const a = apApp($("#ap-app")?.value), k = a && S.apps.blocks?.keeps?.[a.id], on = !!k && !!$("#ap-keepon")?.checked;
+  if ($("#ap-keep")) {
+    $("#ap-keep").hidden = !k;
+    if (k) {
+      $("#ap-keeplabel").textContent = k.label;
+      $("#ap-keepnote").textContent = `Puts ${k.allow.join(", ")} on these profiles' allowlist and leaves ${k.shared.join(", ")} open, since both use them. The ${a.name} website is blocked; the ${a.name} app can partly keep working through the shared domains, so also block the app itself with Screen Time (iPhone) or Family Link (Android).`;
+    }
+  }
+  if ($("#ap-doms")) $("#ap-doms").textContent = a ? `Blocks ${(on ? a.roots.filter(r => !k.shared.includes(r)) : a.roots).join(", ")} and their subdomains.` : "";
+}
+document.addEventListener("change", e => { if (e.target.id === "ap-keepon") apDoms(); });
 
 document.addEventListener("click", e => {
   const g = s => e.target.closest(s); let x;

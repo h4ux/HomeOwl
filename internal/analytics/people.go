@@ -122,6 +122,14 @@ func (e *Engine) ApplyLocalTime(reset bool) {
 
 // ---- categories
 
+// Rules lists the admin's category rules.
+func (e *Engine) Rules() []categories.Rule {
+	if e.db == nil {
+		return nil
+	}
+	return e.rules()
+}
+
 func (e *Engine) rules() []categories.Rule {
 	rows, err := e.db.Query("SELECT pattern, category FROM category_rules ORDER BY length(pattern) DESC")
 	if err != nil {
@@ -206,6 +214,38 @@ func (e *Engine) SaveRule(pattern, category string) error {
 	}
 	_, err = e.RefreshCategories(true)
 	return err
+}
+
+// SaveRules adds many rules at once (an imported list, or suggestions an admin accepted) and refreshes the categories
+// once. Bad rows are skipped and named in skipped.
+func (e *Engine) SaveRules(rules [][2]string) (saved int, skipped []string, err error) {
+	if e.db == nil {
+		return 0, nil, errors.New("analytics isn't running")
+	}
+	now := utcnow()
+	e.wmu.Lock()
+	for _, r := range rules {
+		pattern, category := strings.ToLower(strings.TrimSpace(r[0])), strings.TrimSpace(r[1])
+		if len(category) > 60 {
+			category = category[:60]
+		}
+		if pattern == "" || len(pattern) > 200 || !rulePatternRE.MatchString(pattern) || category == "" || strings.EqualFold(category, "Uncategorized") {
+			skipped = append(skipped, r[0])
+			continue
+		}
+		if _, err = e.db.Exec("INSERT OR REPLACE INTO category_rules VALUES (?,?,?)", pattern, category, now); err != nil {
+			break
+		}
+		saved++
+	}
+	e.wmu.Unlock()
+	if err != nil {
+		return saved, skipped, err
+	}
+	if saved > 0 {
+		_, err = e.RefreshCategories(true)
+	}
+	return saved, skipped, err
 }
 
 func (e *Engine) DeleteRule(pattern string) error {

@@ -34,11 +34,15 @@ type AppBlock struct {
 	From     string              `json:"from,omitempty"` // "21:00"
 	To       string              `json:"to,omitempty"`   // "07:00" (the next morning when before From)
 	Owned    map[string][]string `json:"owned,omitempty"`
-	Applied  *bool               `json:"applied,omitempty"` // the state last written to NextDNS
-	Checked  int64               `json:"checked,omitempty"`
-	Error    string              `json:"error,omitempty"`
-	By       string              `json:"by,omitempty"`
-	At       int64               `json:"at,omitempty"`
+	// Keep: the app's kept part stays reachable (apps.Keeps: YouTube Music); Allowed: the allowlist entries HomeOwl
+	// added for it, per profile
+	Keep    bool                `json:"keep,omitempty"`
+	Allowed map[string][]string `json:"allowed,omitempty"`
+	Applied *bool               `json:"applied,omitempty"` // the state last written to NextDNS
+	Checked int64               `json:"checked,omitempty"`
+	Error   string              `json:"error,omitempty"`
+	By      string              `json:"by,omitempty"`
+	At      int64               `json:"at,omitempty"`
 }
 
 type appBlocks struct {
@@ -96,6 +100,8 @@ type ndDeny interface {
 	NDDenyAdd(profile, domain string, active bool) error
 	NDDenySet(profile, domain string, active bool) error
 	NDDenyRemove(profile, domain string) error
+	NDAllowAdd(profile, domain string) error
+	NDAllowRemove(profile, domain string) error
 }
 
 var appDenyFor = func(a *App) ndDeny { return a.An }
@@ -121,8 +127,49 @@ func (a *App) applyBlock(b *AppBlock, want bool, nd ndDeny) (changed []string, e
 	if b.Owned == nil {
 		b.Owned = map[string][]string{}
 	}
+	if b.Allowed == nil {
+		b.Allowed = map[string][]string{}
+	}
+	roots := apps.BlockRoots(app, b.Keep)
 	var errs []string
 	for _, p := range b.Profiles {
+		// the kept part: on the allowlist while Keep is on (whether or not it's blocked right now), off when it isn't
+		if k, ok := apps.Keeps[app.ID]; ok && b.Keep {
+			for _, d := range k.Allow {
+				if inList(b.Allowed[p], d) {
+					continue
+				}
+				if err := nd.NDAllowAdd(p, d); err != nil {
+					if !strings.Contains(strings.ToLower(err.Error()), "duplicate") { // already allowed: not ours
+						errs = append(errs, p+": "+err.Error())
+					}
+					continue
+				}
+				b.Allowed[p] = append(b.Allowed[p], d)
+				changed = append(changed, "allow "+d)
+			}
+		} else {
+			changed = append(changed, a.dropAllowed(b, p, nd, &errs)...)
+		}
+		// entries HomeOwl added that the block no longer has (Keep switched on): out
+		var own []string
+		for _, d := range b.Owned[p] {
+			if inList(roots, d) {
+				own = append(own, d)
+				continue
+			}
+			if err := nd.NDDenyRemove(p, d); err != nil && !strings.Contains(err.Error(), "404") {
+				errs = append(errs, p+": "+err.Error())
+				own = append(own, d)
+				continue
+			}
+			changed = append(changed, "unblock "+d)
+		}
+		if len(own) > 0 {
+			b.Owned[p] = own
+		} else {
+			delete(b.Owned, p)
+		}
 		list, err := nd.NDDenylist(p)
 		if err != nil {
 			errs = append(errs, p+": "+err.Error())
@@ -132,7 +179,7 @@ func (a *App) applyBlock(b *AppBlock, want bool, nd ndDeny) (changed []string, e
 		for _, x := range list {
 			cur[x.ID] = x.Active
 		}
-		for _, d := range app.Roots {
+		for _, d := range roots {
 			active, there := cur[d]
 			switch {
 			case !there:
@@ -159,9 +206,33 @@ func (a *App) applyBlock(b *AppBlock, want bool, nd ndDeny) (changed []string, e
 	return changed, nil
 }
 
+// dropAllowed takes the allowlist entries HomeOwl added for the kept part off a profile.
+func (a *App) dropAllowed(b *AppBlock, p string, nd ndDeny, errs *[]string) (removed []string) {
+	var left []string
+	for _, d := range b.Allowed[p] {
+		if err := nd.NDAllowRemove(p, d); err != nil && !strings.Contains(err.Error(), "404") {
+			*errs = append(*errs, p+": "+err.Error())
+			left = append(left, d)
+			continue
+		}
+		removed = append(removed, "allow "+d+" removed")
+	}
+	if len(left) > 0 {
+		b.Allowed[p] = left
+	} else {
+		delete(b.Allowed, p)
+	}
+	return removed
+}
+
 // unblock takes out the entries HomeOwl added (only those) from the profiles it no longer covers (all, when keep is nil).
 func (a *App) unblock(b *AppBlock, keep []string, nd ndDeny) (removed []string, err error) {
 	var errs []string
+	for p := range b.Allowed {
+		if !inList(keep, p) {
+			removed = append(removed, a.dropAllowed(b, p, nd, &errs)...)
+		}
+	}
 	for p, doms := range b.Owned {
 		if inList(keep, p) {
 			continue
@@ -219,6 +290,8 @@ func (a *App) saveAppBlock(body map[string]any, by string) (map[string]any, erro
 		return nil, errors.New("analytics isn't running")
 	}
 	nb := AppBlock{ID: s(body, "id"), App: s(body, "app"), Mode: s(body, "mode"), From: s(body, "from"), To: s(body, "to"), By: by, At: time.Now().UnixMilli()}
+	_, keeps := apps.Keeps[nb.App]
+	nb.Keep = keeps && b(body, "keep")
 	if _, ok := apps.Get(nb.App); !ok {
 		return nil, errors.New("unknown app")
 	}
@@ -261,7 +334,7 @@ func (a *App) storeBlock(nb AppBlock, by string) error {
 	for i, x := range l {
 		if x.ID == nb.ID && nb.ID != "" {
 			idx = i
-			nb.Owned = x.Owned
+			nb.Owned, nb.Allowed = x.Owned, x.Allowed
 			continue
 		}
 		if x.App == nb.App {
@@ -452,5 +525,5 @@ func (a *App) appBlocksView() map[string]any {
 		}
 		profiles = append(profiles, map[string]any{"id": p.ID, "name": p.Name, "people": ppl})
 	}
-	return map[string]any{"blocks": rows, "apps": apps.Catalog, "profiles": profiles}
+	return map[string]any{"blocks": rows, "apps": apps.Catalog, "profiles": profiles, "keeps": apps.Keeps}
 }

@@ -8,7 +8,7 @@ Start with CONTRIBUTING.md (layout table, dev setup) and ROADMAP.md (what's plan
 
 ## Build, run, test
 
-- Go 1.24+, cgo required (DuckDB is linked in). On macOS: Xcode Command Line Tools.
+- Go 1.25+, cgo required (DuckDB is linked in). On macOS: Xcode Command Line Tools.
 - `make build-lite` — fast build without Tailscale (`-tags notsnet`).
 - `make tidy build` — full build; `tidy` fetches `tailscale.com/tsnet`, which is intentionally
   NOT pinned in go.mod (CI runs the same fetch). Don't commit a go.mod that requires tsnet.

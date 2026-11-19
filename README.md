@@ -123,7 +123,7 @@ Found a problem? Please report it privately — see [SECURITY.md](SECURITY.md).
 
 ## Build from source
 
-Requirements: Go 1.24+ and a C compiler (DuckDB is linked in via cgo).
+Requirements: Go 1.25+ and a C compiler (DuckDB is linked in via cgo).
 
 ```sh
 git clone https://github.com/h4ux/HomeOwl && cd HomeOwl

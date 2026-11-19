@@ -101,6 +101,22 @@ nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) 
 To give a device to someone else, or to a group like Servers, use **Move to…** (⇄) on its chip in Family. Every name
 the device has moves together, and its check-in follows, so a later address change keeps it with the new owner.
 
+### Filling in uncategorized domains
+
+Family › Categories lists the domains no built-in category or rule covers. An admin can add an Anthropic API key
+(kept in the keychain, never sent to the browser) and ask Claude for suggestions: HomeOwl sends only the domain
+names and the category list, nothing about devices, people or times, and keeps only answers for domains it asked
+about with a category on the list. Without a key, the list downloads as a CSV with a prompt to give any AI chat, and
+its answer imports back. Suggestions are always reviewed before they become rules.
+
+### Blocking YouTube but keeping YouTube Music
+
+An app block on YouTube can keep YouTube Music. Both use the same streaming (googlevideo.com) and picture
+(ytimg.com) domains, so those stay open, and music.youtube.com goes on the profile's allowlist, which wins over the
+denylist. HomeOwl removes only the allowlist entries it added. DNS can't tell the two apps apart completely: the
+YouTube website is blocked, but the YouTube app can partly keep working, so Screen Time or Family Link should block
+the app itself.
+
 ### Rotating private Wi-Fi addresses
 
 iOS 18 and macOS 15 can rotate a device's private Wi-Fi address on a network. HomeOwl remembers the host name each

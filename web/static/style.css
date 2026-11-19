@@ -1023,3 +1023,9 @@ svg.tv-plan{display:block;width:100%;min-width:620px;height:auto;user-select:non
 .tv-pill.dead{opacity:.6;text-decoration:line-through}
 .tv-pill:hover{border-color:#fff}.tv-pill:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .tv-rt td,.tv-rt th{vertical-align:middle}.tv-rt select{max-width:160px}
+/* Categories: filling in uncategorized domains */
+.ct-tools{margin:8px 0;flex-wrap:wrap;align-items:center}
+.ct-tools label.btn{cursor:pointer}
+.ct-prompt-pre{white-space:pre-wrap;background:var(--bg2,var(--card));padding:10px;border-radius:8px;font-size:12px;max-height:50vh;overflow:auto}
+.ct-review td{vertical-align:middle}
+.ct-review select{padding:4px 6px;max-width:220px}

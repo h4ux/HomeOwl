@@ -10,7 +10,7 @@ Thanks for helping! Bug reports, ideas, docs and code are all welcome.
 
 ## Development setup
 
-You need Go 1.24+ and a C compiler (cgo, for the embedded DuckDB): Xcode Command Line Tools on macOS, `build-essential` on Linux, MinGW-w64 on Windows.
+You need Go 1.25+ and a C compiler (cgo, for the embedded DuckDB): Xcode Command Line Tools on macOS, `build-essential` on Linux, MinGW-w64 on Windows.
 
 ```sh
 git clone https://github.com/h4ux/HomeOwl && cd HomeOwl

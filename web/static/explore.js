@@ -485,6 +485,10 @@ function catsBody() {
   return `<div class="grid g2"><div class="card"><h2>Categories <span class="muted fine">(click to explore)</span></h2><div id="ct-cats"></div></div>
       <div class="card"><h2>${S.ex.catAll ? "All domains" : "Uncategorized domains"}</h2>
         <div class="filters"><div class="seg"><button data-excatall="0" class="${S.ex.catAll ? "" : "on"}">Uncategorized</button><button data-excatall="1" class="${S.ex.catAll ? "on" : ""}">All domains</button></div></div>
+        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with Claude</button>
+          <button class="btn sm" id="ct-csv" type="button">Download CSV</button><button class="btn sm" id="ct-prompt" type="button">Copy prompt for a chat</button>
+          <label class="btn sm" for="ct-import">Import CSV</label><input type="file" id="ct-import" accept=".csv,text/csv,text/plain" hidden>
+          ${hint("Many domains have no category yet. Claude can suggest one for each (with your own Anthropic API key; only the domain names are sent). Or download the list, give it with the prompt to any AI chat, and import the CSV it returns. You see every suggestion before it's saved as a rule.")}</div>` : ""}
         <div id="ct-unc"></div></div></div>
     <div class="card section"><h2>Your rules</h2><p class="muted">Rules win over the built-in list. <span class="mono">example.com</span> also covers its subdomains; <span class="mono">~word</span> matches any domain containing “word”.</p>
       ${isAdmin() ? `<div class="ovr" style="grid-template-columns:1fr 1fr auto"><input id="ct-pat" placeholder="domain.com, *.domain.com or ~word"><select id="ct-cat">${(S.ex.meta?.categories || []).filter(c => c !== "Uncategorized").map(c => `<option>${esc(c)}</option>`).join("")}<option value="__new">New category…</option></select><button class="btn sm primary" id="ct-add">Add rule</button></div>` : ""}
@@ -497,6 +501,7 @@ async function loadCats() {
     const [a, b] = await Promise.all([explore(["by_category"], {}), explore(["by_domain"], S.ex.catAll ? {} : { category: "Uncategorized" }, { page: { root_limit: 300 } })]);
     fill("ct-cats", blist(a.by_category, "category", { color: i => catColor(i.key), sub: i => `${subActive(i)} · ${fmtNum(i.domains)} domains` }).replace(/data-exf="category\|/g, 'data-exgo="category|'));
     const cats = [...meta.categories, ...new Set(meta.rules.map(r => r.category))].filter((c, i, x) => x.indexOf(c) === i && c !== "Uncategorized");
+    S.ex.uncDoms = (b.by_domain || []).map(d => ({ domain: d.key, total: d.total, devices: d.devices }));
     fill("ct-unc", (b.by_domain || []).length ? `<div class="tbl-wrap" style="max-height:520px"><table><thead><tr><th>Domain</th><th class="num">Queries</th><th class="num">Devices</th><th>Category</th></tr></thead><tbody>
       ${b.by_domain.map(d => `<tr><td class="mono"><a href="#" data-exgo="root|${esc(d.key)}">${esc(d.key)}</a></td><td class="num">${fmtNum(d.total)}</td><td class="num">${fmtNum(d.devices)}</td>
         <td>${isAdmin() ? `<select data-ctassign="${esc(d.key)}" style="padding:4px 6px"><option value="">${esc(d.category || "Uncategorized")}</option>${cats.filter(c => c !== d.category).map(c => `<option>${esc(c)}</option>`).join("")}</select>` : esc(d.category)}</td></tr>`).join("")}
@@ -506,6 +511,95 @@ async function loadCats() {
       : `<div class="empty">No rules yet — the built-in list (${fmtNum(meta.categories.length - 1)} categories, ~500 popular domains) is used.</div>`);
   } catch (e) { fill("ct-unc", `<div class="empty bad-t">${esc(e.message)}</div>`); }
 }
+// ---- filling in uncategorized domains: Claude's suggestions, or a CSV round trip through any AI chat
+const ctCats = () => { const m = S.ex.meta || {}; return [...(m.categories || []), ...new Set((m.rules || []).map(r => r.category))].filter((c, i, x) => c && x.indexOf(c) === i && c !== "Uncategorized"); };
+const csvQ = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+function ctCsv() {
+  const l = S.ex.uncDoms || []; if (!l.length) return toast("Nothing uncategorized in this period");
+  download(`uncategorized-domains-${new Date().toISOString().slice(0, 10)}.csv`, ["domain,queries,devices,category", ...l.map(d => [d.domain, d.total, d.devices, ""].map(csvQ).join(","))].join("\n"), "text/csv");
+}
+const ctPromptText = () => `I'm attaching a CSV of internet domains from my home network's DNS logs (columns: domain, queries, devices, category).
+Fill in the category column for every row with exactly one of these categories:
+${ctCats().map(c => "- " + c).join("\n")}
+Use the category of the app or company the domain serves (a CDN or API domain goes with its app). If you don't recognise a domain, leave its category empty — don't guess.
+Reply with the complete CSV, header "domain,category" and one row per domain, as a downloadable .csv file if you can, otherwise in one code block and nothing else.`;
+async function ctPrompt() {
+  try { await navigator.clipboard.writeText(ctPromptText()); toast("Prompt copied: paste it in a chat with the downloaded CSV", "ok"); }
+  catch { openModal({ title: "Prompt for a chat", body: `<p class="fine muted">Copy this and attach the downloaded CSV.</p><pre class="mono ct-prompt-pre">${esc(ctPromptText())}</pre>`, buttons: [{ label: "Close" }] }); }
+}
+// parseCsv: rows of fields (quotes, doubled quotes, commas and newlines inside quotes)
+function parseCsv(t) {
+  const rows = []; let row = [], f = "", q = false;
+  t = t.replace(/^\uFEFF/, "").replace(/^```[a-z]*\n?|```\s*$/gim, "");
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; continue; }
+    if (c === '"') q = true; else if (c === ",") { row.push(f); f = ""; } else if (c === "\n" || c === "\r") { if (c === "\r" && t[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; } else f += c;
+  }
+  if (f || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+function ctImport(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    const rows = parseCsv(String(rd.result || "")); if (!rows.length) return toast("That file is empty", "err");
+    const head = rows[0].map(h => h.trim().toLowerCase()), hasHead = head.includes("category");
+    const di = hasHead ? Math.max(head.indexOf("domain"), head.indexOf("pattern"), 0) : 0, ci = hasHead ? head.indexOf("category") : rows[0].length - 1;
+    const sugg = rows.slice(hasHead ? 1 : 0).map(r => ({ domain: (r[di] || "").trim().toLowerCase(), category: (r[ci] || "").trim() })).filter(x => x.domain && x.category && x.category.toLowerCase() !== "uncategorized");
+    if (!sugg.length) return toast("No rows with a domain and a category in that file", "err");
+    ctReview(sugg, "From the imported file");
+  };
+  rd.readAsText(file);
+}
+async function ctAI() {
+  let st; try { st = await api("/api/analytics/ai-status", {}); } catch (e) { return toast(e.message, "err"); }
+  if (!st.key) return ctKeyModal(true);
+  const doms = (S.ex.uncDoms || []).map(d => d.domain); if (!doms.length) return toast("Nothing uncategorized in this period");
+  const b = $("#ct-ai"); if (b) { b.disabled = true; b.textContent = "Asking Claude…"; }
+  try {
+    const r = await api("/api/analytics/ai-categorize", { domains: doms });
+    if (r.error) toast(`Only part of the list: ${r.error}`, "err");
+    if (!r.suggestions.length) toast("Claude didn't recognise any of these domains");
+    else ctReview(r.suggestions, `Claude's suggestions for ${fmtNum(r.suggestions.length)} of ${fmtNum(Math.min(doms.length, 300))} domains`, true);
+  } catch (e) { toast(e.message, "err"); }
+  finally { if (b) { b.disabled = false; b.textContent = "Suggest with Claude"; } }
+}
+function ctKeyModal(thenRun) {
+  openModal({ title: "Suggest categories with Claude", body: `<p>Paste an API key from <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">platform.claude.com</a> (Settings › API keys). HomeOwl keeps it in the keychain and uses it only for this.</p>
+      <p class="fine muted">Each time, HomeOwl sends Claude the uncategorized domain names and your category list — nothing about devices, people or times. Anthropic bills the key's account (a few cents for a few hundred domains).</p>
+      <label>API key<input type="password" id="ct-key" placeholder="sk-ant-…" autocomplete="off" spellcheck="false"></label>`,
+    buttons: [{ label: "Cancel" }, { label: "Remove saved key", onClick: async () => { try { await api("/api/analytics/ai-key", { key: "" }); closeModal(); toast("Key removed", "ok"); } catch (e) { toast(e.message, "err"); } } },
+      { label: thenRun ? "Save and suggest" : "Save", cls: "primary", onClick: async () => {
+        try { await api("/api/analytics/ai-key", { key: $("#ct-key").value }); closeModal(); toast("Key saved", "ok"); if (thenRun) ctAI(); } catch (e) { toast(e.message, "err"); }
+      } }] });
+}
+// ctReview: every suggestion with its own category picker; only the ticked ones become rules
+function ctReview(sugg, title, ai) {
+  const cats = ctCats(), known = new Set((S.ex.uncDoms || []).map(d => d.domain));
+  openModal({ title: "Review the categories", wide: true, body: `<p class="muted">${esc(title)}. Each one you keep becomes a rule for the domain and its subdomains (Your rules, below). Change any category before saving.</p>
+      <div class="btnrow"><button class="btn sm" type="button" data-ctall="1">Select all</button><button class="btn sm" type="button" data-ctall="0">Select none</button></div>
+      <div class="tbl-wrap" style="max-height:55vh"><table class="ct-review"><thead><tr><th></th><th>Domain</th><th>Category</th>${ai ? "<th>What it is</th>" : ""}</tr></thead><tbody>
+      ${sugg.map((x, i) => { const isNew = !cats.includes(x.category); return `<tr><td><input type="checkbox" data-ctrow="${i}" checked aria-label="Keep ${esc(x.domain)}"></td>
+        <td class="mono">${esc(x.domain)}${known.size && !known.has(x.domain) ? ` <span class="tag">not in this list</span>` : ""}</td>
+        <td><select data-ctcat="${i}">${isNew ? `<option selected>${esc(x.category)}</option>` : ""}${cats.map(c => `<option ${c === x.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>${isNew ? ` <span class="tag warn">new category</span>` : ""}</td>
+        ${ai ? `<td class="fine muted">${esc(x.why || "")}</td>` : ""}</tr>`; }).join("")}</tbody></table></div>`,
+    buttons: [{ label: "Cancel" }, { label: "Save the selected", cls: "primary", onClick: async () => {
+      const rules = sugg.map((x, i) => $(`[data-ctrow="${i}"]`)?.checked ? { pattern: x.domain, category: $(`[data-ctcat="${i}"]`).value } : null).filter(Boolean);
+      if (!rules.length) return toast("Nothing selected");
+      try { const r = await api("/api/analytics/rules-import", { rules }); closeModal(); toast(`${fmtNum(r.saved)} rule${r.saved === 1 ? "" : "s"} saved${r.skipped.length ? ` · ${r.skipped.length} skipped (not a domain)` : ""}`, "ok"); S.ex.meta = null; loadAnalytics(); }
+      catch (e) { toast(e.message, "err"); }
+    } }] });
+}
+document.addEventListener("click", e => {
+  if (!isAnView(S.view)) return;
+  const id = e.target.id;
+  if (id === "ct-ai") return ctAI();
+  if (id === "ct-csv") return ctCsv();
+  if (id === "ct-prompt") return ctPrompt();
+  const all = e.target.closest("[data-ctall]"); if (all) $$("[data-ctrow]").forEach(c => { c.checked = all.dataset.ctall === "1"; });
+});
+document.addEventListener("change", e => { if (e.target.id === "ct-import" && e.target.files?.[0]) { ctImport(e.target.files[0]); e.target.value = ""; } });
+
 function categoryModal(root) {
   const meta = S.ex.meta, cats = meta.categories.filter(c => c !== "Uncategorized");
   openModal({ title: `Category for ${root}`, body: `<label>Category<select id="cm-cat">${cats.map(c => `<option>${esc(c)}</option>`).join("")}<option value="__new">New category…</option></select></label>
