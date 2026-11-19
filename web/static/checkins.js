@@ -60,6 +60,39 @@ async function mergeCheckins(ids) {
 }
 document.addEventListener("click", e => { const m = e.target.closest("[data-cimerge]"); if (m) mergeCheckins(m.dataset.cimerge.split(",")); });
 
+// Home's "stopped using its NextDNS setup" → Fix: why it may have stopped, and a button for each likely cause
+// (setupwatch.go setupHelp).
+document.addEventListener("click", e => { const m = e.target.closest("[data-cisetuphelp]"); if (m) setupHelp(m.dataset.cisetuphelp); });
+async function setupHelp(id) {
+  let h; try { h = await api("/api/checkins/setup-help", { id }); } catch (err) { return toast(err.message, "err"); }
+  const done = () => { closeModal(); loadAlerts?.(); render(); };
+  const wifi = h.online_at ? `On the Wi-Fi at its address ${esc(h.mac)} ${ago(h.online_at * 1000)}.` : `Not seen on the Wi-Fi at its address ${esc(h.mac)} lately — it probably has a new Wi-Fi address now.`;
+  const others = h.others.map(o => `<div class="sh-row"><div><b>${esc(o.name)}</b> <span class="fine muted mono">${esc(o.mac)}</span>
+      <div class="fine muted">checked in ${ago(o.time * 1000)}${o.working ? " · its setup works" : ""}</div></div>
+      <button class="btn sm primary" type="button" data-shmerge="${esc(o.id)}">Merge…</button></div>`).join("");
+  const names = h.names.map(n => `<div class="sh-row"><div><b>${esc(n.name)}</b><div class="fine muted">NextDNS saw it ${ago(n.last * 1000)}${n.day ? ` · ${fmtNum(n.day)} queries today` : ""}</div></div>
+      <button class="btn sm" type="button" data-shname="${esc(n.name)}">This is it</button></div>`).join("");
+  openModal({ title: `${h.name} stopped using NextDNS`, wide: true, body: `<div id="sh-body">
+    <p class="muted">NextDNS last logged it ${h.setup_seen ? ago(h.setup_seen * 1000) : "–"}. ${wifi}</p>
+    <h4>It got a new Wi-Fi address and checked in again</h4>
+    ${others || `<p class="fine muted">No other check-in${h.person ? ` of ${esc(h.person)}'s` : ""} looks like it. If it's listed under another name: <button class="btn sm" type="button" data-shmerge="">Merge with another device…</button></p>`}
+    <p class="fine muted">Merging keeps the newer check-in and moves the name, person and NextDNS setup to the address it uses now. Nothing is deleted.</p>
+    ${names ? `<h4>NextDNS sees it under another name</h4>${names}<p class="fine muted">A reinstalled profile can report a different name. Linking it counts those queries as this device.</p>` : ""}
+    <h4>The profile was removed</h4>
+    <p class="fine muted">Open the check-in page on the device and install its setup again: <span class="mono">${esc(h.links[0] || "")}</span></p>
+  </div>`, buttons: [{ label: "Close" }, { label: "Stop watching it", onClick: async () => {
+      try { await api("/api/checkins/setup-ignore", { id }); } catch (err) { return toast(err.message, "err"); }
+      done(); toast("Not watched until NextDNS sees it again", "ok"); } }] });
+  $("#sh-body").addEventListener("click", async e => {
+    const m = e.target.closest("[data-shmerge]"), n = e.target.closest("[data-shname]");
+    if (m) { closeModal(); return mergeCheckins(m.dataset.shmerge ? [id, m.dataset.shmerge] : [id]); }
+    if (n) {
+      try { await api("/api/checkins/ndname", { id, name: n.dataset.shname }); } catch (err) { return toast(err.message, "err"); }
+      done(); toast(`Linked ${n.dataset.shname}`, "ok");
+    }
+  });
+}
+
 async function loadCheckins() {
   if (S.source !== "live") { $("#ci-body").innerHTML = `<div class="empty">Device check-in needs a live HomeOwl (not the demo).</div>`; return; }
   try {

@@ -60,6 +60,7 @@ type CheckIn struct {
 	SetupSeen    int64  `json:"setup_seen,omitempty"`
 	SetupChanged int64  `json:"setup_changed,omitempty"`
 	SetupLost    int64  `json:"setup_lost,omitempty"`
+	SetupIgnore  bool   `json:"setup_ignore,omitempty"` // "stop watching" from Home: no "stopped" until it's seen again
 	TypeID       string `json:"type_id,omitempty"`      // profile type picked for this device ("" = its person's, "-" = none)
 	ProfileHash  string `json:"profile_hash,omitempty"` // fingerprint of what the last download held (profiletypes.go)
 	// fixedmac.go: the device downloaded a profile that gives it its real Wi-Fi address. Until it's seen with it,

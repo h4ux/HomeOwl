@@ -87,7 +87,7 @@ function needsYou(m) {
   arr(S.alerts?.duplicates).forEach(x => out.push({ t: x.exact ? `${x.name} is checked in ${x.count === 2 ? "twice" : x.count + " times"} (it got a new Wi-Fi address) — the same device?`
     : `${x.names.join(", ")}${x.person ? ` (${x.person})` : ""} look alike — the same device checked in again?`, btn: `<button class="btn sm primary" data-cimerge="${esc(x.ids.join(","))}">Merge…</button>` })); // merge.go
   arr(S.alerts?.requests).forEach(r => out.push({ t: `${r.person || r.device} asks to allow ${r.domain}${r.note ? ` — “${r.note}”` : ""}`, btn: siteReqBtns(r.id) })); // myhome.go
-  arr(S.alerts?.attention).forEach(x => out.push({ t: `${x.name} stopped using its NextDNS setup${x.since ? " · last seen " + ago(x.since * 1000) : ""}`, btn: `<button class="btn sm" data-goto="checkins">Show</button>` })); // setupwatch.go
+  arr(S.alerts?.attention).forEach(x => out.push({ t: `${x.name} stopped using its NextDNS setup${x.since ? " · last seen " + ago(x.since * 1000) : ""}`, btn: `<button class="btn sm primary" data-cisetuphelp="${esc(x.id)}">Fix…</button>` })); // setupwatch.go
   groupFindings(S.findings.filter(f => (f.sev === "critical" || f.sev === "high") && !f.dev)).forEach(g => {
     const f = g.list[0], acts = g.list.flatMap(x => x.actions);
     out.push({ t: f.title + (g.list.length > 1 ? ` (+${g.list.length - 1})` : ""), btn: (acts.length ? actBtn(acts, "Fix", f.title, "sm primary") : "") || (AREA_VIEW[f.area] ? `<button class="btn sm" data-goto="${AREA_VIEW[f.area]}">Show</button>` : "") });

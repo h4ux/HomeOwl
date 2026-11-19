@@ -98,6 +98,39 @@ func TestSetupWatch(t *testing.T) {
 		t.Fatalf("alerts off: %d alerts, attention %v", count("setup_lost"), a.setupAttention())
 	}
 
+	// Fix: the same device checked in again under a new Wi-Fi address is offered for a merge
+	if err := a.checkins.Add(CheckIn{Name: "Alex's iPad", Kind: "tablet", MAC: "aa:bb:cc:00:00:41", PersonID: alex}); err != nil {
+		t.Fatal(err)
+	}
+	var id2 string
+	for _, c := range a.checkins.List() {
+		if c.ID != id {
+			id2 = c.ID
+		}
+	}
+	a.checkins.Edit(id2, func(c *CheckIn) { c.Status, c.NDProfile, c.Time = "approved", "abc123", later.Add(time.Hour).Unix() })
+	h, err := a.setupHelp(id)
+	if err != nil || len(h["others"].([]map[string]any)) != 1 || h["others"].([]map[string]any)[0]["id"] != id2 {
+		t.Fatalf("help: %v %v", h, err)
+	}
+	// stop watching: off Home, and not raised again while it stays quiet
+	if err := a.setupIgnore(id); err != nil {
+		t.Fatal(err)
+	}
+	a.setupWatch(later.Add(11 * time.Hour))
+	for _, x := range a.setupAttention() {
+		if x["id"] == id {
+			t.Fatal("ignored device still listed")
+		}
+	}
+	// seen again: watched again
+	seen["abc123"] = later.Add(12 * time.Hour)
+	a.setupWatch(later.Add(12 * time.Hour))
+	if x, _ := a.checkins.Get(id); x.SetupIgnore {
+		t.Fatal("seen again should end the ignore")
+	}
+	a.checkins.Edit(id2, func(c *CheckIn) { c.Status = "rejected" })
+
 	// a new NextDNS profile: the installed one keeps its name in People until the device uses the new one
 	if _, err := a.changeSetup(map[string]any{"id": id, "nd_profile": "def456"}); err != nil {
 		t.Fatal(err)

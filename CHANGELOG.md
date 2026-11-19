@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.118] — 2026-11-19
+
+### Changed
+- **"… stopped using its NextDNS setup" on Home gets a Fix button** instead of Show. It says when NextDNS and the
+  Wi-Fi last saw the device and offers a button per likely cause: a newer check-in of the same person (it got a new
+  Wi-Fi address and checked in again) to merge, a name NextDNS logs lately that may be it to link, or the check-in
+  page to install the setup again. *Stop watching it* takes it off Home until NextDNS sees it again.
+
 ## [0.1.117] — 2026-11-19
 
 ### Fixed

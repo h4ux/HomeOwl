@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"errors"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -157,8 +159,9 @@ func (a *App) setupWatch(now time.Time) {
 			_ = a.An.UnassignDevice("ndev", x.ProfileND+"/"+orStr(x.ProfileName, a.ndName(x)))
 		}
 		back := x.SetupLost > 0 && !last.IsZero() && last.Unix() > prev
-		lost := x.SetupLost == 0 && logsFresh(x.NDProfile) && setupLost(last, a.online.at(x.MAC), now)
-		if !last.IsZero() && last.Unix() > prev || installed || back || lost {
+		lost := x.SetupLost == 0 && !x.SetupIgnore && logsFresh(x.NDProfile) && setupLost(last, a.online.at(x.MAC), now)
+		seenAgain := x.SetupIgnore && !last.IsZero() && last.Unix() > prev
+		if !last.IsZero() && last.Unix() > prev || installed || back || lost || seenAgain {
 			a.checkins.Edit(x.ID, func(c *CheckIn) {
 				if !last.IsZero() && last.Unix() > c.SetupSeen {
 					c.SetupSeen = last.Unix()
@@ -168,6 +171,9 @@ func (a *App) setupWatch(now time.Time) {
 				}
 				if back {
 					c.SetupLost = 0
+				}
+				if seenAgain {
+					c.SetupIgnore = false
 				}
 				if lost {
 					c.SetupLost = now.Unix()
@@ -199,7 +205,7 @@ func (a *App) setupAttention() []map[string]any {
 		}
 	}
 	for _, x := range a.checkins.List() {
-		if x.Status == "approved" && x.NDProfile != "" && x.SetupLost > 0 && !older[x.ID] {
+		if x.Status == "approved" && x.NDProfile != "" && x.SetupLost > 0 && !x.SetupIgnore && !older[x.ID] {
 			out = append(out, map[string]any{"id": x.ID, "name": x.Name, "person": x.PersonName, "since": x.SetupSeen})
 		}
 	}
@@ -252,4 +258,47 @@ func (a *App) setupCoverage() map[string]any {
 		people[p.ID] = devs
 	}
 	return map[string]any{"people": people}
+}
+
+// setupHelp: what Home's "stopped using its setup" Fix shows: when NextDNS and the Wi-Fi last saw the device, check-ins
+// that may be the same device under a new Wi-Fi address (same person, checked in since it stopped), and names NextDNS
+// logs lately that may be it.
+func (a *App) setupHelp(id string) (map[string]any, error) {
+	x, ok := a.checkins.Get(id)
+	if !ok || x.Status != "approved" {
+		return nil, errors.New("that device isn't approved any more")
+	}
+	others := []map[string]any{}
+	for _, y := range a.checkins.List() {
+		if y.Status != "approved" || y.ID == x.ID || y.MAC == x.MAC {
+			continue
+		}
+		_, sim := similarNames(x.Name, y.Name)
+		samePerson := x.PersonID != "" && y.PersonID == x.PersonID
+		if !(samePerson && (sim || (x.SetupSeen > 0 && y.Time >= x.SetupSeen))) {
+			continue
+		}
+		others = append(others, map[string]any{"id": y.ID, "name": y.Name, "mac": y.MAC, "time": y.Time,
+			"setup_seen": y.SetupSeen, "working": y.SetupLost == 0 && y.SetupSeen > 0})
+	}
+	sort.Slice(others, func(i, j int) bool { return others[i]["time"].(int64) > others[j]["time"].(int64) })
+	res := map[string]any{"id": x.ID, "name": x.Name, "person": x.PersonName, "mac": x.MAC, "setup_seen": x.SetupSeen,
+		"others": others, "names": []map[string]any{}, "links": a.checkinLinks()}
+	if t := a.online.at(x.MAC); !t.IsZero() {
+		res["online_at"] = t.Unix()
+	}
+	if a.An.Open() {
+		res["names"] = a.ndCandidates(x)
+	}
+	return res, nil
+}
+
+// setupIgnore: "stop watching": no "stopped" for this device until NextDNS sees it again.
+func (a *App) setupIgnore(id string) error {
+	x, ok := a.checkins.Get(id)
+	if !ok || x.Status != "approved" {
+		return errors.New("that device isn't approved any more")
+	}
+	a.checkins.Edit(id, func(c *CheckIn) { c.SetupIgnore, c.SetupLost = true, 0 })
+	return nil
 }

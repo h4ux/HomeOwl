@@ -448,6 +448,17 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res, err = a.changeSetup(body)
 	case p == "checkins/ndprofiles":
 		res = a.ndProfileChoices()
+	case p == "checkins/setup-help":
+		res, err = a.setupHelp(s(body, "id"))
+	case p == "checkins/setup-ignore":
+		err = a.setupIgnore(s(body, "id"))
+		res = map[string]any{"ok": err == nil}
+	case p == "checkins/ndname":
+		if x, ok := a.checkins.Get(s(body, "id")); !ok || x.Status != "approved" {
+			err = errors.New("that device isn't approved any more")
+		} else if err = a.linkNDName(x, s(body, "name"), "link"); err == nil {
+			res = map[string]any{"ok": true}
+		}
 	case p == "checkins/approve":
 		res, err = a.approveCheckIn(body, by)
 	case p == "device-issue/check":

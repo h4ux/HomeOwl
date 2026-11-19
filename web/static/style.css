@@ -1029,3 +1029,7 @@ svg.tv-plan{display:block;width:100%;min-width:620px;height:auto;user-select:non
 .ct-prompt-pre{white-space:pre-wrap;background:var(--bg2,var(--card));padding:10px;border-radius:8px;font-size:12px;max-height:50vh;overflow:auto}
 .ct-review td{vertical-align:middle}
 .ct-review select{padding:4px 6px;max-width:220px}
+
+/* Home → "stopped using NextDNS" → Fix */
+#sh-body h4 { margin: 16px 0 6px; font-size: 14px; }
+.sh-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
