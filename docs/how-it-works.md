@@ -101,6 +101,14 @@ nothing (it's asleep, not an Apple device, or on a network HomeOwl can't reach) 
 To give a device to someone else, or to a group like Servers, use **Move to…** (⇄) on its chip in Family. Every name
 the device has moves together, and its check-in follows, so a later address change keeps it with the new owner.
 
+### Rotating private Wi-Fi addresses
+
+iOS 18 and macOS 15 can rotate a device's private Wi-Fi address on a network. HomeOwl remembers the host name each
+checked-in device's address last had online. When a new private address shows up with that same specific name
+(not a generic "iPhone"), the old address is gone, the name was seen in the last three weeks and only one device
+fits, HomeOwl moves the check-in, person and type to the new address, so device approval doesn't block it. The
+admins get an alert naming both addresses. The check-in page suggests setting Private Wi-Fi Address to Fixed or Off.
+
 ### Is the device's DNS really going through its profile?
 
 The check-in page asks NextDNS's own test, test.nextdns.io, from the device itself (the page's security policy

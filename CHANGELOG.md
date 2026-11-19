@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.111] — 2026-11-19
+
+### Fixed
+- **A phone with a rotating private Wi-Fi address no longer gets blocked as a new device.** iOS 18 and macOS 15 can
+  change a device's private address on a network every couple of weeks; with device approval on, the phone came back
+  as a stranger and was blocked (and a blocked phone can't open its own page). HomeOwl now remembers each checked-in
+  device's host name and follows it to a new private address when the name is specific, the old address is gone and
+  exactly one device fits. Its check-in, person and type move over, and the admins get an alert to block it if it
+  isn't that device. The check-in page tells the owner to set Private Wi-Fi Address to Fixed or Off.
+
 ## [0.1.110] — 2026-11-17
 
 ### Added

@@ -167,13 +167,22 @@ function registered(st) {
   $("#hi-box").innerHTML = `<h2 style="margin:10px 0 6px">This is ${esc(r.name)} 🦉</h2>
     ${r.person ? `<p class="muted">It belongs to <b>${esc(r.person)}</b>.</p>` : ""}
     ${myStatus(mine, r)}<div id="hi-dnscheck"></div><div id="hi-guest"></div>
-    ${myConnection(mine.connection)}<div id="hi-blocked">${myBlocked(mine)}</div>
+    ${myConnection(mine.connection)}${privAddr(st.private_addr, pf)}<div id="hi-blocked">${myBlocked(mine)}</div>
     ${wifi.length && pf !== "ios" && pf !== "mac" ? hiFold("Home Wi-Fi", `<div id="hi-wifi"><div class="empty">Loading the home Wi-Fi…</div></div>`) : ""}
     ${setup ? hiFold(settled ? "Set up this device again" : r.update || ss.update ? "Install the update" : "Set up this device", myNDLinked(mine) + setup, "hi-setup-fold") : ""}
     <p class="fine" style="margin-top:16px"><button class="btn ghost sm" id="hi-again" type="button">Not right? Check in again</button></p>`;
   if ($("#hi-wifi")) homeWiFi();
   guestWiFi();
   if (nd && (r.profile_at || ["active", "quiet", "stopped", "not_seen"].includes(ss.state))) dnsCheck(st);
+}
+
+// a private Wi-Fi address can rotate: HomeOwl follows it by name, but a fixed address never looks like a new device
+function privAddr(p, pf) {
+  if (!p || (pf !== "ios" && pf !== "mac")) return "";
+  const net = p.ssid ? `<strong>${esc(p.ssid)}</strong>` : "this Wi-Fi";
+  const where = pf === "mac" ? `<strong>System Settings</strong> › <strong>Wi-Fi</strong> › <strong>Details…</strong> next to ${net}`
+    : `<strong>Settings</strong> › <strong>Wi-Fi</strong> › ⓘ next to ${net}`;
+  return hiFold("Keep this device's Wi-Fi address", `<p class="fine">It uses a private Wi-Fi address here. If it's set to <strong>Rotating</strong>, it changes every couple of weeks and the home network may take it for a new device (with device approval on, it's held until an admin lets it in). Open ${where}, and set <strong>Private Wi-Fi Address</strong> to <strong>Fixed</strong> or <strong>Off</strong>.</p>`);
 }
 
 // where this device's DNS really goes, asked from the device itself: NextDNS's own test answers with the profile and

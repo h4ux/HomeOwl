@@ -84,7 +84,8 @@ func (a *App) presenceTick() {
 	if a.fixedPending() {
 		a.followFixed(list) // before the new-device alert: a phone that switched to its real address isn't new
 	}
-	a.approvalTick(list) // blocks first-time devices on the home Wi-Fi until an admin approves them
+	a.followRotated(list, time.Now()) // a checked-in device back with a new private address isn't new either
+	a.approvalTick(list)              // blocks first-time devices on the home Wi-Fi until an admin approves them
 	a.watchNewDevices(list)
 	if len(people) == 0 {
 		return

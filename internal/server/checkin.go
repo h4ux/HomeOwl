@@ -70,6 +70,9 @@ type CheckIn struct {
 	FixedHost string `json:"fixed_host,omitempty"`
 	FixedAt   int64  `json:"fixed_at,omitempty"`
 	Fixed     bool   `json:"fixed,omitempty"`
+	// rotate.go: the host name its address last had online, and when, so a rotated private address is recognised
+	Host   string `json:"host,omitempty"`
+	HostAt int64  `json:"host_at,omitempty"`
 }
 
 var checkinKinds = map[string]bool{"phone": true, "tablet": true, "laptop": true, "computer": true, "tv": true, "console": true,
@@ -415,6 +418,9 @@ func (a *App) hiAPI(w http.ResponseWriter, r *http.Request) {
 			res["mine"] = a.myDevice(x, c)
 			if _, on := tailscalePeerAt(a, ip); on { // its Tailscale DNS may take over from the profile (hi.js)
 				res["tailscale"] = true
+			}
+			if privateMACAddr(mac) && c["is_wired"] != true && !a.onSetupWiFi(c) { // it may rotate (rotate.go)
+				res["private_addr"] = map[string]any{"ssid": str(c, "essid")}
 			}
 		}
 		send(w, 200, res)
