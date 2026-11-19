@@ -90,4 +90,7 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           cp scripts/install.sh scripts/install.ps1 artifacts/
-          gh release create "${GITHUB_REF_NAME}" artifacts/* --title "HomeOwl ${GITHUB_REF_NAME}" --generate-notes
+          gh release create "${GITHUB_REF_NAME}" artifacts/* --title "HomeOwl ${GITHUB_REF_NAME}" --generate-notes --latest=false
+          # "Latest" (what the updater asks for) is the highest version, even when an older tag's build finishes last
+          newest=$(gh release list --limit 50 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName' | sort -V | tail -1)
+          gh release edit "${newest}" --latest
