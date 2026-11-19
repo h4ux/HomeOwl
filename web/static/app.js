@@ -563,7 +563,7 @@ function graceTable(m, l) {
   const people = S.devTypePeople || [];
   const left = d => d.ends * 1000 > Date.now() ? `in ${fmtDur((d.ends * 1000 - Date.now()) / 1000)}` : "at the next check";
   return `<p class="fine muted">New devices on the home Wi-Fi stay online for ${esc(fmtDur((S.approval?.grace_minutes || 0) * 60))} so you can approve them; then HomeOwl blocks them. Set the time in <a href="#" data-goto="checkins">Devices › New devices</a>.</p>` + table("grace", [
-    { k: "name", label: "Device", fmt: d => `${onDot(true)}${esc(m.knownByMac[d.mac]?.label || d.name || d.hostname || d.mac)}<div class="fine muted mono">${esc(d.mac)}</div>` },
+    { k: "name", label: "Device", fmt: d => `${onDot(true)}${esc(m.knownByMac[d.mac]?.label || d.name || d.hostname || d.mac)}<div class="fine muted mono">${esc(d.mac)}</div><div class="fine muted">${esc(newDevMeta(d, true).join(" · "))}</div>${likelyHTML(d.mac, d.likely)}` },
     { k: "vendor", label: "Vendor", fmt: d => esc(d.vendor || "–") }, { k: "ssid", label: "Wi-Fi", fmt: d => esc(d.ssid || "–") },
     { k: "at", label: "Joined", num: 1, fmt: d => esc(ago(d.at * 1000)) },
     { k: "ends", label: "Blocked", num: 1, fmt: d => `<span class="${d.ends * 1000 - Date.now() < 900000 ? "warn-t" : ""}">${esc(left(d))}</span>` },

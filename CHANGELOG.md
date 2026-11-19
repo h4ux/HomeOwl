@@ -4,6 +4,25 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.119] — 2026-11-19
+
+### Fixed
+- **A device approved through the setup Wi-Fi still waited for approval on the home Wi-Fi.** Installing the profile
+  gives it a new address there, and HomeOwl only followed it when its host name was specific; an "iPhone" stayed a
+  stranger and was blocked when its grace period ended. Now, when it's the only device waiting for that move (within
+  two hours) and the only new device that joined since, HomeOwl follows it and lets it on.
+
+### Added
+- **New devices say more, and who they probably are.** The approval lists show the name a device gives, its Wi-Fi,
+  signal and IP, and whether its address is private, and a "Probably Alex's iPhone — installed its profile 4 minutes
+  before this joined" line with an *It's Alex's iPhone* button: it moves the checked-in device (name, person, setup) to
+  the new address and lets it on.
+- **Tagging a device in Who's home repairs the past.** Its earlier addresses (the ones HomeOwl followed it from, and
+  merged check-ins) go to the same person, and that person's arrivals and departures are rebuilt from UniFi's record of
+  when their devices were connected, so the days a new address went untagged fill in.
+- **Ghost cleanup.** Archiving now also suggests a device's old addresses, nameless private addresses nobody owns
+  that haven't been seen for two weeks, and strangers blocked for approval that left two weeks ago.
+
 ## [0.1.118] — 2026-11-19
 
 ### Changed

@@ -205,3 +205,61 @@ func (t *Tracker) Save() error {
 	t.dirty = false
 	return nil
 }
+
+// Span is a time one of someone's devices was connected (ms).
+type Span struct {
+	Device, DeviceName string
+	Start, Stop        int64
+}
+
+// Rebuild replaces someone's history between from and to (ms) with what their devices' connections say: they
+// arrive when a device connects after being away, and leave when none has been connected for the grace period
+// (dated when the last one left), just as Observe would have seen it. It returns how many events it wrote.
+func (t *Tracker) Rebuild(id, name string, spans []Span, grace time.Duration, from, to int64) int {
+	if to <= from {
+		return 0
+	}
+	sort.Slice(spans, func(i, j int) bool { return spans[i].Start < spans[j].Start })
+	g := grace.Milliseconds()
+	var evs []Event
+	var cur *Span
+	flush := func() {
+		if cur == nil {
+			return
+		}
+		if cur.Start >= from && cur.Start <= to {
+			evs = append(evs, Event{T: cur.Start, Person: id, Name: name, Kind: "arrive", Device: cur.Device, DeviceName: cur.DeviceName})
+		}
+		if cur.Stop >= from && cur.Stop+g <= to {
+			evs = append(evs, Event{T: cur.Stop, Person: id, Name: name, Kind: "leave", Device: cur.Device, DeviceName: cur.DeviceName})
+		}
+	}
+	for _, s := range spans {
+		if s.Stop < s.Start || s.Stop < from-g || s.Start > to {
+			continue
+		}
+		if cur != nil && s.Start <= cur.Stop+g {
+			if s.Stop > cur.Stop {
+				cur.Stop = s.Stop
+			}
+			continue
+		}
+		flush()
+		c := s
+		cur = &c
+	}
+	flush()
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	l := t.Events[:0:0]
+	for _, e := range t.Events {
+		if e.Person == id && e.T >= from && e.T <= to {
+			continue
+		}
+		l = append(l, e)
+	}
+	l = append(l, evs...)
+	sort.SliceStable(l, func(i, j int) bool { return l[i].T < l[j].T })
+	t.Events, t.dirty = l, true
+	return len(evs)
+}

@@ -57,7 +57,7 @@ func (a *App) followFixed(online []map[string]any) {
 		if x.FixedFrom == "" || x.Status != "approved" {
 			continue
 		}
-		if now.Sub(time.Unix(x.FixedAt, 0)) > fixedFollowFor || x.FixedHost == "" {
+		if now.Sub(time.Unix(x.FixedAt, 0)) > fixedFollowFor || (x.FixedHost == "" && !x.Onboard) {
 			// no host name to recognise it by, or it never came back: stop looking (it can check in again)
 			a.checkins.Edit(x.ID, func(y *CheckIn) { y.FixedFrom, y.FixedHost, y.FixedAt = "", "", 0 })
 			continue
@@ -69,7 +69,7 @@ func (a *App) followFixed(online []map[string]any) {
 		for _, c := range online {
 			mac := strings.ToLower(str(c, "mac"))
 			if mac == "" || mac == x.FixedFrom || (privateMACAddr(mac) && !x.Onboard) || c["is_wired"] == true || c["is_guest"] == true || a.onSetupWiFi(c) ||
-				!strings.EqualFold(str(c, "hostname"), x.FixedHost) {
+				x.FixedHost == "" || !strings.EqualFold(str(c, "hostname"), x.FixedHost) {
 				continue
 			}
 			if y, taken := a.checkins.Registered(mac); taken && y.ID != x.ID {
@@ -77,11 +77,67 @@ func (a *App) followFixed(online []map[string]any) {
 			}
 			found = append(found, mac)
 		}
+		if len(found) == 0 && x.Onboard {
+			found = a.onboardArrival(x, online, now)
+		}
 		if len(found) != 1 { // none yet, or two devices with the same name: wait rather than guess
 			continue
 		}
 		a.fixedMove(x, found[0])
+		if err := a.approvalSettle(found[0], x.Name, "check-in"); err != nil {
+			log.Printf("check-in: letting %s on: %v", x.Name, err)
+		}
 	}
+}
+
+// onboardArrival: a device that installed its profile on the setup Wi-Fi comes to the home Wi-Fi with a new address,
+// and its host name ("iPhone") often says nothing. If it's the only device waiting for that move (in the last two
+// hours), and exactly one stranger joined the home Wi-Fi since, that's it.
+func (a *App) onboardArrival(x CheckIn, online []map[string]any, now time.Time) []string {
+	if now.Sub(time.Unix(x.FixedAt, 0)) > 2*time.Hour {
+		return nil
+	}
+	for _, y := range a.checkins.List() {
+		if y.ID != x.ID && y.Status == "approved" && y.Onboard && y.FixedFrom != "" && now.Sub(time.Unix(y.FixedAt, 0)) <= 2*time.Hour {
+			return nil // two waiting: can't tell which is which
+		}
+	}
+	var found []string
+	for _, c := range online {
+		mac := strings.ToLower(str(c, "mac"))
+		if mac == "" || mac == x.FixedFrom || c["is_wired"] == true || c["is_guest"] == true || a.onSetupWiFi(c) {
+			continue
+		}
+		if _, known := a.checkins.Registered(mac); known {
+			continue
+		}
+		first, ok := a.firstOnHome(mac, c)
+		if !ok || first < x.FixedAt-120 {
+			continue
+		}
+		found = append(found, mac)
+	}
+	return found
+}
+
+// firstOnHome: when this address first joined, from device approval's grace list or UniFi's first-seen time.
+func (a *App) firstOnHome(mac string, c map[string]any) (int64, bool) {
+	a.approval.mu.Lock()
+	st := a.approval.load()
+	a.approval.mu.Unlock()
+	if st.Approved[mac] > 0 {
+		return 0, false // approved before: not a new arrival
+	}
+	if g, ok := st.Grace[mac]; ok {
+		return g.At, true
+	}
+	if d, ok := st.Blocked[mac]; ok {
+		return d.At, true
+	}
+	if v, ok := c["first_seen"].(float64); ok && v > 0 {
+		return int64(v), true
+	}
+	return 0, false
 }
 
 // fixedMove carries the check-in over to the device's real address.
@@ -96,6 +152,12 @@ func (a *App) fixedMove(x CheckIn, mac string) {
 		_ = a.cliTypes.Set(mac, k, true)
 	}
 	a.checkins.Edit(x.ID, func(y *CheckIn) {
+		if y.MAC != "" && y.MAC != mac && !contains(y.OldMACs, y.MAC) {
+			y.OldMACs = append(y.OldMACs, y.MAC)
+			if len(y.OldMACs) > 20 {
+				y.OldMACs = y.OldMACs[len(y.OldMACs)-20:]
+			}
+		}
 		y.MAC, y.Fixed, y.FixedFrom, y.FixedHost, y.FixedAt = mac, !privateMACAddr(mac), "", "", 0
 	})
 	a.movePresenceTag(x.MAC, mac)

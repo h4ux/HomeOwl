@@ -352,3 +352,29 @@ func TestUncategorizedRoots(t *testing.T) {
 		t.Fatalf("after a rule: %v", got)
 	}
 }
+
+// ConnSpans: a device's connections from the imported UniFi sessions, and the time they cover.
+func TestConnSpans(t *testing.T) {
+	e := openTestEngine(t)
+	if l, _, upto, err := e.ConnSpans([]string{"aa:bb:cc:00:00:01"}, utcnow().Add(-time.Hour)); err != nil || l != nil || !upto.IsZero() {
+		t.Fatalf("before any sync: %v %v %v", l, upto, err)
+	}
+	now := utcnow()
+	for i, r := range [][]any{
+		{"s1", "aa:bb:cc:00:00:01", now.Add(-5 * time.Hour), now.Add(-4 * time.Hour)},
+		{"s2", "aa:bb:cc:00:00:02", now.Add(-3 * time.Hour), now.Add(-2 * time.Hour)},
+		{"s3", "aa:bb:cc:00:00:09", now.Add(-3 * time.Hour), now.Add(-1 * time.Hour)},
+		{"s4", "aa:bb:cc:00:00:01", now.Add(-50 * time.Hour), now.Add(-49 * time.Hour)},
+	} {
+		if _, err := e.db.Exec(`INSERT INTO sessions(id, mac, start_ts, stop_ts, duration) VALUES (?,?,?,?,?)`, append(r, 3600)...); err != nil {
+			t.Fatal(i, err)
+		}
+	}
+	if _, err := e.db.Exec("INSERT OR REPLACE INTO sync_state(source, last_ts) VALUES (?, ?)", "unifi:sessions", now); err != nil {
+		t.Fatal(err)
+	}
+	l, first, upto, err := e.ConnSpans([]string{"AA:BB:CC:00:00:01", "aa:bb:cc:00:00:02"}, now.Add(-24*time.Hour))
+	if err != nil || len(l) != 2 || l[0].MAC != "aa:bb:cc:00:00:01" || l[1].MAC != "aa:bb:cc:00:00:02" || upto.IsZero() || now.Sub(first) < 49*time.Hour {
+		t.Fatalf("spans %+v first %v upto %v err %v", l, first, upto, err)
+	}
+}

@@ -27,6 +27,7 @@ import (
 
 const staleDays = 90     // a private address unused this long has most likely been replaced
 const staleAnyDays = 180 // any device unseen this long is most likely gone
+const ghostDays = 14     // a nameless, ownerless private address (or a stranger blocked for approval) unused this long
 
 type archivedDevice struct {
 	MAC    string `json:"mac"`
@@ -190,13 +191,52 @@ func (a *App) archiveSuggestions(known, online []map[string]any, archived map[st
 			seen[d.mac] = true
 		}
 	}
+	// earlier addresses of checked-in devices (HomeOwl followed them to a new one, or they were merged)
+	oldOf := map[string]CheckIn{}
+	named := map[string]bool{} // addresses a check-in uses now
+	for _, x := range a.checkins.List() {
+		switch x.Status {
+		case "approved":
+			named[x.MAC] = true
+			for _, m := range x.OldMACs {
+				oldOf[m] = x
+			}
+		case "merged":
+			if into, ok := a.checkins.Get(x.MergedInto); ok && into.Status == "approved" {
+				oldOf[x.MAC] = into
+				for _, m := range x.OldMACs {
+					oldOf[m] = into
+				}
+			}
+		}
+	}
+	a.approval.mu.Lock()
+	apv := a.approval.load()
+	a.approval.mu.Unlock()
 	for _, d := range devs {
-		if _, gone := archived[d.mac]; gone || seen[d.mac] || d.online || d.fixed || d.blocked || d.last == 0 {
+		x, ok := oldOf[d.mac]
+		if _, gone := archived[d.mac]; gone || !ok || seen[d.mac] || named[d.mac] || d.online || d.fixed || now.Unix()-d.last < 86400 {
+			continue
+		}
+		out = append(out, archiveCand{MAC: d.mac, Name: orStr(label(d), x.Name), Vendor: d.vendor, LastSeen: d.last, Kind: "duplicate", KeptMAC: x.MAC,
+			KeptOnline: on[x.MAC], Reason: "An older address of " + x.Name + ", which is now on " + x.MAC + "."})
+		seen[d.mac] = true
+	}
+	for _, d := range devs {
+		_, apvBlocked := apv.Blocked[d.mac]
+		if _, gone := archived[d.mac]; gone || seen[d.mac] || named[d.mac] || d.online || d.fixed || (d.blocked && !apvBlocked) || d.last == 0 {
 			continue
 		}
 		days := (now.Unix() - d.last) / 86400
+		_, owned := owner[d.mac]
 		var why string
 		switch {
+		case apvBlocked && days >= ghostDays:
+			why = "Blocked waiting for approval and not seen for " + strconv.FormatInt(days, 10) + " days: it went away."
+		case d.blocked:
+			continue
+		case privateMAC(d.mac) && d.name == "" && !owned && days >= ghostDays:
+			why = "A private (changing) address with no name and no owner, not seen for " + strconv.FormatInt(days, 10) + " days: a visitor, or a device that has moved on to another address."
 		case privateMAC(d.mac) && days >= staleDays:
 			why = "A private (changing) address not seen for " + strconv.FormatInt(days, 10) + " days: the device has most likely moved on to another one."
 		case days >= staleAnyDays:

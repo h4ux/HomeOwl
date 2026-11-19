@@ -186,11 +186,101 @@ func (a *App) presenceTag(body map[string]any) error {
 	}
 	if pid == "" {
 		a.presence.Forget(mac)
-	} else if err := a.An.AssignDevice(pid, "mac", mac); err != nil {
-		log.Printf("presence: assigning %s: %v", mac, err)
+	} else {
+		// the device's earlier addresses are theirs too: Analytics and the history follow
+		for _, m := range append([]string{mac}, a.deviceAddresses(mac)...) {
+			if err := a.An.AssignDevice(pid, "mac", m); err != nil {
+				log.Printf("presence: assigning %s: %v", m, err)
+			}
+		}
+		if n, err := a.presenceRepair(pid, time.Now()); err != nil {
+			log.Printf("presence: rebuilding the history: %v", err)
+		} else if n > 0 {
+			log.Printf("presence: rebuilt %d arrivals and departures from the device's past connections", n)
+		}
 	}
 	a.kickPresence()
 	return nil
+}
+
+// deviceAddresses: the other addresses the device at this address had: the ones HomeOwl followed it from, and those
+// of check-ins merged into it.
+func (a *App) deviceAddresses(mac string) []string {
+	x, ok := a.checkins.Registered(mac)
+	if !ok {
+		return nil
+	}
+	var out []string
+	add := func(m string) {
+		if m = strings.ToLower(m); m != "" && m != mac && !contains(out, m) {
+			out = append(out, m)
+		}
+	}
+	for _, m := range x.OldMACs {
+		add(m)
+	}
+	for _, y := range a.checkins.List() {
+		if y.Status == "merged" && y.MergedInto == x.ID {
+			add(y.MAC)
+			for _, m := range y.OldMACs {
+				add(m)
+			}
+		}
+	}
+	return out
+}
+
+// presenceRepair rewrites someone's Who's home history from UniFi's record of when their devices were connected,
+// over the time that record covers: a device tagged today fills in the days it went untagged, and a device's
+// earlier addresses count too. Only the time before the last sync, minus the away time, is touched.
+func (a *App) presenceRepair(pid string, now time.Time) (int, error) {
+	pc := a.Cfg.Get().Presence
+	if pc.NoHistory || !a.An.Open() {
+		return 0, nil
+	}
+	var name string
+	for _, p := range a.An.People() {
+		if p.ID == pid {
+			name = p.Name
+		}
+	}
+	names := map[string]string{}
+	var macs []string
+	for m, p := range pc.Devices {
+		if p != pid {
+			continue
+		}
+		for _, x := range append([]string{m}, a.deviceAddresses(m)...) {
+			if _, ok := names[x]; !ok {
+				macs = append(macs, x)
+				names[x] = m
+			}
+		}
+	}
+	if name == "" || len(macs) == 0 {
+		return 0, nil
+	}
+	o := presenceOptions(pc)
+	spans, first, upto, err := a.An.ConnSpans(macs, now.AddDate(0, 0, -o.Days))
+	if err != nil || upto.IsZero() {
+		return 0, err
+	}
+	devName := map[string]string{}
+	for _, x := range a.checkins.List() {
+		if x.Status == "approved" {
+			devName[x.MAC] = x.Name
+		}
+	}
+	var l []presence.Span
+	for _, s := range spans {
+		cur := names[s.MAC] // the address it has now names it
+		l = append(l, presence.Span{Device: cur, DeviceName: orStr(devName[cur], cur), Start: s.Start.UnixMilli(), Stop: s.Stop.UnixMilli()})
+	}
+	from := max(first.UnixMilli(), now.AddDate(0, 0, -o.Days).UnixMilli())
+	to := min(upto.UnixMilli(), now.Add(-o.Grace).UnixMilli())
+	n := a.presence.Rebuild(pid, name, l, o.Grace, from, to)
+	_ = a.presence.Save()
+	return n, nil
 }
 
 // movePresenceTag: a device got a new address (fixedmac.go, merge.go); Who's home follows it there.

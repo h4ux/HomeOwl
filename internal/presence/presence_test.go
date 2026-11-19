@@ -1,7 +1,9 @@
 package presence
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -56,5 +58,27 @@ func TestPresence(t *testing.T) {
 	old.Observe(t0, nil, nil, o)
 	if h := old.Since(0); len(h) != 1 {
 		t.Fatalf("trim: %+v", h)
+	}
+}
+
+// Rebuild: connections become arrivals and departures; short gaps don't count as leaving; only the window changes.
+func TestRebuild(t *testing.T) {
+	tr := Open(filepath.Join(t.TempDir(), "p.json"))
+	min := int64(60_000)
+	tr.Events = []Event{{T: 1 * min, Person: "p1", Kind: "arrive"}, {T: 50 * min, Person: "p1", Kind: "leave"}, {T: 60 * min, Person: "p2", Kind: "arrive"}}
+	spans := []Span{
+		{Device: "aa", Start: 100 * min, Stop: 200 * min},
+		{Device: "bb", Start: 205 * min, Stop: 300 * min}, // a 5-minute gap: still home
+		{Device: "aa", Start: 400 * min, Stop: 500 * min},
+		{Device: "aa", Start: 590 * min, Stop: 700 * min}, // still connected near the end: no leave yet
+	}
+	n := tr.Rebuild("p1", "Alex", spans, 10*time.Minute, 40*min, 705*min)
+	var got []string
+	for _, e := range tr.Since(0) {
+		got = append(got, fmt.Sprintf("%s:%s:%d", e.Person, e.Kind, e.T/min))
+	}
+	want := "p1:arrive:1 p2:arrive:60 p1:arrive:100 p1:leave:300 p1:arrive:400 p1:leave:500 p1:arrive:590"
+	if n != 5 || strings.Join(got, " ") != want {
+		t.Fatalf("%d events: %s", n, strings.Join(got, " "))
 	}
 }

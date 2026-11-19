@@ -335,17 +335,23 @@ func (a *App) approvalView() map[string]any {
 		}
 	}
 	sort.Slice(waiting, func(i, j int) bool { return waiting[i].At > waiting[j].At })
+	likely := map[string]any{}
+	for _, d := range waiting {
+		if l := a.likelyDevice(d.MAC, d.Hostname, d.At, time.Now()); len(l) > 0 {
+			likely[d.MAC] = l
+		}
+	}
 	sort.Slice(kept, func(i, j int) bool { return kept[i].At > kept[j].At })
 	gm := a.Cfg.Get().Onboard.GraceMinutes
 	grace := []map[string]any{}
 	for _, d := range st.Grace {
 		if st.Approved[d.MAC] == 0 {
 			grace = append(grace, map[string]any{"mac": d.MAC, "name": d.Name, "hostname": d.Hostname, "vendor": d.Vendor, "ssid": d.SSID, "at": d.At,
-				"ends": d.At + int64(gm)*60})
+				"ends": d.At + int64(gm)*60, "private": privateMACAddr(d.MAC), "likely": a.likelyDevice(d.MAC, d.Hostname, d.At, time.Now())})
 		}
 	}
 	sort.Slice(grace, func(i, j int) bool { return grace[i]["at"].(int64) > grace[j]["at"].(int64) })
-	return map[string]any{"on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept,
+	return map[string]any{"likely": likely, "on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept,
 		"grace_minutes": gm, "grace": grace, "push": a.Sec.Get(slotNtfy) != ""}
 }
 
@@ -380,6 +386,28 @@ func (a *App) approvalAPI(op string, body map[string]any, by string) (map[string
 		v := a.approvalView()
 		v["trimmed"] = n
 		return v, nil
+	case "same": // "it's this checked-in device under a new address": it moves there, and is let on
+		mac := strings.ToLower(s(body, "mac"))
+		x, ok := a.checkins.Get(s(body, "id"))
+		if !ok || x.Status != "approved" || !macRE.MatchString(mac) {
+			return nil, errors.New("pick an approved device")
+		}
+		if y, taken := a.checkins.Registered(mac); taken && y.ID != x.ID {
+			return nil, errors.New("that address belongs to " + y.Name)
+		}
+		a.fixedMove(x, mac)
+		if err := a.approvalSettle(mac, x.Name, by); err != nil {
+			return nil, err
+		}
+		if x.PersonID != "" {
+			_, _ = a.presenceRepair(x.PersonID, time.Now())
+		}
+		moved, _ := a.checkins.Get(x.ID)
+		go func() {
+			if err := a.checkinRename(moved, by); err != nil {
+				log.Printf("device approval: naming %s in UniFi: %v", x.Name, err)
+			}
+		}()
 	case "approve", "keep", "block":
 		mac := strings.ToLower(s(body, "mac"))
 		if x, ok := a.checkins.pendingFor(mac); ok && op == "approve" {
@@ -548,4 +576,34 @@ func (a *App) trimSeed() (int, error) {
 	}
 	st.SeedRecent = true
 	return n, s.save(st)
+}
+
+// likelyDevice: checked-in devices this new address may be, with why — one that installed its profile on the
+// setup Wi-Fi shortly before (its address changes when it moves to the home Wi-Fi), or one that's offline now and
+// last had this host name (a changed private address).
+func (a *App) likelyDevice(mac, host string, at int64, now time.Time) []map[string]any {
+	if _, known := a.checkins.Registered(mac); known {
+		return nil
+	}
+	out := []map[string]any{}
+	for _, x := range a.checkins.List() {
+		if x.Status != "approved" || x.MAC == mac {
+			continue
+		}
+		why := ""
+		switch {
+		case x.FixedFrom != "" && x.FixedAt > 0 && at >= x.FixedAt-120 && at-x.FixedAt <= 6*3600:
+			why = "installed its profile " + fmtGrace(time.Duration(max(at-x.FixedAt, 60))*time.Second) + " before this joined"
+		case host != "" && strings.EqualFold(x.Host, host) && now.Sub(time.Unix(x.HostAt, 0)) <= rotateFollowFor &&
+			now.Sub(a.online.at(x.MAC)) > 10*time.Minute && privateMACAddr(x.MAC):
+			why = "had the same name " + host + " and isn't online at its own address"
+		default:
+			continue
+		}
+		out = append(out, map[string]any{"id": x.ID, "name": x.Name, "person": x.PersonName, "why": why})
+		if len(out) == 3 {
+			break
+		}
+	}
+	return out
 }

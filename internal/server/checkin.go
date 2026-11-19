@@ -57,12 +57,14 @@ type CheckIn struct {
 	NDNames []string `json:"nd_names,omitempty"`
 	// setupwatch.go: the last query NextDNS logged under the device's name, when the setup last changed, and when
 	// HomeOwl noticed it stopped being used (0 = it works)
-	SetupSeen    int64  `json:"setup_seen,omitempty"`
-	SetupChanged int64  `json:"setup_changed,omitempty"`
-	SetupLost    int64  `json:"setup_lost,omitempty"`
-	SetupIgnore  bool   `json:"setup_ignore,omitempty"` // "stop watching" from Home: no "stopped" until it's seen again
-	TypeID       string `json:"type_id,omitempty"`      // profile type picked for this device ("" = its person's, "-" = none)
-	ProfileHash  string `json:"profile_hash,omitempty"` // fingerprint of what the last download held (profiletypes.go)
+	SetupSeen    int64 `json:"setup_seen,omitempty"`
+	SetupChanged int64 `json:"setup_changed,omitempty"`
+	SetupLost    int64 `json:"setup_lost,omitempty"`
+	SetupIgnore  bool  `json:"setup_ignore,omitempty"` // "stop watching" from Home: no "stopped" until it's seen again
+	// OldMACs: the addresses HomeOwl followed it from (fixedmac.go, rotate.go), so its past stays its own
+	OldMACs     []string `json:"old_macs,omitempty"`
+	TypeID      string   `json:"type_id,omitempty"`      // profile type picked for this device ("" = its person's, "-" = none)
+	ProfileHash string   `json:"profile_hash,omitempty"` // fingerprint of what the last download held (profiletypes.go)
 	// fixedmac.go: the device downloaded a profile that gives it its real Wi-Fi address. Until it's seen with it,
 	// FixedFrom is the private address it had then and FixedHost its host name; Fixed: it now uses the real one.
 	Onboard   bool   `json:"onboard,omitempty"` // checked in from the setup Wi-Fi (onboard.go)

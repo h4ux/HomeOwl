@@ -383,9 +383,9 @@ document.addEventListener("click", e => {
 function renderApproval() {
   const el = $("#st-approval"), r = S.approval; if (!el || !r) return;
   if (r.error) { el.innerHTML = `<div class="msg warn">${esc(r.error)}</div>`; return; }
-  const who = d => esc(d.name || d.hostname || d.mac), meta = d => [d.vendor, d.ssid, ago(d.at * 1000)].filter(Boolean).map(esc).join(" · ");
+  const who = d => esc(d.name || d.hostname || d.mac), meta = d => newDevMeta(d).map(esc).join(" · ");
   const people = S.devTypePeople || [];
-  const row = (d, kept) => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)}</div></div>
+  const row = (d, kept) => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)}</div>${likelyHTML(d.mac, r.likely?.[d.mac])}</div>
     <div class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}
       <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${kept ? "" : `<button class="btn sm" data-apvkeep="${esc(d.mac)}">Keep blocked</button>`}</div></div>`;
   el.innerHTML = `<h3 style="margin-top:18px">Approve new devices ${hint("A device that joins the home Wi-Fi for the first time is blocked in UniFi until you approve it here or from its alert. Checked-in devices (from the setup Wi-Fi with their profile) don't need it. Devices seen in the last day when you turn this on count as approved; older ones wait for you when they come back. Guest networks, the setup Wi-Fi and wired devices aren't covered. Each block is in the change log and can be undone.")}</h3>
@@ -393,7 +393,7 @@ function renderApproval() {
     ${r.on ? `<div class="ap-grace"><label>New devices stay online for<select id="apv-grace">${APV_GRACE.map(([m, l]) => `<option value="${m}" ${m === (r.grace_minutes || 0) ? "selected" : ""}>${l}</option>`).join("")}${APV_GRACE.some(([m]) => m === (r.grace_minutes || 0)) ? "" : `<option value="${r.grace_minutes}" selected>${r.grace_minutes} minutes</option>`}</select></label>
       <span class="fine muted">${r.grace_minutes ? "…so you can approve them in time. Not approved by then: blocked." : "Blocked straight away until you approve them."}</span></div>
       <p class="fine">${r.push ? "✓ New devices are pushed to your phone (ntfy) with <b>Approve</b> and <b>Block</b> buttons. Everyone subscribed to the topic can decide." : `Get new devices on your phone with <b>Approve</b> and <b>Block</b> buttons: add an ntfy topic in <a href="#" data-goto="settings">Settings › Alerts</a> (the ntfy app; both parents can subscribe).`}</p>` : ""}
-    ${r.on && arr(r.grace).length ? `<h4 style="margin:10px 0 4px">Online, waiting for a decision</h4><div class="ap-blocks">${r.grace.map(d => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)} · blocked ${d.ends * 1000 > Date.now() ? "in " + fmtDur((d.ends * 1000 - Date.now()) / 1000) : "at its next check"}</div></div>
+    ${r.on && arr(r.grace).length ? `<h4 style="margin:10px 0 4px">Online, waiting for a decision</h4><div class="ap-blocks">${r.grace.map(d => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)} · blocked ${d.ends * 1000 > Date.now() ? "in " + fmtDur((d.ends * 1000 - Date.now()) / 1000) : "at its next check"}</div>${likelyHTML(d.mac, d.likely)}</div>
       <div class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}
       <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button><button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></div></div>`).join("")}</div>` : ""}
     ${r.on ? `<p class="fine muted">${r.approved} devices approved. <button class="btn sm ghost" id="apv-trim" title="Devices approved when this was turned on, but not seen in the last ${r.recent_hours || 24} hours, wait for approval when they come back. Devices you approved and checked-in devices stay.">Re-check devices not seen lately</button></p>` : ""}
@@ -438,7 +438,23 @@ document.addEventListener("click", e => {
   if (ok) { const mac = ok.dataset.apv; ok.disabled = true; approvalDo("/api/approval/approve", { mac, person_id: $(`[data-apvwho="${mac}"]`)?.value || "" }, "Approved — it can connect now"); return; }
   const keep = e.target.closest("[data-apvkeep]");
   if (keep) approvalDo("/api/approval/keep", { mac: keep.dataset.apvkeep }, "Kept blocked");
+  const same = e.target.closest("[data-apvsame]");
+  if (same) { same.disabled = true; approvalDo("/api/approval/same", { mac: same.dataset.apvsame, id: same.dataset.apvid }, `It's ${same.dataset.apvname} — it keeps its name, person and setup`); }
 });
+
+// What HomeOwl knows about a new device: its maker, the name it gave, where and how it's connected, when it came,
+// and whether its address is a private (changing) one.
+function newDevMeta(d, short) { // short: the table has the maker, Wi-Fi and time in columns of their own
+  const c = S.model?.clients?.find(x => x.mac === d.mac);
+  return [short ? "" : d.vendor, d.name && d.hostname && d.hostname !== d.name ? `calls itself “${d.hostname}”` : "", short ? "" : d.ssid,
+    c?.signal != null ? `${c.signal} dBm` : "", c?.ip || "", (d.private ?? /^.[26ae]/i.test(d.mac)) ? "private address" : "real address",
+    short ? "" : `joined ${ago(d.at * 1000)}`].filter(Boolean);
+}
+// Checked-in devices it may be (approval.go likelyDevice), each with a button that says so.
+function likelyHTML(mac, l) {
+  return arr(l).map(x => `<div class="ap-likely fine">Probably <b>${esc(x.name)}</b>${x.person ? ` (${esc(x.person)})` : ""} — ${esc(x.why)}
+    <button class="btn sm" data-apvsame="${esc(mac)}" data-apvid="${esc(x.id)}" data-apvname="${esc(x.name)}">It's ${esc(x.name)}</button></div>`).join("");
+}
 
 function editDevType(id) {
   const r = S.devTypes, t = r.types.find(x => x.id === id) || { name: "", wifi: [], people: [], vpn: null, icon: "checkin" }, v = t.vpn || {};

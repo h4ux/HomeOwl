@@ -1033,3 +1033,4 @@ svg.tv-plan{display:block;width:100%;min-width:620px;height:auto;user-select:non
 /* Home → "stopped using NextDNS" → Fix */
 #sh-body h4 { margin: 16px 0 6px; font-size: 14px; }
 .sh-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.ap-likely { margin-top: 6px; padding: 6px 8px; border-radius: 8px; background: var(--accent-soft); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

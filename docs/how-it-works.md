@@ -213,6 +213,21 @@ period — does everything at once: names it in UniFi as entered (or as the admi
 it to the person (creating them if they're new), and unblocks it if HomeOwl had blocked it. Rejecting a check-in
 blocks the device when approval is on, so it doesn't come back asking as a new device.
 
+**A device that changes address.** Installing a profile from the setup Wi-Fi gives a phone a new address on the
+home Wi-Fi, and a private address can rotate later. HomeOwl follows the device to its new address by its host name
+when that name is specific; when it isn't ("iPhone"), it follows a device that installed its profile from the setup
+Wi-Fi if it's the only one waiting for that move (in the last two hours) and the only new device that joined since.
+Otherwise the approval lists say who a new device probably is, with an *It's …* button that moves the checked-in
+device there. Each check-in remembers the addresses it was followed from.
+
+Tagging a device to someone in Who's home gives them its earlier addresses too, and rebuilds their arrivals and
+departures from UniFi's record of when their devices were connected (as far back as that record and the history
+setting go), so the days a new address went untagged fill in.
+
+Old addresses are suggested for archiving (Devices › All devices › Review): a device's earlier addresses, nameless
+private addresses nobody owns that haven't been seen for two weeks, strangers blocked for approval that left two
+weeks ago, and anything unseen for months. Archiving hides them from HomeOwl's lists; nothing is deleted.
+
 **If HomeOwl is down, or blocked a device by mistake:** the block lives in UniFi, so lift it there. In the UniFi
 app (or unifi.ui.com), open Client Devices, show the Blocked ones, open the device and tap Unblock. When HomeOwl runs
 again it sees the device connected and counts it as approved. A stopped HomeOwl blocks nothing new. Settings › Device

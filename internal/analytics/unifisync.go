@@ -482,3 +482,45 @@ func (e *Engine) Maintenance() {
 	e.wmu.Unlock()
 	e.state("maintenance", true, 0, "", utcnow(), strp(fmt.Sprintf("Removed raw logs older than %d days", days)))
 }
+
+// ConnSpan is one Wi-Fi or wired connection of a device, from UniFi's sessions.
+type ConnSpan struct {
+	MAC         string
+	Start, Stop time.Time
+}
+
+// ConnSpans lists the connections of these devices since a time, the oldest first, with the span of time the
+// imported sessions cover (from the oldest one to the last sync): outside it nothing is known.
+func (e *Engine) ConnSpans(macs []string, since time.Time) (out []ConnSpan, first, upto time.Time, err error) {
+	if e.db == nil {
+		return nil, first, upto, errors.New("analytics isn't running")
+	}
+	upto, ok := e.lastTS("unifi:sessions")
+	if !ok || len(macs) == 0 {
+		return nil, first, time.Time{}, nil
+	}
+	var f sql.NullTime
+	if err = e.db.QueryRow(`SELECT min(start_ts) FROM sessions`).Scan(&f); err != nil || !f.Valid {
+		return nil, first, time.Time{}, err
+	}
+	first = f.Time.UTC()
+	args := []any{since.UTC()}
+	ph := make([]string, len(macs))
+	for i, m := range macs {
+		ph[i], args = "?", append(args, strings.ToLower(m))
+	}
+	rows, err := e.db.Query(`SELECT mac, start_ts, stop_ts FROM sessions WHERE stop_ts >= ? AND stop_ts IS NOT NULL AND mac IN (`+
+		strings.Join(ph, ",")+`) ORDER BY start_ts`, args...)
+	if err != nil {
+		return nil, first, upto, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var s ConnSpan
+		if err = rows.Scan(&s.MAC, &s.Start, &s.Stop); err != nil {
+			return nil, first, upto, err
+		}
+		out = append(out, s)
+	}
+	return out, first, upto, rows.Err()
+}

@@ -17,7 +17,7 @@ func TestArchiveSuggestions(t *testing.T) {
 	known := []map[string]any{
 		{"mac": "02:00:00:00:00:01", "name": "Alex's iPhone", "oui": "", "last_seen": ts(10)},          // old copy, Alex's
 		{"mac": "06:00:00:00:00:02", "name": "Alex's iPhone", "oui": "", "last_seen": ts(0)},           // now online
-		{"mac": "0a:00:00:00:00:03", "hostname": "iPhone", "last_seen": ts(20)},                        // generic name: no duplicate
+		{"mac": "0a:00:00:00:00:03", "hostname": "iPhone", "last_seen": ts(20)},                        // generic name: no duplicate, but a ghost
 		{"mac": "0e:00:00:00:00:04", "hostname": "iPhone", "last_seen": ts(1)},                         //
 		{"mac": "00:11:22:00:00:05", "hostname": "nas-box", "oui": "Synology", "last_seen": ts(30)},    // same name, other maker
 		{"mac": "00:11:22:00:00:06", "hostname": "nas-box", "oui": "Raspberry", "last_seen": ts(1)},    //
@@ -35,8 +35,11 @@ func TestArchiveSuggestions(t *testing.T) {
 	for _, c := range got {
 		by[c.MAC] = c
 	}
-	if len(got) != 3 {
-		t.Fatalf("three suggestions: %+v", got)
+	if len(got) != 4 {
+		t.Fatalf("four suggestions: %+v", got)
+	}
+	if c := by["0a:00:00:00:00:03"]; c.Kind != "stale" || !strings.Contains(c.Reason, "no name and no owner") { // a ghost
+		t.Fatalf("ghost: %+v", c)
 	}
 	d := by["02:00:00:00:00:01"]
 	if d.Kind != "duplicate" || d.KeptMAC != "06:00:00:00:00:02" || !d.KeptOnline || d.PersonID != "p1" {
