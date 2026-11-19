@@ -81,13 +81,31 @@ const iconNote = k => k === "none" ? ""
   : `<p class="fine">It also puts a <b>HomeOwl</b> icon on the Home Screen that opens this page, for updates later. It works at home.</p>`;
 
 // the check-in form's model list (iPhone, iPad, Mac): the one the device announced is suggested; the admin sees both
-function formModel(m) {
-  if (!m?.groups?.length || !["ios", "mac"].includes(platform())) return "";
+// A phone is offered iPhones, a tablet iPads, a laptop or computer Macs; the model found on the device stays offered.
+const MODEL_GROUP = { phone: "iPhone", tablet: "iPad", laptop: "Mac", computer: "Mac" };
+function modelGroups(groups, kind, keep) {
+  const g = MODEL_GROUP[kind], l = groups.filter(x => x.group === g || x.models.some(m => m.id === keep));
+  return g && l.length ? l : groups;
+}
+let FORM_MODELS = null;
+function formModelOpts(m, kind, cur) {
   const known = m.groups.some(g => g.models.some(x => x.id === m.found));
+  return `<option value="" ${cur ? "" : "selected"}>Not sure</option>
+    ${modelGroups(m.groups, kind, cur).map(g => `<optgroup label="${esc(g.group)}">${g.models.map(x => `<option value="${esc(x.id)}" ${x.id === cur ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</optgroup>`).join("")}
+    ${m.found && !known ? `<option value="${esc(m.found)}" ${cur === m.found ? "selected" : ""}>${esc(m.found)}</option>` : ""}`;
+}
+// the kind changed: only its models (the choice stays if it's still offered)
+document.addEventListener("change", e => {
+  if (e.target.id !== "hi-kind" || !FORM_MODELS || !$("#hi-fmodel")) return;
+  const sel = $("#hi-fmodel"), cur = sel.value || FORM_MODELS.found || "";
+  sel.innerHTML = formModelOpts(FORM_MODELS, e.target.value, cur);
+  if (sel.value !== cur) sel.value = "";
+});
+function formModel(m, kind) {
+  if (!m?.groups?.length || !["ios", "mac"].includes(platform())) return "";
+  FORM_MODELS = m;
   return `<label>Which model?
-      <select id="hi-fmodel"><option value="" ${m.found ? "" : "selected"}>Not sure</option>
-        ${m.groups.map(g => `<optgroup label="${esc(g.group)}">${g.models.map(x => `<option value="${esc(x.id)}" ${x.id === m.found ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</optgroup>`).join("")}
-        ${m.found && !known ? `<option value="${esc(m.found)}" selected>${esc(m.found)}</option>` : ""}</select></label>
+      <select id="hi-fmodel">${formModelOpts(m, kind, m.found || "")}</select></label>
     ${m.found ? `<p class="fine muted" style="margin-top:-6px">Suggested by this device itself — change it if it's wrong.</p>` : ""}`;
 }
 
@@ -96,7 +114,7 @@ function modelPick(m) {
   if (!m?.groups?.length) return "";
   const known = id => m.groups.some(g => g.models.some(x => x.id === id));
   const cur = m.current || (m.by === "device" ? "-" : "");
-  const opts = m.groups.map(g => `<optgroup label="${esc(g.group)}">${g.models.map(x => `<option value="${esc(x.id)}" ${x.id === cur ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</optgroup>`).join("")
+  const opts = modelGroups(m.groups, m.kind, cur).map(g => `<optgroup label="${esc(g.group)}">${g.models.map(x => `<option value="${esc(x.id)}" ${x.id === cur ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</optgroup>`).join("")
     + (cur && cur !== "-" && !known(cur) ? `<option value="${esc(cur)}" selected>${esc(cur)}</option>` : "")
     + `<option value="-" ${cur === "-" ? "selected" : ""}>Don't say</option>`;
   const note = m.by === "admin" ? "An admin chose this model." : m.by === "found" ? "Found on this device — change it if it's wrong."
@@ -388,7 +406,7 @@ async function start() {
         </select></label>
       <label id="hi-newwrap" hidden>Name<input id="hi-newname" maxlength="40" placeholder="e.g. Alex"></label>
       <label>What is it?<select id="hi-kind">${KINDS.map(([k, l]) => `<option value="${k}" ${k === kind ? "selected" : ""}>${l}</option>`).join("")}</select></label>
-      ${formModel(st.model)}
+      ${formModel(st.model, kind)}
       <label>Name for this device<input id="hi-name" maxlength="40" required placeholder="e.g. Alex's iPad"></label>
       <label class="check hi-main" id="hi-mainwrap" hidden><input type="checkbox" id="hi-main"> <span><b id="hi-mainq">Is this your main phone?</b><br><span class="fine muted">HomeOwl uses it to see when you're home (Who's home). Only for the one you carry with you.</span></span></label>
       <button class="btn primary" type="submit">Send to HomeOwl</button>

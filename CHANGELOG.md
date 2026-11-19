@@ -4,6 +4,16 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.120] — 2026-11-19
+
+### Added
+- **More Apple models**: the MacBook Neo, and every iPad Pro generation (9.7-inch, 10.5-inch, 11-inch 1st–4th gen,
+  12.9-inch 1st–6th gen; all their identifiers are named).
+
+### Changed
+- **The model list follows the device type**: a phone is offered iPhones, a tablet iPads, a laptop or computer Macs
+  (on the check-in page as the type changes, and in the admin's setup). A model found on the device stays offered.
+
 ## [0.1.119] — 2026-11-19
 
 ### Fixed

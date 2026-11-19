@@ -146,6 +146,16 @@ func TestModelGroups(t *testing.T) {
 	if !seen["iPhone19,3"] || seen["iPhone19,7"] {
 		t.Error("the international Pro Max is named but not offered twice")
 	}
+	// older iPad Pros and the MacBook Neo: offered once, every variant named
+	for id, want := range map[string]string{"Mac17,5": "MacBook Neo", "iPad6,8": "iPad Pro 12.9-inch (1st gen)",
+		"iPad7,2": "iPad Pro 12.9-inch (2nd gen)", "iPad8,4": "iPad Pro 11-inch (1st gen)", "iPad8,10": "iPad Pro 11-inch (2nd gen)"} {
+		if modelName(id) != want {
+			t.Errorf("%s: %q", id, modelName(id))
+		}
+	}
+	if !seen["iPad6,7"] || seen["iPad6,8"] || !seen["Mac17,5"] {
+		t.Error("each model offered once")
+	}
 }
 
 func TestCheckInFormModel(t *testing.T) {

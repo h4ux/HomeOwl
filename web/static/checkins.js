@@ -177,14 +177,20 @@ function setupCard(c) {
 // Apple models for the NextDNS setup come from the server (applemodels.go), with S.ciND: the profile reports the
 // model's marketing name, and NextDNS shows it by the device's name. "Other…" takes any model identifier.
 const ndModels = () => arr(S.ciND?.models);
+// a phone is offered iPhones, a tablet iPads, a laptop or computer Macs (all of them for other kinds)
+const MODEL_GROUP = { phone: "iPhone", tablet: "iPad", laptop: "Mac", computer: "Mac" };
+const groupsFor = (groups, kind, keep = []) => { // keep: models already chosen or found stay offered
+  const g = MODEL_GROUP[kind], l = arr(groups).filter(x => x.group === g || arr(x.models).some(m => keep.includes(m.id)));
+  return g && l.length ? l : arr(groups);
+};
 const ndModelKnown = id => ndModels().some(g => arr(g.models).some(m => m.id === id));
 const ndModelName = id => ndModels().flatMap(g => arr(g.models)).find(m => m.id === id)?.name || id;
-function ndModelPick(pre, cur, found, picked) {
+function ndModelPick(pre, cur, found, picked, kind) {
   const other = cur && cur !== "-" && !ndModelKnown(cur);
   return `<label>Device model ${hint("iPhone, iPad and Mac: the setup tells NextDNS the model, so its logs show it next to the device's name. Automatic uses the model the device announced on the home network when it checked in (Apple devices do; others announce nothing, and then no model is sent).")}<select id="${pre}-model">
     <option value="">${picked && picked !== "-" ? `Automatic — ${esc(ndModelName(picked))} (chosen on the device)` : picked === "-" ? "Automatic — none (chosen on the device)" : found ? `Automatic — ${esc(ndModelName(found))} (found on the device)` : "Automatic — none found on the device yet"}</option>
     <option value="-" ${cur === "-" ? "selected" : ""}>None</option>
-    ${ndModels().map(g => `<optgroup label="${esc(g.group)}">${arr(g.models).map(m => `<option value="${esc(m.id)}" ${m.id === cur ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</optgroup>`).join("")}
+    ${groupsFor(ndModels(), kind, [cur, found, picked]).map(g => `<optgroup label="${esc(g.group)}">${arr(g.models).map(m => `<option value="${esc(m.id)}" ${m.id === cur ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</optgroup>`).join("")}
     <option value="*" ${other ? "selected" : ""}>Other — type its model identifier…</option></select></label>
     <label id="${pre}-modelwrap" ${other ? "" : "hidden"}>Model identifier<input id="${pre}-modelid" value="${other ? esc(cur) : ""}" placeholder="iPhone17,1" spellcheck="false" autocomplete="off"></label>`;
 }
@@ -198,7 +204,7 @@ function changeSetup(id) {
   if (!nd.profiles.length && !types.length) return toast("Nothing to choose yet: add a NextDNS API key in Settings › Analytics, or a profile type in Settings › Device profiles", "err");
   openModal({ title: `Setup for ${x.name}`, body: `
     ${nd.profiles.length ? `<label>NextDNS profile<select id="cis-nd"><option value="">None</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === x.nd_profile ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
-      ${ndModelPick("cis", x.nd_model || "", x.det_model || "", x.user_model || "")}` : ""}
+      ${ndModelPick("cis", x.nd_model || "", x.det_model || "", x.user_model || "", x.kind)}` : ""}
     ${types.length ? `<label>Profile type (Wi-Fi and VPN)<select id="cis-type">
       <option value="" ${!x.type_id ? "selected" : ""}>${pt ? `${esc(personLabel(x))}'s: ${esc(pt.name)}` : "Its person's (none yet)"}</option>
       ${types.map(t => `<option value="${esc(t.id)}" ${x.type_id === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("")}
@@ -541,7 +547,7 @@ async function approveCheckin(id) {
   const ndPick = nd.profiles.length ? `<label>NextDNS profile for the device's setup
       <select id="ci-nd"><option value="">None — don't offer a setup</option>${nd.profiles.map(p => `<option value="${esc(p.id)}" ${p.id === ndDefault ? "selected" : ""}>${esc(p.name)} (${esc(p.id)})</option>`).join("")}</select></label>
     ${x.det_model || (x.user_model && x.user_model !== "-") ? `<p class="fine">Model — found on the device: <b>${x.det_model ? esc(ndModelName(x.det_model)) : "nothing"}</b> · they chose: <b>${x.user_model && x.user_model !== "-" ? esc(ndModelName(x.user_model)) : "not sure"}</b>${x.det_model && x.user_model && x.user_model !== "-" && x.det_model !== x.user_model ? ` <span class="tag warn">different</span>` : ""}</p>` : ""}
-    ${ndModelPick("ci", "", x.det_model || "", x.user_model || "")}
+    ${ndModelPick("ci", "", x.det_model || "", x.user_model || "", x.kind)}
     <p class="fine">After approval, the device's check-in page offers to set it up with encrypted DNS through this profile, under its name, so it's recognised on any network (a profile on iPhone, iPad and Mac; Private DNS on Android).</p>` : "";
   const opts = S.ciPeople.map(p => `<option value="${esc(p.id)}" ${p.id === known?.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
   openModal({ title: "Approve device check-in", body: `

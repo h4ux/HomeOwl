@@ -132,5 +132,5 @@ func modelView(x CheckIn) map[string]any {
 	case x.DetModel == "":
 		by = ""
 	}
-	return map[string]any{"current": ndModelOf(x), "found": x.DetModel, "by": by, "name": modelName(ndModelOf(x)), "groups": modelGroups()}
+	return map[string]any{"current": ndModelOf(x), "found": x.DetModel, "by": by, "name": modelName(ndModelOf(x)), "groups": modelGroups(), "kind": x.Kind}
 }
