@@ -485,10 +485,10 @@ function catsBody() {
   return `<div class="grid g2"><div class="card"><h2>Categories <span class="muted fine">(click to explore)</span></h2><div id="ct-cats"></div></div>
       <div class="card"><h2>${S.ex.catAll ? "All domains" : "Uncategorized domains"}</h2>
         <div class="filters"><div class="seg"><button data-excatall="0" class="${S.ex.catAll ? "" : "on"}">Uncategorized</button><button data-excatall="1" class="${S.ex.catAll ? "on" : ""}">All domains</button></div></div>
-        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with Claude</button>
+        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with AI</button><button class="btn sm ghost" id="ct-aisetup" type="button" title="Choose the model">⚙ Model</button>
           <button class="btn sm" id="ct-csv" type="button">Download CSV</button><button class="btn sm" id="ct-prompt" type="button">Copy prompt for a chat</button>
           <label class="btn sm" for="ct-import">Import CSV</label><input type="file" id="ct-import" accept=".csv,text/csv,text/plain" hidden>
-          ${hint("Many domains have no category yet. Claude can suggest one for each (with your own Anthropic API key; only the domain names are sent). Or download the list, give it with the prompt to any AI chat, and import the CSV it returns. You see every suggestion before it's saved as a rule.")}</div>` : ""}
+          ${hint("Many domains have no category yet. An AI model can suggest one for each: Claude (your Anthropic key), any model on OpenRouter (your OpenRouter key), or a local model through Ollama (nothing leaves the house). Only the domain names are sent. Or download the list, give it with the prompt to any AI chat, and import the CSV it returns. You see every suggestion before it's saved as a rule.")}</div>` : ""}
         <div id="ct-unc"></div></div></div>
     <div class="card section"><h2>Your rules</h2><p class="muted">Rules win over the built-in list. <span class="mono">example.com</span> also covers its subdomains; <span class="mono">~word</span> matches any domain containing “word”.</p>
       ${isAdmin() ? `<div class="ovr" style="grid-template-columns:1fr 1fr auto"><input id="ct-pat" placeholder="domain.com, *.domain.com or ~word"><select id="ct-cat">${(S.ex.meta?.categories || []).filter(c => c !== "Uncategorized").map(c => `<option>${esc(c)}</option>`).join("")}<option value="__new">New category…</option></select><button class="btn sm primary" id="ct-add">Add rule</button></div>` : ""}
@@ -553,25 +553,60 @@ function ctImport(file) {
 }
 async function ctAI() {
   let st; try { st = await api("/api/analytics/ai-status", {}); } catch (e) { return toast(e.message, "err"); }
-  if (!st.key) return ctKeyModal(true);
+  if (!st.ready) return ctAISetup(st, true);
   const doms = (S.ex.uncDoms || []).map(d => d.domain); if (!doms.length) return toast("Nothing uncategorized in this period");
-  const b = $("#ct-ai"); if (b) { b.disabled = true; b.textContent = "Asking Claude…"; }
+  const b = $("#ct-ai"); if (b) { b.disabled = true; b.textContent = `Asking ${st.label}…`; }
   try {
     const r = await api("/api/analytics/ai-categorize", { domains: doms });
     if (r.error) toast(`Only part of the list: ${r.error}`, "err");
-    if (!r.suggestions.length) toast("Claude didn't recognise any of these domains");
-    else ctReview(r.suggestions, `Claude's suggestions for ${fmtNum(r.suggestions.length)} of ${fmtNum(Math.min(doms.length, 300))} domains`, true);
+    if (!r.suggestions.length) toast(`${r.label} didn't recognise any of these domains`);
+    else ctReview(r.suggestions, `${r.label}'s suggestions for ${fmtNum(r.suggestions.length)} of ${fmtNum(Math.min(doms.length, 300))} domains`, true);
   } catch (e) { toast(e.message, "err"); }
-  finally { if (b) { b.disabled = false; b.textContent = "Suggest with Claude"; } }
+  finally { if (b) { b.disabled = false; b.textContent = "Suggest with AI"; } }
 }
-function ctKeyModal(thenRun) {
-  openModal({ title: "Suggest categories with Claude", body: `<p>Paste an API key from <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener noreferrer">platform.claude.com</a> (Settings › API keys). HomeOwl keeps it in the keychain and uses it only for this.</p>
-      <p class="fine muted">Each time, HomeOwl sends Claude the uncategorized domain names and your category list — nothing about devices, people or times. Anthropic bills the key's account (a few cents for a few hundred domains).</p>
-      <label>API key<input type="password" id="ct-key" placeholder="sk-ant-…" autocomplete="off" spellcheck="false"></label>`,
-    buttons: [{ label: "Cancel" }, { label: "Remove saved key", onClick: async () => { try { await api("/api/analytics/ai-key", { key: "" }); closeModal(); toast("Key removed", "ok"); } catch (e) { toast(e.message, "err"); } } },
+// ctAISetup: which model suggests categories. Keys stay on the server: the page only learns whether one is saved.
+const AI_PROV = {
+  anthropic: { name: "Claude", key: "sk-ant-…", keyUrl: "https://platform.claude.com/settings/keys", keyWhere: "platform.claude.com (Settings › API keys)",
+    note: "Anthropic bills the key's account: a few cents for a few hundred domains." },
+  openrouter: { name: "OpenRouter", key: "sk-or-…", keyUrl: "https://openrouter.ai/settings/keys", keyWhere: "openrouter.ai (Settings › Keys)",
+    note: "Any model OpenRouter offers. openrouter/auto lets OpenRouter pick; a model that can't follow a JSON schema may answer less reliably." },
+  ollama: { name: "Ollama", note: "A model running on a computer at home (ollama.com). Nothing leaves the house. Pick one that's pulled already; bigger models know more domains." },
+};
+async function ctAISetup(st, thenRun) {
+  if (!st) { try { st = await api("/api/analytics/ai-status", {}); } catch (e) { return toast(e.message, "err"); } }
+  let prov = st.provider || "anthropic";
+  const body = () => { const P = AI_PROV[prov], saved = st.keys?.[prov], same = prov === st.provider;
+    return `<div class="seg" id="ai-prov">${Object.entries(AI_PROV).map(([k, v]) => `<button type="button" data-aiprov="${k}" class="${k === prov ? "on" : ""}">${v.name}</button>`).join("")}</div>
+      <p class="fine muted" style="margin-top:8px">${esc(P.note)}</p>
+      ${P.key ? `<label>API key ${saved ? `<span class="tag good">saved</span>` : ""}<input type="password" id="ai-key" placeholder="${saved ? "Leave empty to keep the saved key" : P.key}" autocomplete="off" spellcheck="false"></label>
+        <p class="fine muted">From <a href="${P.keyUrl}" target="_blank" rel="noopener noreferrer">${esc(P.keyWhere)}</a>. Kept in the keychain; the page never sees it again.</p>` : ""}
+      ${prov === "ollama" ? `<label>Ollama address<input id="ai-url" value="${esc(same && st.url ? st.url : st.defaults?.ollama_url || "http://127.0.0.1:11434")}" spellcheck="false"></label>
+        <p class="fine muted">On another computer, start Ollama there with <span class="mono">OLLAMA_HOST=0.0.0.0</span> and use its address.</p>` : ""}
+      <label>Model <button class="btn sm ghost" type="button" id="ai-list">${prov === "anthropic" ? "" : "List models"}</button><input id="ai-model" list="ai-models" value="${esc(same ? st.model : prov === "openrouter" ? st.defaults?.openrouter : prov === "anthropic" ? st.defaults?.anthropic : "")}" placeholder="${prov === "ollama" ? "llama3.1:8b" : ""}" spellcheck="false"><datalist id="ai-models"></datalist></label>
+      <p class="fine muted">Each time, HomeOwl sends the uncategorized domain names and your category list — nothing about devices, people or times.</p>`; };
+  const draw = () => {
+    $("#ai-body").innerHTML = body(); if (prov === "anthropic") $("#ai-list").hidden = true;
+    const rm = [...document.querySelectorAll("#modal-box .modal-foot button")].find(x => x.textContent === "Remove saved key");
+    if (rm) rm.hidden = !(AI_PROV[prov].key && st.keys?.[prov]);
+  };
+  openModal({ title: "Model for category suggestions", body: `<div id="ai-body"></div>`,
+    buttons: [{ label: "Cancel" }, { label: "Remove saved key", onClick: async () => { try { st = await api("/api/analytics/ai-setup", { provider: prov, model: $("#ai-model")?.value, url: $("#ai-url")?.value, remove: true }); toast("Key removed", "ok"); draw(); } catch (e) { toast(e.message, "err"); } } },
       { label: thenRun ? "Save and suggest" : "Save", cls: "primary", onClick: async () => {
-        try { await api("/api/analytics/ai-key", { key: $("#ct-key").value }); closeModal(); toast("Key saved", "ok"); if (thenRun) ctAI(); } catch (e) { toast(e.message, "err"); }
+        try { st = await api("/api/analytics/ai-setup", { provider: prov, key: $("#ai-key")?.value || "", model: $("#ai-model")?.value || "", url: $("#ai-url")?.value || "" });
+          if (!st.ready) return toast(prov === "ollama" ? "Pick a model" : "Paste an API key", "err");
+          closeModal(); toast(`Suggestions come from ${st.label}`, "ok"); if (thenRun) ctAI(); } catch (e) { toast(e.message, "err"); }
       } }] });
+  draw();
+  $("#ai-body").addEventListener("click", async e => {
+    const pb = e.target.closest("[data-aiprov]"); if (pb) { prov = pb.dataset.aiprov; return draw(); }
+    if (e.target.id === "ai-list") {
+      e.target.disabled = true;
+      try { const r = await api("/api/analytics/ai-models", { provider: prov, url: $("#ai-url")?.value || "" });
+        $("#ai-models").innerHTML = r.models.map(m => `<option value="${esc(m)}">`).join(""); toast(r.models.length ? `${r.models.length} models: start typing in Model` : "No models found", r.models.length ? "ok" : "err"); }
+      catch (err) { toast(err.message, "err"); }
+      e.target.disabled = false;
+    }
+  });
 }
 // ctReview: every suggestion with its own category picker; only the ticked ones become rules
 function ctReview(sugg, title, ai) {
@@ -594,6 +629,7 @@ document.addEventListener("click", e => {
   if (!isAnView(S.view)) return;
   const id = e.target.id;
   if (id === "ct-ai") return ctAI();
+  if (id === "ct-aisetup") return ctAISetup(null, false);
   if (id === "ct-csv") return ctCsv();
   if (id === "ct-prompt") return ctPrompt();
   const all = e.target.closest("[data-ctall]"); if (all) $$("[data-ctrow]").forEach(c => { c.checked = all.dataset.ctall === "1"; });

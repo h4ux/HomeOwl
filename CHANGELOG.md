@@ -4,6 +4,14 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.113] — 2026-11-19
+
+### Added
+- **Category suggestions from OpenRouter or a local Ollama model**, besides Claude. *⚙ Model* in Family › Categories
+  picks the provider: Claude (Anthropic key), any OpenRouter model (OpenRouter key; openrouter/auto by default), or
+  Ollama on a computer at home (its address and a pulled model; nothing leaves the house). *List models* fills the
+  model picker from OpenRouter or the Ollama server. Keys stay in the keychain.
+
 ## [0.1.112] — 2026-11-19
 
 ### Added

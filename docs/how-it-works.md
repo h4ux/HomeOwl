@@ -103,8 +103,9 @@ the device has moves together, and its check-in follows, so a later address chan
 
 ### Filling in uncategorized domains
 
-Family › Categories lists the domains no built-in category or rule covers. An admin can add an Anthropic API key
-(kept in the keychain, never sent to the browser) and ask Claude for suggestions: HomeOwl sends only the domain
+Family › Categories lists the domains no built-in category or rule covers. An admin can pick a model for
+suggestions: Claude with an Anthropic API key, any model on OpenRouter with an OpenRouter key (keys are kept in the
+keychain, never sent to the browser), or a local model through Ollama, where nothing leaves the house. For each: HomeOwl sends only the domain
 names and the category list, nothing about devices, people or times, and keeps only answers for domains it asked
 about with a category on the list. Without a key, the list downloads as a CSV with a prompt to give any AI chat, and
 its answer imports back. Suggestions are always reviewed before they become rules.

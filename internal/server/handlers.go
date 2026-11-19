@@ -1094,7 +1094,7 @@ func (a *App) analyticsAdmin(op string, body map[string]any) (any, error) {
 		}
 		n, skipped, err := A.SaveRules(rules)
 		return map[string]any{"saved": n, "skipped": nz(skipped)}, err
-	case "ai-status", "ai-key", "ai-categorize":
+	case "ai-status", "ai-setup", "ai-models", "ai-categorize":
 		return a.aiCategoriesOp(op, body)
 	case "recategorize":
 		_, err := A.RefreshCategories(true)

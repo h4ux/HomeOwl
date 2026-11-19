@@ -225,6 +225,15 @@ type Menubar struct {
 	Icon string `json:"icon,omitempty"` // outline (default), dot, filled, logo, count
 }
 
+// AI: which model suggests categories for uncategorized domains (server/aicat.go). Provider: anthropic (the
+// default), openrouter or ollama; Model: the provider's model name ("" = its default); URL: the Ollama server. The
+// API keys are secrets, not here.
+type AI struct {
+	Provider string `json:"provider,omitempty"`
+	Model    string `json:"model,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
 type Config struct {
 	Host           string     `json:"host"`
 	Site           string     `json:"site"`
@@ -248,6 +257,7 @@ type Config struct {
 	UPS            UPS        `json:"ups"`
 	Tuya           Tuya       `json:"tuya"`
 	Onboard        Onboard    `json:"onboard"`
+	AI             AI         `json:"ai"`
 	// Tailscale logins that were admins/viewers in older versions — offered when creating users.
 	LegacyAdmins  []string `json:"admins,omitempty"`
 	LegacyViewers []string `json:"viewers,omitempty"`
