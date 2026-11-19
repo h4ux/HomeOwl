@@ -108,7 +108,7 @@ type aiSuggestion struct {
 
 const aiChunk = 100 // domains per request
 
-func (a *App) aiCategoriesOp(op string, body map[string]any) (any, error) {
+func (a *App) aiCategoriesOp(op string, body map[string]any, by string) (any, error) {
 	switch op {
 	case "ai-status":
 		ac := a.aiConf()
@@ -116,53 +116,41 @@ func (a *App) aiCategoriesOp(op string, body map[string]any) (any, error) {
 		for p, slot := range aiKeySlots {
 			keys[p] = a.Sec.Get(slot) != ""
 		}
+		a.aiJobs.mu.Lock()
+		st := a.aiJobs.load()
+		a.aiJobs.mu.Unlock()
 		return map[string]any{"provider": ac.Provider, "model": ac.Model, "url": ac.URL, "keys": keys, "ready": ac.ready(), "label": ac.label(),
+			"daily": a.Cfg.Get().AI.Daily, "job": a.aiJobs.progress(), "last": st.Last, "pending": len(st.Pending), "asked": len(st.Asked),
 			"defaults": map[string]string{"anthropic": aiModel, "openrouter": aiOpenRouterAuto, "ollama_url": aiOllamaURL}}, nil
 	case "ai-setup":
-		return a.aiSetup(body)
+		return a.aiSetup(body, by)
 	case "ai-models":
 		return a.aiModels(body)
-	}
-	ac := a.aiConf()
-	if !ac.ready() {
-		return nil, errors.New("set up a model for suggestions first")
-	}
-	var doms []string
-	seen := map[string]bool{}
-	for _, x := range anyArr(body["domains"]) {
-		d, _ := x.(string)
-		d = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(d), "."))
-		if aiDomainRE.MatchString(d) && !seen[d] {
-			seen[d] = true
-			doms = append(doms, d)
-		}
-	}
-	if len(doms) == 0 {
-		return nil, errors.New("no domains to categorize")
-	}
-	if len(doms) > 300 {
-		doms = doms[:300]
-	}
-	cats := aiCategoryList(a)
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
-	defer cancel()
-	var out []aiSuggestion
-	for i := 0; i < len(doms); i += aiChunk {
-		part, err := aiCategorize(ctx, ac, cats, doms[i:min(i+aiChunk, len(doms))])
+	case "ai-run":
+		started, err := a.aiStart(by)
 		if err != nil {
-			if len(out) > 0 { // keep what came back
-				return map[string]any{"suggestions": out, "categories": cats, "error": err.Error()}, nil
-			}
 			return nil, err
 		}
-		out = append(out, aiKeepKnown(part, seen, cats)...)
+		return map[string]any{"started": started, "job": a.aiJobs.progress()}, nil
+	case "ai-pending":
+		l, err := a.aiPendingView()
+		return map[string]any{"suggestions": l, "categories": aiCategoryList(a)}, err
+	case "ai-dismiss":
+		var doms []string
+		for _, x := range anyArr(body["domains"]) {
+			if d, ok := x.(string); ok {
+				doms = append(doms, d)
+			}
+		}
+		a.aiDone(doms)
+		return map[string]any{"ok": true}, nil
 	}
-	return map[string]any{"suggestions": nz(out), "categories": cats, "label": ac.label()}, nil
+	return nil, errors.New("not found")
 }
 
 // aiSetup saves the provider, its model and address, and a key (an empty key keeps the saved one; remove: true
 // deletes it).
-func (a *App) aiSetup(body map[string]any) (any, error) {
+func (a *App) aiSetup(body map[string]any, by string) (any, error) {
 	p := s(body, "provider")
 	if p != "anthropic" && p != "openrouter" && p != "ollama" {
 		return nil, errors.New("pick Anthropic, OpenRouter or Ollama")
@@ -195,10 +183,12 @@ func (a *App) aiSetup(body map[string]any) (any, error) {
 			}
 		}
 	}
-	if err := a.Cfg.Update(func(c *config.Config) { c.AI = config.AI{Provider: p, Model: model, URL: addr} }); err != nil {
+	if err := a.Cfg.Update(func(c *config.Config) {
+		c.AI = config.AI{Provider: p, Model: model, URL: addr, Daily: b(body, "daily")}
+	}); err != nil {
 		return nil, err
 	}
-	return a.aiCategoriesOp("ai-status", nil)
+	return a.aiCategoriesOp("ai-status", nil, by)
 }
 
 // aiModels lists the models an Ollama server has, or OpenRouter offers, for the picker.

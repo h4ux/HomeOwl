@@ -110,6 +110,12 @@ names and the category list, nothing about devices, people or times, and keeps o
 about with a category on the list. Without a key, the list downloads as a CSV with a prompt to give any AI chat, and
 its answer imports back. Suggestions are always reviewed before they become rules.
 
+A suggestion run is a background job on the server. It takes every domain that had no category in the last 30 days
+and asks about it in groups of 100, remembering each domain it asked (in `<data>/ai-categories.json`). A domain that
+got a suggestion is never asked again; one the model didn't know is asked again after 30 days. Suggestions wait for
+review, and a dismissed one stays dismissed. With the daily run on, the job starts once a day after 03:00 and the
+admins get an alert when there's something to review.
+
 ### Blocking YouTube but keeping YouTube Music
 
 An app block on YouTube can keep YouTube Music. Both use the same streaming (googlevideo.com) and picture

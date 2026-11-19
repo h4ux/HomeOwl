@@ -1093,9 +1093,16 @@ func (a *App) analyticsAdmin(op string, body map[string]any) (any, error) {
 			return nil, errors.New("send 1 to 2000 rules")
 		}
 		n, skipped, err := A.SaveRules(rules)
+		if err == nil {
+			var doms []string
+			for _, r := range rules {
+				doms = append(doms, r[0])
+			}
+			a.aiDone(doms) // reviewed suggestions leave the waiting list
+		}
 		return map[string]any{"saved": n, "skipped": nz(skipped)}, err
-	case "ai-status", "ai-setup", "ai-models", "ai-categorize":
-		return a.aiCategoriesOp(op, body)
+	case "ai-status", "ai-setup", "ai-models", "ai-run", "ai-pending", "ai-dismiss":
+		return a.aiCategoriesOp(op, body, "admin")
 	case "recategorize":
 		_, err := A.RefreshCategories(true)
 		return map[string]any{"ok": true}, err

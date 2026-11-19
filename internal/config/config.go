@@ -232,6 +232,7 @@ type AI struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`
 	URL      string `json:"url,omitempty"`
+	Daily    bool   `json:"daily,omitempty"` // ask about new uncategorized domains once a day
 }
 
 type Config struct {

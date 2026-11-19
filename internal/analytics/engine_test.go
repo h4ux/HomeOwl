@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -315,5 +316,39 @@ func TestNDDeviceBlocked(t *testing.T) {
 	}
 	if l, _ := e.NDDeviceBlocked(nil, []string{"Sam's iPad"}, now.Add(-24*time.Hour), 10); len(l) != 0 {
 		t.Fatal("no profiles: nothing")
+	}
+}
+
+// UncategorizedRoots: domains without a category, the busiest first; a rule takes one off, and old days don't count.
+func TestUncategorizedRoots(t *testing.T) {
+	e := openTestEngine(t)
+	now := utcnow()
+	q := `INSERT INTO dns_queries(ts, profile_id, domain, root, status, device_name, client_ip) VALUES (?,?,?,?,?,?,?)`
+	for _, r := range [][]any{
+		{now.Add(-1 * time.Hour), "abc123", "www.roblox.com", "roblox.com", "default", "Sam's Phone", "203.0.113.7"},
+		{now.Add(-1 * time.Hour), "abc123", "a.example-one.com", "example-one.com", "default", "Sam's Phone", "203.0.113.7"},
+		{now.Add(-2 * time.Hour), "abc123", "b.example-two.com", "example-two.com", "default", "Sam's Phone", "203.0.113.7"},
+		{now.Add(-3 * time.Hour), "abc123", "c.example-two.com", "example-two.com", "default", "Alex's iPad", "203.0.113.7"},
+		{now.Add(-60 * 24 * time.Hour), "abc123", "old.example-old.com", "example-old.com", "default", "Alex's iPad", "203.0.113.7"},
+	} {
+		if _, err := e.db.Exec(q, r...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := e.db.Exec("INSERT INTO dns_daily_dr " + drSelect + " GROUP BY ALL"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.RefreshCategories(true); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.UncategorizedRoots(now.Add(-30*24*time.Hour), 100)
+	if err != nil || strings.Join(got, " ") != "example-two.com example-one.com" {
+		t.Fatalf("uncategorized: %v %v", got, err)
+	}
+	if n, skipped, err := e.SaveRules([][2]string{{"example-two.com", "Games"}, {"not a domain", "Games"}}); err != nil || n != 1 || len(skipped) != 1 {
+		t.Fatalf("save rules: %d %v %v", n, skipped, err)
+	}
+	if got, _ = e.UncategorizedRoots(now.Add(-30*24*time.Hour), 100); strings.Join(got, " ") != "example-one.com" {
+		t.Fatalf("after a rule: %v", got)
 	}
 }

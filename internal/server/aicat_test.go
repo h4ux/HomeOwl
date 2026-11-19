@@ -7,16 +7,21 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
-// Claude's suggestions: the key stays on the server, only valid domain names go out, and only answers for those
-// domains with a listed category come back; accepted ones are saved as rules in one go.
-func TestAICategories(t *testing.T) {
+// The suggestion job: the key stays on the server, only valid domain names go out, nothing is asked twice (a domain
+// the model didn't know only after 30 days), one run at a time, and reviewed suggestions leave the waiting list.
+func TestAIJob(t *testing.T) {
 	a := checkinApp(t)
-	old := aiCategorize
-	defer func() { aiCategorize = old }()
+	oldC, oldU := aiCategorize, aiUncategorized
+	defer func() { aiCategorize, aiUncategorized = oldC, oldU }()
+	uncat := []string{"example-games.com", "EXAMPLE-cdn.net", "<script>", "192.168.1.5", "example-video.com"}
+	aiUncategorized = func(*App, time.Time, int) ([]string, error) { return uncat, nil }
 	var sent []string
+	gate := make(chan bool, 10)
 	aiCategorize = func(_ context.Context, ac aiConf, cats, doms []string) ([]aiSuggestion, error) {
+		<-gate
 		if ac.Provider != "anthropic" || ac.Key != "sk-ant-api03-abcdefghijklmnopqrstuvwxyz" || ac.Model != aiModel {
 			t.Fatalf("conf %+v", ac)
 		}
@@ -24,29 +29,72 @@ func TestAICategories(t *testing.T) {
 		return []aiSuggestion{{Domain: "example-games.com", Category: cats[0], Why: "a game site"},
 			{Domain: "not-asked.com", Category: cats[0]}, {Domain: "example-cdn.net", Category: "Made up"}}, nil
 	}
-	if _, err := a.analyticsAdmin("ai-categorize", map[string]any{"domains": []any{"example-games.com"}}); err == nil {
-		t.Fatal("ran without a key")
+	wait := func() {
+		for i := 0; i < 200 && a.aiJobs.progress().Running; i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if a.aiJobs.progress().Running {
+			t.Fatal("job didn't finish")
+		}
+	}
+	run := func() bool {
+		r, err := a.analyticsAdmin("ai-run", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r.(map[string]any)["started"] == true
+	}
+	if _, err := a.analyticsAdmin("ai-run", nil); err == nil {
+		t.Fatal("ran without a model set up")
 	}
 	if _, err := a.analyticsAdmin("ai-setup", map[string]any{"provider": "anthropic", "key": "hello"}); err == nil {
 		t.Fatal("took a key that isn't one")
 	}
-	if _, err := a.analyticsAdmin("ai-setup", map[string]any{"provider": "anthropic", "key": "sk-ant-api03-abcdefghijklmnopqrstuvwxyz"}); err != nil {
+	if _, err := a.analyticsAdmin("ai-setup", map[string]any{"provider": "anthropic", "key": "sk-ant-api03-abcdefghijklmnopqrstuvwxyz", "daily": true}); err != nil {
 		t.Fatal(err)
 	}
 	st, _ := a.analyticsAdmin("ai-status", nil)
-	if st.(map[string]any)["ready"] != true || strings.Contains(strings.ToLower(jsonS(st)), "sk-ant") {
+	if m := st.(map[string]any); m["ready"] != true || m["daily"] != true || strings.Contains(strings.ToLower(jsonS(st)), "sk-ant") {
 		t.Fatalf("status leaks or misses the key: %v", st)
 	}
-	r, err := a.analyticsAdmin("ai-categorize", map[string]any{"domains": []any{"example-games.com", "EXAMPLE-cdn.net.", "<script>", "192.168.1.5", "example-games.com"}})
-	if err != nil {
-		t.Fatal(err)
+	if !run() {
+		t.Fatal("didn't start")
 	}
-	if strings.Join(sent, " ") != "example-games.com example-cdn.net" {
+	if run() {
+		t.Fatal("a second run started while one was running")
+	}
+	gate <- true
+	wait()
+	if strings.Join(sent, " ") != "example-games.com example-cdn.net example-video.com" {
 		t.Fatalf("sent %v", sent)
 	}
-	sugg := r.(map[string]any)["suggestions"].([]aiSuggestion)
-	if len(sugg) != 1 || sugg[0].Domain != "example-games.com" {
-		t.Fatalf("suggestions %+v", sugg)
+	st, _ = a.analyticsAdmin("ai-status", nil)
+	if m := st.(map[string]any); m["pending"] != 1 || m["asked"] != 3 || m["last"].(*aiRunInfo).Found != 1 {
+		t.Fatalf("after the run: %v", st)
+	}
+	// again: nothing new to ask
+	sent = nil
+	run()
+	wait()
+	if len(sent) != 0 {
+		t.Fatalf("asked twice: %v", sent)
+	}
+	// a month on, the ones it didn't know are asked again; the suggested one isn't
+	a.aiJobs.update(func(st *aiState) {
+		for d, x := range st.Asked {
+			x.At -= int64(31 * 24 * 3600)
+			st.Asked[d] = x
+		}
+	})
+	gate <- true
+	run()
+	wait()
+	if strings.Join(sent, " ") != "example-cdn.net example-video.com" {
+		t.Fatalf("retry sent %v", sent)
+	}
+	p, _ := a.analyticsAdmin("ai-pending", nil)
+	if l := p.(map[string]any)["suggestions"].([]aiPending); len(l) != 1 || l[0].Domain != "example-games.com" {
+		t.Fatalf("pending %+v", l)
 	}
 	res, err := a.analyticsAdmin("rules-import", map[string]any{"rules": []any{
 		map[string]any{"pattern": "example-games.com", "category": "Games"},
@@ -55,9 +103,11 @@ func TestAICategories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := res.(map[string]any)
-	if m["saved"] != 1 || len(m["skipped"].([]string)) != 2 {
+	if m := res.(map[string]any); m["saved"] != 1 || len(m["skipped"].([]string)) != 2 {
 		t.Fatalf("import: %v", m)
+	}
+	if p, _ = a.analyticsAdmin("ai-pending", nil); len(p.(map[string]any)["suggestions"].([]aiPending)) != 0 {
+		t.Fatal("a saved suggestion still waits")
 	}
 	found := false
 	for _, x := range a.An.Rules() {
@@ -65,6 +115,13 @@ func TestAICategories(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("rule not saved")
+	}
+	// a domain that got a category some other way drops off the waiting list
+	a.aiJobs.update(func(st *aiState) {
+		st.Pending = []aiPending{{aiSuggestion: aiSuggestion{Domain: "example-old.com", Category: "Games"}}}
+	})
+	if p, _ = a.analyticsAdmin("ai-pending", nil); len(p.(map[string]any)["suggestions"].([]aiPending)) != 0 {
+		t.Fatal("a domain no longer uncategorized still waits")
 	}
 	if _, err := a.analyticsAdmin("ai-setup", map[string]any{"provider": "anthropic", "remove": true}); err != nil || a.Sec.Get(aiKeySlots["anthropic"]) != "" {
 		t.Fatal("key not removed")

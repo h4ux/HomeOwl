@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.114] — 2026-11-19
+
+### Changed
+- **Suggest with AI goes through every uncategorized domain**, not just the 300 on screen: all of the last 30 days, in
+  the background, 100 per request, with progress on the page. It never asks about a domain twice: one that got a
+  suggestion isn't asked again, and one the model didn't know is asked again only after 30 days. Suggestions wait
+  for review (*Review N suggestions*), and progress is saved after every 100, so a stop or error loses nothing. One
+  run at a time; up to 3,000 domains a run, the rest next time.
+
+### Added
+- **Daily suggestions**: a switch in *⚙ Model* runs the job once a day (after 03:00) on new uncategorized domains and
+  alerts the admins when there are suggestions to review. In the review, the unticked ones can be dismissed for good.
+
 ## [0.1.113] — 2026-11-19
 
 ### Added

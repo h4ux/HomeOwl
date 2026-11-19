@@ -122,6 +122,29 @@ func (e *Engine) ApplyLocalTime(reset bool) {
 
 // ---- categories
 
+// UncategorizedRoots lists the domains with no category that were looked up since a day, the busiest first.
+func (e *Engine) UncategorizedRoots(since time.Time, limit int) ([]string, error) {
+	if e.db == nil {
+		return nil, errors.New("analytics isn't running")
+	}
+	rows, err := e.db.Query(`SELECT d.root FROM dns_daily_dr d LEFT JOIN root_category rc ON rc.root = d.root
+		WHERE coalesce(rc.category, 'Uncategorized') = 'Uncategorized' AND d.day >= ? AND coalesce(d.root, '') <> ''
+		GROUP BY d.root ORDER BY sum(d.n) DESC LIMIT ?`, since.UTC().Format("2006-01-02"), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var r string
+		if err := rows.Scan(&r); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // Rules lists the admin's category rules.
 func (e *Engine) Rules() []categories.Rule {
 	if e.db == nil {

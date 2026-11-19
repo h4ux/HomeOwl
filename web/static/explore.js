@@ -485,9 +485,10 @@ function catsBody() {
   return `<div class="grid g2"><div class="card"><h2>Categories <span class="muted fine">(click to explore)</span></h2><div id="ct-cats"></div></div>
       <div class="card"><h2>${S.ex.catAll ? "All domains" : "Uncategorized domains"}</h2>
         <div class="filters"><div class="seg"><button data-excatall="0" class="${S.ex.catAll ? "" : "on"}">Uncategorized</button><button data-excatall="1" class="${S.ex.catAll ? "on" : ""}">All domains</button></div></div>
-        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with AI</button><button class="btn sm ghost" id="ct-aisetup" type="button" title="Choose the model">⚙ Model</button>
+        ${isAdmin() && !S.ex.catAll ? `<div class="btnrow ct-tools"><button class="btn sm primary" id="ct-ai" type="button">Suggest with AI</button><button class="btn sm" id="ct-aireview" type="button" hidden>Review suggestions</button><button class="btn sm ghost" id="ct-aisetup" type="button" title="Choose the model">⚙ Model</button>
           <button class="btn sm" id="ct-csv" type="button">Download CSV</button><button class="btn sm" id="ct-prompt" type="button">Copy prompt for a chat</button>
           <label class="btn sm" for="ct-import">Import CSV</label><input type="file" id="ct-import" accept=".csv,text/csv,text/plain" hidden>
+          <div class="fine muted ct-aistat" id="ct-aistat"></div>
           ${hint("Many domains have no category yet. An AI model can suggest one for each: Claude (your Anthropic key), any model on OpenRouter (your OpenRouter key), or a local model through Ollama (nothing leaves the house). Only the domain names are sent. Or download the list, give it with the prompt to any AI chat, and import the CSV it returns. You see every suggestion before it's saved as a rule.")}</div>` : ""}
         <div id="ct-unc"></div></div></div>
     <div class="card section"><h2>Your rules</h2><p class="muted">Rules win over the built-in list. <span class="mono">example.com</span> also covers its subdomains; <span class="mono">~word</span> matches any domain containing “word”.</p>
@@ -502,6 +503,7 @@ async function loadCats() {
     fill("ct-cats", blist(a.by_category, "category", { color: i => catColor(i.key), sub: i => `${subActive(i)} · ${fmtNum(i.domains)} domains` }).replace(/data-exf="category\|/g, 'data-exgo="category|'));
     const cats = [...meta.categories, ...new Set(meta.rules.map(r => r.category))].filter((c, i, x) => x.indexOf(c) === i && c !== "Uncategorized");
     S.ex.uncDoms = (b.by_domain || []).map(d => ({ domain: d.key, total: d.total, devices: d.devices }));
+    if (isAdmin() && !S.ex.catAll) ctAIStatus();
     fill("ct-unc", (b.by_domain || []).length ? `<div class="tbl-wrap" style="max-height:520px"><table><thead><tr><th>Domain</th><th class="num">Queries</th><th class="num">Devices</th><th>Category</th></tr></thead><tbody>
       ${b.by_domain.map(d => `<tr><td class="mono"><a href="#" data-exgo="root|${esc(d.key)}">${esc(d.key)}</a></td><td class="num">${fmtNum(d.total)}</td><td class="num">${fmtNum(d.devices)}</td>
         <td>${isAdmin() ? `<select data-ctassign="${esc(d.key)}" style="padding:4px 6px"><option value="">${esc(d.category || "Uncategorized")}</option>${cats.filter(c => c !== d.category).map(c => `<option>${esc(c)}</option>`).join("")}</select>` : esc(d.category)}</td></tr>`).join("")}
@@ -551,18 +553,35 @@ function ctImport(file) {
   };
   rd.readAsText(file);
 }
+// Suggest with AI: the server goes through every uncategorized domain of the last 30 days in the background, never
+// asking about one twice; suggestions wait until they're reviewed (aijob.go). The page shows its progress.
+let CT_POLL = null, CT_WAS = false;
+async function ctAIStatus() {
+  let st; try { st = await api("/api/analytics/ai-status", {}); } catch { return; }
+  const el = $("#ct-aistat"), rv = $("#ct-aireview"), b = $("#ct-ai"); if (!el) return;
+  const j = st.job || {}, last = st.last;
+  if (rv) { rv.hidden = !st.pending; rv.textContent = `Review ${fmtNum(st.pending)} suggestion${st.pending === 1 ? "" : "s"}`; }
+  if (b) { b.disabled = !!j.running; b.textContent = j.running ? `Asking ${st.label}…` : "Suggest with AI"; }
+  el.textContent = j.running ? `${st.label}: ${fmtNum(j.done)} of ${fmtNum(j.total)} domains asked, ${fmtNum(j.found)} suggestions so far`
+    : last ? `Last run ${fmtTime(last.at * 1000)}${last.by === "daily" ? " (daily)" : ""}: ${fmtNum(last.asked)} new domain${last.asked === 1 ? "" : "s"} asked, ${fmtNum(last.found)} suggestion${last.found === 1 ? "" : "s"}${last.left ? `, ${fmtNum(last.left)} left for next time` : ""}${last.error ? ` · stopped: ${last.error}` : ""}${st.daily ? " · runs daily" : ""}`
+    : st.ready ? `${st.label}${st.daily ? " · runs daily" : ""}` : "";
+  clearTimeout(CT_POLL);
+  if (CT_WAS && !j.running && st.pending) ctReviewPending(true); // a run this page watched just finished
+  CT_WAS = !!j.running;
+  if (j.running) CT_POLL = setTimeout(ctAIStatus, 2000);
+  return st;
+}
 async function ctAI() {
   let st; try { st = await api("/api/analytics/ai-status", {}); } catch (e) { return toast(e.message, "err"); }
   if (!st.ready) return ctAISetup(st, true);
-  const doms = (S.ex.uncDoms || []).map(d => d.domain); if (!doms.length) return toast("Nothing uncategorized in this period");
-  const b = $("#ct-ai"); if (b) { b.disabled = true; b.textContent = `Asking ${st.label}…`; }
-  try {
-    const r = await api("/api/analytics/ai-categorize", { domains: doms });
-    if (r.error) toast(`Only part of the list: ${r.error}`, "err");
-    if (!r.suggestions.length) toast(`${r.label} didn't recognise any of these domains`);
-    else ctReview(r.suggestions, `${r.label}'s suggestions for ${fmtNum(r.suggestions.length)} of ${fmtNum(Math.min(doms.length, 300))} domains`, true);
-  } catch (e) { toast(e.message, "err"); }
-  finally { if (b) { b.disabled = false; b.textContent = "Suggest with AI"; } }
+  try { const r = await api("/api/analytics/ai-run", {}); toast(r.started ? `Asking ${st.label} about every uncategorized domain it hasn't seen yet…` : "Already running", "ok"); }
+  catch (e) { return toast(e.message, "err"); }
+  ctAIStatus();
+}
+async function ctReviewPending(auto) {
+  let r; try { r = await api("/api/analytics/ai-pending", {}); } catch (e) { return toast(e.message, "err"); }
+  if (!r.suggestions.length) { if (!auto) toast("Nothing waiting for review"); return ctAIStatus(); }
+  ctReview(r.suggestions, `${fmtNum(r.suggestions.length)} suggestion${r.suggestions.length === 1 ? "" : "s"} waiting`, true);
 }
 // ctAISetup: which model suggests categories. Keys stay on the server: the page only learns whether one is saved.
 const AI_PROV = {
@@ -583,18 +602,19 @@ async function ctAISetup(st, thenRun) {
       ${prov === "ollama" ? `<label>Ollama address<input id="ai-url" value="${esc(same && st.url ? st.url : st.defaults?.ollama_url || "http://127.0.0.1:11434")}" spellcheck="false"></label>
         <p class="fine muted">On another computer, start Ollama there with <span class="mono">OLLAMA_HOST=0.0.0.0</span> and use its address.</p>` : ""}
       <label>Model <button class="btn sm ghost" type="button" id="ai-list">${prov === "anthropic" ? "" : "List models"}</button><input id="ai-model" list="ai-models" value="${esc(same ? st.model : prov === "openrouter" ? st.defaults?.openrouter : prov === "anthropic" ? st.defaults?.anthropic : "")}" placeholder="${prov === "ollama" ? "llama3.1:8b" : ""}" spellcheck="false"><datalist id="ai-models"></datalist></label>
-      <p class="fine muted">Each time, HomeOwl sends the uncategorized domain names and your category list — nothing about devices, people or times.</p>`; };
+      <label class="check"><input type="checkbox" id="ai-daily" ${st.daily ? "checked" : ""}> Run every day on new uncategorized domains</label>
+      <p class="fine muted">Each run asks only about domains it hasn't asked before (ones it didn't know, again after 30 days), and the suggestions wait here for your review. Each time, HomeOwl sends the domain names and your category list — nothing about devices, people or times.</p>`; };
   const draw = () => {
     $("#ai-body").innerHTML = body(); if (prov === "anthropic") $("#ai-list").hidden = true;
     const rm = [...document.querySelectorAll("#modal-box .modal-foot button")].find(x => x.textContent === "Remove saved key");
     if (rm) rm.hidden = !(AI_PROV[prov].key && st.keys?.[prov]);
   };
   openModal({ title: "Model for category suggestions", body: `<div id="ai-body"></div>`,
-    buttons: [{ label: "Cancel" }, { label: "Remove saved key", onClick: async () => { try { st = await api("/api/analytics/ai-setup", { provider: prov, model: $("#ai-model")?.value, url: $("#ai-url")?.value, remove: true }); toast("Key removed", "ok"); draw(); } catch (e) { toast(e.message, "err"); } } },
+    buttons: [{ label: "Cancel" }, { label: "Remove saved key", onClick: async () => { try { st = await api("/api/analytics/ai-setup", { provider: prov, model: $("#ai-model")?.value, url: $("#ai-url")?.value, daily: !!$("#ai-daily")?.checked, remove: true }); toast("Key removed", "ok"); draw(); } catch (e) { toast(e.message, "err"); } } },
       { label: thenRun ? "Save and suggest" : "Save", cls: "primary", onClick: async () => {
-        try { st = await api("/api/analytics/ai-setup", { provider: prov, key: $("#ai-key")?.value || "", model: $("#ai-model")?.value || "", url: $("#ai-url")?.value || "" });
+        try { st = await api("/api/analytics/ai-setup", { provider: prov, key: $("#ai-key")?.value || "", model: $("#ai-model")?.value || "", url: $("#ai-url")?.value || "", daily: !!$("#ai-daily")?.checked });
           if (!st.ready) return toast(prov === "ollama" ? "Pick a model" : "Paste an API key", "err");
-          closeModal(); toast(`Suggestions come from ${st.label}`, "ok"); if (thenRun) ctAI(); } catch (e) { toast(e.message, "err"); }
+          closeModal(); toast(`Suggestions come from ${st.label}${st.daily ? ", every day" : ""}`, "ok"); if (thenRun) ctAI(); else ctAIStatus(); } catch (e) { toast(e.message, "err"); }
       } }] });
   draw();
   $("#ai-body").addEventListener("click", async e => {
@@ -618,10 +638,14 @@ function ctReview(sugg, title, ai) {
         <td class="mono">${esc(x.domain)}${known.size && !known.has(x.domain) ? ` <span class="tag">not in this list</span>` : ""}</td>
         <td><select data-ctcat="${i}">${isNew ? `<option selected>${esc(x.category)}</option>` : ""}${cats.map(c => `<option ${c === x.category ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>${isNew ? ` <span class="tag warn">new category</span>` : ""}</td>
         ${ai ? `<td class="fine muted">${esc(x.why || "")}</td>` : ""}</tr>`; }).join("")}</tbody></table></div>`,
-    buttons: [{ label: "Cancel" }, { label: "Save the selected", cls: "primary", onClick: async () => {
+    buttons: [{ label: ai ? "Later" : "Cancel" }, { label: ai ? "Save the selected, dismiss the rest" : "Save the selected", cls: "primary", onClick: async () => {
       const rules = sugg.map((x, i) => $(`[data-ctrow="${i}"]`)?.checked ? { pattern: x.domain, category: $(`[data-ctcat="${i}"]`).value } : null).filter(Boolean);
-      if (!rules.length) return toast("Nothing selected");
-      try { const r = await api("/api/analytics/rules-import", { rules }); closeModal(); toast(`${fmtNum(r.saved)} rule${r.saved === 1 ? "" : "s"} saved${r.skipped.length ? ` · ${r.skipped.length} skipped (not a domain)` : ""}`, "ok"); S.ex.meta = null; loadAnalytics(); }
+      const drop = sugg.filter((x, i) => !$(`[data-ctrow="${i}"]`)?.checked).map(x => x.domain);
+      if (!rules.length && !(ai && drop.length)) return toast("Nothing selected");
+      try {
+        if (ai && drop.length) await api("/api/analytics/ai-dismiss", { domains: drop });
+        if (!rules.length) { closeModal(); toast(`${fmtNum(drop.length)} dismissed`, "ok"); return ctAIStatus(); }
+        const r = await api("/api/analytics/rules-import", { rules }); closeModal(); toast(`${fmtNum(r.saved)} rule${r.saved === 1 ? "" : "s"} saved${r.skipped.length ? ` · ${r.skipped.length} skipped (not a domain)` : ""}`, "ok"); S.ex.meta = null; loadAnalytics(); }
       catch (e) { toast(e.message, "err"); }
     } }] });
 }
@@ -630,6 +654,7 @@ document.addEventListener("click", e => {
   const id = e.target.id;
   if (id === "ct-ai") return ctAI();
   if (id === "ct-aisetup") return ctAISetup(null, false);
+  if (id === "ct-aireview") return ctReviewPending(false);
   if (id === "ct-csv") return ctCsv();
   if (id === "ct-prompt") return ctPrompt();
   const all = e.target.closest("[data-ctall]"); if (all) $$("[data-ctrow]").forEach(c => { c.checked = all.dataset.ctall === "1"; });

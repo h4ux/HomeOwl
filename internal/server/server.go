@@ -90,6 +90,7 @@ type App struct {
 	online       onlineMACs // when each client was last online (setupwatch.go)
 	devTypes     *profileTypes
 	appBlocks    *appBlocks
+	aiJobs       *aiJobs
 	privateRelay *privateRelay
 	approval     *approvalStore
 	archive      *archiveStore
@@ -128,7 +129,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a := &App{DataDir: dataDir, Cfg: cfg, Sec: secrets.New(dataDir), Users: users, UniFi: unifi.New(), Changes: unifi.NewChanges(dataDir),
 		TS: tsnetx.New(), ReadOnly: readOnly, started: time.Now(), logos: &ispLogos{dir: filepath.Join(dataDir, "isp-logos")}, appLogos: newAppLogos(dataDir),
 		checkins: &checkins{path: filepath.Join(dataDir, "checkins.json")}, cliTypes: newClientTypes(dataDir),
-		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir), archive: newArchiveStore(dataDir),
+		devTypes: newProfileTypes(dataDir), appBlocks: newAppBlocks(dataDir), aiJobs: newAIJobs(dataDir), privateRelay: newPrivateRelay(dataDir), approval: newApprovalStore(dataDir), archive: newArchiveStore(dataDir),
 		requests: newSiteRequests(dataDir), devLinks: newDevLinks(dataDir), tuya: newTuyaStore(dataDir)}
 	a.Changes.ReadOnly = readOnly
 	a.Updates = &update.Checker{Current: config.Version}
@@ -176,6 +177,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.archiveLoop(ctx)
 	go a.replyLoop(ctx) // Approve / Block from a phone notification (approvallink.go)
 	go a.appBlocksLoop(ctx)
+	go a.aiDailyLoop(ctx)
 	go a.guestRotateLoop(ctx)
 	go a.homeDNSLoop(ctx)
 	go a.cloudflareLoop(ctx)
