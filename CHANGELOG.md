@@ -4,6 +4,13 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.115] — 2026-11-19
+
+### Fixed
+- **"Couldn't check for updates: … HTTP 403".** GitHub's API allows 60 requests an hour per internet connection
+  without a login, shared by everything in the house that asks it. When that's used up, HomeOwl now reads the newest
+  release from the release page's redirect instead, which has no such limit (no release notes then).
+
 ## [0.1.114] — 2026-11-19
 
 ### Changed

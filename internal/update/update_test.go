@@ -131,3 +131,25 @@ func TestDownloadChecksAndReplace(t *testing.T) {
 		t.Fatal("program not replaced or not executable")
 	}
 }
+
+// With GitHub's API limit used up (403), the newest release comes from the release page's redirect.
+func TestLatestWhenLimited(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/" + Repo + "/releases/latest":
+			w.WriteHeader(403)
+		case "/" + Repo + "/releases/latest":
+			http.Redirect(w, r, "/"+Repo+"/releases/tag/v9.8.7", http.StatusFound)
+		default:
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+	oa, od := APIBase, DownloadBase
+	APIBase, DownloadBase = srv.URL, srv.URL
+	defer func() { APIBase, DownloadBase = oa, od }()
+	r, err := Latest(context.Background())
+	if err != nil || r.Tag != "v9.8.7" || !strings.HasSuffix(r.URL, "/releases/tag/v9.8.7") {
+		t.Fatalf("latest: %+v %v", r, err)
+	}
+}

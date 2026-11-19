@@ -117,6 +117,9 @@ func get(ctx context.Context, url string, max int64) ([]byte, error) {
 		return nil, err
 	}
 	defer res.Body.Close()
+	if (res.StatusCode == 403 || res.StatusCode == 429) && strings.HasPrefix(url, APIBase) {
+		return nil, fmt.Errorf("%w (HTTP %d)", errLimited, res.StatusCode)
+	}
 	if res.StatusCode != 200 {
 		return nil, fmt.Errorf("%s: HTTP %d", url, res.StatusCode)
 	}
@@ -130,9 +133,22 @@ func get(ctx context.Context, url string, max int64) ([]byte, error) {
 	return b, nil
 }
 
-// Latest asks GitHub for the newest published release.
+// errLimited: GitHub's API refused (403/429): without a login it allows 60 requests an hour per internet address,
+// shared by everything in the house that asks it.
+var errLimited = errors.New("GitHub's API limit for this internet connection")
+
+// Latest asks GitHub for the newest published release. When the API's limit is used up, it reads the release page's
+// redirect instead (github.com/<repo>/releases/latest → …/releases/tag/vX.Y.Z), which has no such limit but no
+// release notes.
 func Latest(ctx context.Context) (*Release, error) {
 	b, err := get(ctx, APIBase+"/repos/"+Repo+"/releases/latest", 2<<20)
+	if errors.Is(err, errLimited) {
+		r, err2 := latestByRedirect(ctx)
+		if err2 != nil {
+			return nil, fmt.Errorf("%v, and the release page didn't say either: %v", err, err2)
+		}
+		return r, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +160,33 @@ func Latest(ctx context.Context) (*Release, error) {
 		return nil, errors.New("GitHub returned no usable release")
 	}
 	return &r, nil
+}
+
+// latestByRedirect reads the newest release's tag from where github.com/<repo>/releases/latest sends the browser.
+func latestByRedirect(ctx context.Context) (*Release, error) {
+	page := DownloadBase + "/" + Repo + "/releases/latest"
+	req, err := http.NewRequestWithContext(ctx, "HEAD", page, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "HomeOwl-updater")
+	c := client()
+	c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	res, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	res.Body.Close()
+	loc := res.Header.Get("Location")
+	i := strings.LastIndex(loc, "/releases/tag/")
+	if res.StatusCode/100 != 3 || i < 0 {
+		return nil, fmt.Errorf("%s: HTTP %d", page, res.StatusCode)
+	}
+	tag := loc[i+len("/releases/tag/"):]
+	if !Parse(tag).OK {
+		return nil, errors.New("GitHub returned no usable release")
+	}
+	return &Release{Tag: tag, Name: tag, URL: DownloadBase + "/" + Repo + "/releases/tag/" + tag}, nil
 }
 
 // Executable is the real path of the running program.
