@@ -40,12 +40,14 @@ function alList(items, people) {
   return `<div class="card al-list">${items.map(a => {
     const d = new Date(a.time).toDateString(), head = d !== day ? `<div class="al-day">${esc(new Date(a.time).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }))}</div>` : ""; day = d;
     const mac = a.data?.mac, inModel = mac && (S.model?.clients.some(c => c.mac === mac) || S.model?.knownByMac?.[mac]);
+    const done = S.alerts?.decided?.[a.id]; // an approval already decided: say so instead of asking again (notify.go)
     const acts = a.kind === "new_device" && mac ? [
       canRename(mac) ? `<button class="btn sm" data-rename="${esc(mac)}">Name it</button>` : "",
       people.length ? `<select data-algive="${esc(mac)}" aria-label="Give this device to"><option value="">Give to…</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : "",
       S.source === "live" ? actBtn({ kind: "stacmd", cmd: "block-sta", mac, label: a.data?.name || mac, description: `Block ${a.data?.name || mac}` }, "Block") : "",
       inModel ? `<button class="btn sm" data-alshow="${esc(mac)}">Details</button>` : "",
-    ].join("") : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
+    ].join("") : done && (a.kind === "approval" || a.kind === "checkin") ? `<span class="tag ${done === "approved" ? "good" : "bad"}">${done === "approved" ? "✓ Approved" : done === "rejected" ? "Rejected" : "Kept blocked"}</span>`
+      : a.kind === "guest_rotated" ? `<button class="btn sm" data-goto="guest">Guest Wi-Fi</button>`
       : a.kind === "approval" && S.role === "admin" && a.data?.mac ? `<button class="btn sm primary" data-alapv="${esc(a.data.mac)}">Approve</button>${a.data.grace ? `<button class="btn sm" data-alapvblock="${esc(a.data.mac)}">Block</button>` : `<button class="btn sm" data-alapvkeep="${esc(a.data.mac)}">Keep blocked</button>`}`
       : a.kind === "site_request" && S.role === "admin" && a.data?.request ? siteReqBtns(a.data.request)
       : a.kind === "archive" && S.role === "admin" ? `<button class="btn sm" data-goto="clients">Review</button>`

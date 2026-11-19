@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/h4ux/homeowl/internal/alerts"
 	"github.com/h4ux/homeowl/internal/analytics"
 )
 
@@ -84,5 +85,36 @@ func TestNewDeviceFollowsCheckIn(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("ghost not suggested")
+	}
+}
+
+// An approval alert for a device that was approved since (through its check-in) says so instead of asking again.
+func TestAlertsDecided(t *testing.T) {
+	a := checkinApp(t)
+	a.Alerts.Add(alerts.Alert{Kind: "approval", Title: "joined", Data: map[string]any{"mac": "aa:bb:cc:00:00:40", "grace": true}})
+	sam, _ := a.An.SavePerson(analytics.Person{Name: "Sam"})
+	if code, body := hi(a, "POST", "192.168.1.40", `{"name":"Sam's Laptop","kind":"laptop","person_id":"`+sam+`"}`, nil); code != 200 {
+		t.Fatalf("check-in failed: %d %v", code, body)
+	}
+	id := a.checkins.List()[0].ID
+	a.Alerts.Add(alerts.Alert{Kind: "checkin", Title: "waiting", Data: map[string]any{"mac": "aa:bb:cc:00:00:40", "checkin": id}})
+	if d := a.alertsDecided(a.Alerts.List()); len(d) != 0 {
+		t.Fatalf("nothing decided yet: %v", d)
+	}
+	if _, err := a.approveCheckIn(map[string]any{"id": id, "name": "Sam's Laptop"}, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	d := a.alertsDecided(a.Alerts.List())
+	n := 0
+	for _, al := range a.Alerts.List() {
+		if al.Kind == "approval" || al.Kind == "checkin" {
+			if d[al.ID] != "approved" {
+				t.Fatalf("%s still asks: %v", al.Title, d)
+			}
+			n++
+		}
+	}
+	if n < 2 {
+		t.Fatalf("both alerts approved: %v", d)
 	}
 }

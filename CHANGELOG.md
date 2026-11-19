@@ -4,6 +4,15 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.121] — 2026-11-19
+
+### Fixed
+- **Approval alerts kept asking after the device was approved.** A device that joins the home Wi-Fi and then checks
+  in gets two alerts (it joined; it's waiting for approval), and approving the check-in settles both — but the alerts
+  kept their Approve buttons, so it looked like a second approval was needed. Alerts for a device that's been
+  decided now show *✓ Approved* (or Rejected, Kept blocked) instead.
+- Releases: the highest version is marked Latest on GitHub even when an older tag's build finishes last.
+
 ## [0.1.120] — 2026-11-19
 
 ### Added

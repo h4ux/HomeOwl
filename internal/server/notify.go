@@ -59,8 +59,10 @@ func (a *App) deliverAlert(al alerts.Alert) {
 }
 
 func (a *App) alertsView(admin bool) map[string]any {
-	out := map[string]any{"items": a.Alerts.List(), "unread": a.Alerts.Unread()}
+	items := a.Alerts.List()
+	out := map[string]any{"items": items, "unread": a.Alerts.Unread()}
 	if admin {
+		out["decided"] = a.alertsDecided(items)
 		out["attention"] = a.setupAttention()      // device setups that stopped: Home lists them
 		out["duplicates"] = a.duplicateAttention() // the same device checked in twice (merge.go)
 		reqs := []SiteRequest{}
@@ -373,6 +375,44 @@ func (a *App) guestScheduleView() map[string]any {
 	out := map[string]any{"rotate": g.Rotate, "day": g.RotateDay, "hour": g.RotateHour}
 	if g.Rotate != "" {
 		out["next"] = nextRotation(g, time.Now()).UnixMilli()
+	}
+	return out
+}
+
+// alertsDecided: what became of the devices that approval and check-in alerts asked about (alert id → "approved",
+// "rejected" or "blocked"), so an old alert says so instead of asking again. Undecided ones aren't listed.
+func (a *App) alertsDecided(items []alerts.Alert) map[int64]string {
+	out := map[int64]string{}
+	a.approval.mu.Lock()
+	st := a.approval.load()
+	a.approval.mu.Unlock()
+	for _, al := range items {
+		if al.Kind != "approval" && al.Kind != "checkin" {
+			continue
+		}
+		mac, _ := al.Data["mac"].(string)
+		mac = strings.ToLower(mac)
+		if id, _ := al.Data["checkin"].(string); id != "" {
+			if x, ok := a.checkins.Get(id); ok {
+				switch x.Status {
+				case "approved", "merged":
+					out[al.ID] = "approved"
+				case "rejected":
+					out[al.ID] = "rejected"
+				}
+				if out[al.ID] != "" {
+					continue
+				}
+			}
+		}
+		if mac == "" {
+			continue
+		}
+		if _, ok := a.checkins.Registered(mac); ok || st.Approved[mac] > 0 {
+			out[al.ID] = "approved"
+		} else if d, ok := st.Blocked[mac]; ok && d.Kept {
+			out[al.ID] = "blocked"
+		}
 	}
 	return out
 }
