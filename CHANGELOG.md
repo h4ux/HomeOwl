@@ -4,6 +4,22 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.122] — 2026-11-21
+
+### Added
+- **Guests on the home Wi-Fi go on the guest network.** Visitors often get the home Wi-Fi password from a family
+  member's iPhone (password sharing) and never join the guest Wi-Fi. A new device now has a **Guest** button: it stays
+  on the same Wi-Fi but gets only the internet, through the guest network (UniFi's per-client virtual network
+  override, logged and undoable; it reconnects once). **When nobody decides** can do this on its own when the grace
+  period ends, instead of blocking. *On the guest network* lists them, with *Back to home network*. Checked-in family
+  devices are never moved.
+- **More time** for a new device: +1 day, +3 days or +1 week before it's blocked.
+- **New devices say their model** when they announce it (Apple devices do): "iPhone 16 Pro" rather than "iPhone".
+
+### Fixed
+- A new device that left during its grace period showed as online and "blocked at the next check"; it now says it's
+  gone, and that it's blocked if it comes back.
+
 ## [0.1.121] — 2026-11-19
 
 ### Fixed

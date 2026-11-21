@@ -393,16 +393,22 @@ function renderApproval() {
   const people = S.devTypePeople || [];
   const row = (d, kept) => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)}</div>${likelyHTML(d.mac, r.likely?.[d.mac])}</div>
     <div class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}
-      <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${kept ? "" : `<button class="btn sm" data-apvkeep="${esc(d.mac)}">Keep blocked</button>`}</div></div>`;
+      <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${apvMore(d, false)}${kept ? "" : `<button class="btn sm" data-apvkeep="${esc(d.mac)}">Keep blocked</button>`}</div></div>`;
   el.innerHTML = `<h3 style="margin-top:18px">Approve new devices ${hint("A device that joins the home Wi-Fi for the first time is blocked in UniFi until you approve it here or from its alert. Checked-in devices (from the setup Wi-Fi with their profile) don't need it. Devices seen in the last day when you turn this on count as approved; older ones wait for you when they come back. Guest networks, the setup Wi-Fi and wired devices aren't covered. Each block is in the change log and can be undone.")}</h3>
     <label class="check"><input type="checkbox" id="apv-on" ${r.on ? "checked" : ""}> <span>Block first-time devices on the home Wi-Fi until I approve them</span></label>
     ${r.on ? `<div class="ap-grace"><label>New devices stay online for<select id="apv-grace">${APV_GRACE.map(([m, l]) => `<option value="${m}" ${m === (r.grace_minutes || 0) ? "selected" : ""}>${l}</option>`).join("")}${APV_GRACE.some(([m]) => m === (r.grace_minutes || 0)) ? "" : `<option value="${r.grace_minutes}" selected>${r.grace_minutes} minutes</option>`}</select></label>
-      <span class="fine muted">${r.grace_minutes ? "…so you can approve them in time. Not approved by then: blocked." : "Blocked straight away until you approve them."}</span></div>
+      <span class="fine muted">${r.grace_minutes ? "…so you can approve them in time." : "Then they wait for you."}</span></div>
+      <div class="ap-grace"><label>When nobody decides<select id="apv-due"><option value="" ${r.when_due ? "" : "selected"}>block it</option>
+        <option value="guest" ${r.when_due === "guest" ? "selected" : ""} ${r.guest_net ? "" : "disabled"}>${r.guest_net ? `move it to ${esc(r.guest_net)}` : "move it to the guest network (none found)"}</option></select></label>
+        ${hint("Visitors often get the home Wi-Fi password from someone's iPhone (password sharing) and never join the guest Wi-Fi. “Put it on the guest network” keeps them on the same Wi-Fi but gives them only the internet, through the guest network (UniFi's virtual network override, logged and undoable). Family devices check in, so they're never moved.")}</div>
       <p class="fine">${r.push ? "✓ New devices are pushed to your phone (ntfy) with <b>Approve</b> and <b>Block</b> buttons. Everyone subscribed to the topic can decide." : `Get new devices on your phone with <b>Approve</b> and <b>Block</b> buttons: add an ntfy topic in <a href="#" data-goto="settings">Settings › Alerts</a> (the ntfy app; both parents can subscribe).`}</p>` : ""}
-    ${r.on && arr(r.grace).length ? `<h4 style="margin:10px 0 4px">Online, waiting for a decision</h4><div class="ap-blocks">${r.grace.map(d => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)} · blocked ${d.ends * 1000 > Date.now() ? "in " + fmtDur((d.ends * 1000 - Date.now()) / 1000) : "at its next check"}</div>${likelyHTML(d.mac, d.likely)}</div>
+    ${r.on && arr(r.grace).length ? `<h4 style="margin:10px 0 4px">Online, waiting for a decision</h4><div class="ap-blocks">${r.grace.map(d => `<div class="ap-block"><div><b>${who(d)}</b> <span class="fine muted mono">${esc(d.mac)}</span><div class="fine muted">${meta(d)} · ${d.ends * 1000 > Date.now() ? `blocked in ${fmtDur((d.ends * 1000 - Date.now()) / 1000)}${d.extended ? " (more time)" : ""}` : S.model?.clients?.some(c => c.mac === d.mac) ? "blocked at its next check" : "gone — blocked if it comes back"}</div>${likelyHTML(d.mac, d.likely)}</div>
       <div class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}
-      <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button><button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></div></div>`).join("")}</div>` : ""}
+      <button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${apvMore(d, true)}<button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></div></div>`).join("")}</div>` : ""}
     ${r.on ? `<p class="fine muted">${r.approved} devices approved. <button class="btn sm ghost" id="apv-trim" title="Devices approved when this was turned on, but not seen in the last ${r.recent_hours || 24} hours, wait for approval when they come back. Devices you approved and checked-in devices stay.">Re-check devices not seen lately</button></p>` : ""}
+    ${arr(r.guests).length ? `<h4 style="margin:10px 0 4px">On the guest network</h4><div class="ap-blocks">${r.guests.map(g => `<div class="ap-block"><div><b>${esc(g.name || g.mac)}</b> <span class="fine muted mono">${esc(g.mac)}</span>
+      <div class="fine muted">${esc(g.network || "guest network")} · since ${esc(ago(g.at * 1000))}${g.by === "device approval" ? " · nobody decided in time" : ""}</div></div>
+      <div class="btnrow"><button class="btn sm" data-apvunguest="${esc(g.mac)}">Back to home network</button></div></div>`).join("")}</div>` : ""}
     ${r.waiting.length ? `<h4 style="margin:10px 0 4px">Blocked, waiting for a decision</h4><div class="ap-blocks">${r.waiting.map(d => row(d, false)).join("")}</div>` : r.on && !arr(r.grace).length ? `<p class="fine muted">Nothing waiting.</p>` : ""}
     ${r.kept.length ? `<details class="wi-more"><summary>Kept blocked (${r.kept.length})</summary><div class="ap-blocks">${r.kept.map(d => row(d, true)).join("")}</div></details>` : ""}
     ${r.on || r.waiting.length || r.kept.length ? `<details class="wi-more"><summary>If HomeOwl is down, or blocked a device by mistake</summary><div class="fine">
@@ -444,15 +450,31 @@ document.addEventListener("click", e => {
   if (ok) { const mac = ok.dataset.apv; ok.disabled = true; approvalDo("/api/approval/approve", { mac, person_id: $(`[data-apvwho="${mac}"]`)?.value || "" }, "Approved — it can connect now"); return; }
   const keep = e.target.closest("[data-apvkeep]");
   if (keep) approvalDo("/api/approval/keep", { mac: keep.dataset.apvkeep }, "Kept blocked");
+  const gu = e.target.closest("[data-apvguest]");
+  if (gu) { gu.disabled = true; approvalDo("/api/approval/guest", { mac: gu.dataset.apvguest }, "On the guest network — it reconnects there in a moment"); return; }
+  const ug = e.target.closest("[data-apvunguest]");
+  if (ug) { ug.disabled = true; approvalDo("/api/approval/unguest", { mac: ug.dataset.apvunguest }, "Back on the home network"); return; }
   const same = e.target.closest("[data-apvsame]");
   if (same) { same.disabled = true; approvalDo("/api/approval/same", { mac: same.dataset.apvsame, id: same.dataset.apvid }, `It's ${same.dataset.apvname} — it keeps its name, person and setup`); }
+});
+
+// More time, and Guest (guestmove.go), for a device waiting for a decision.
+function apvMore(d, grace) {
+  const r = S.approval || {};
+  return (grace ? `<select class="sm" data-apvext="${esc(d.mac)}" aria-label="More time"><option value="">More time…</option><option value="1440">+1 day</option><option value="4320">+3 days</option><option value="10080">+1 week</option></select>` : "")
+    + (r.guest_net ? `<button class="btn sm" data-apvguest="${esc(d.mac)}" title="Keep it on this Wi-Fi with only the internet, through ${esc(r.guest_net)}">Guest</button>` : "");
+}
+document.addEventListener("change", e => {
+  const x = e.target.closest?.("[data-apvext]");
+  if (x && x.value) approvalDo("/api/approval/extend", { mac: x.dataset.apvext, minutes: +x.value }, `${x.selectedOptions[0].textContent} more before it's blocked`);
+  if (e.target.id === "apv-due") approvalDo("/api/approval/when_due", { value: e.target.value }, e.target.value ? "Undecided devices go on the guest network" : "Undecided devices are blocked");
 });
 
 // What HomeOwl knows about a new device: its maker, the name it gave, where and how it's connected, when it came,
 // and whether its address is a private (changing) one.
 function newDevMeta(d, short) { // short: the table has the maker, Wi-Fi and time in columns of their own
-  const c = S.model?.clients?.find(x => x.mac === d.mac);
-  return [short ? "" : d.vendor, d.name && d.hostname && d.hostname !== d.name ? `calls itself “${d.hostname}”` : "", short ? "" : d.ssid,
+  const c = S.model?.clients?.find(x => x.mac === d.mac), model = d.model || S.approval?.models?.[d.mac];
+  return [model ? `${model}` : "", short ? "" : d.vendor, d.name && d.hostname && d.hostname !== d.name ? `calls itself “${d.hostname}”` : "", short ? "" : d.ssid,
     c?.signal != null ? `${c.signal} dBm` : "", c?.ip || "", (d.private ?? /^.[26ae]/i.test(d.mac)) ? "private address" : "real address",
     short ? "" : `joined ${ago(d.at * 1000)}`].filter(Boolean);
 }

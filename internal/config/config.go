@@ -60,6 +60,9 @@ type Onboard struct {
 	// GraceMinutes: a new device stays online this long before it's blocked, so there's time to approve it (0 = block
 	// at once)
 	GraceMinutes int `json:"grace_minutes,omitempty"`
+	// WhenDue: what happens to a new device nobody decided on when its grace period ends: "" (blocked) or "guest"
+	// (moved to the guest network, internal/server/guestmove.go)
+	WhenDue string `json:"when_due,omitempty"`
 	// SkipWiFi: Wi-Fi networks where the profile's NextDNS stands down (planes, hotels: their sign-in pages need
 	// ordinary DNS). nil = the starting list of in-flight networks (internal/server/dnsskip.go); [] = none.
 	SkipWiFi []string `json:"skip_wifi"`

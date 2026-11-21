@@ -224,6 +224,12 @@ Tagging a device to someone in Who's home gives them its earlier addresses too, 
 departures from UniFi's record of when their devices were connected (as far back as that record and the history
 setting go), so the days a new address went untagged fill in.
 
+**Guests who got the home password.** iPhone password sharing gives visitors the home Wi-Fi, not the guest one. A new
+device's **Guest** button (or *When nobody decides: move it to the guest network*) keeps it on the same Wi-Fi but puts
+it on the guest network with UniFi's per-client virtual network override, so it gets the internet and nothing of the
+home network. It's a logged UniFi change with undo, the device reconnects once, and *Back to home network* takes the
+override off. Checked-in devices are never moved. **More time** gives a new device another day, three days or a week.
+
 Old addresses are suggested for archiving (Devices › All devices › Review): a device's earlier addresses, nameless
 private addresses nobody owns that haven't been seen for two weeks, strangers blocked for approval that left two
 weeks ago, and anything unseen for months. Archiving hides them from HomeOwl's lists; nothing is deleted.

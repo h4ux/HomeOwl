@@ -40,7 +40,17 @@ type pendingDevice struct {
 	Vendor   string `json:"vendor,omitempty"`
 	SSID     string `json:"ssid,omitempty"`
 	At       int64  `json:"at"`
-	Kept     bool   `json:"kept,omitempty"` // the admin chose to keep it blocked: no more alerts
+	Kept     bool   `json:"kept,omitempty"`  // the admin chose to keep it blocked: no more alerts
+	Until    int64  `json:"until,omitempty"` // grace: the admin gave it more time, up to this
+}
+
+// guestDevice: a device on the home Wi-Fi that HomeOwl put on the guest network (guestmove.go)
+type guestDevice struct {
+	MAC     string `json:"mac"`
+	Name    string `json:"name,omitempty"`
+	At      int64  `json:"at"`
+	Network string `json:"network,omitempty"` // its name
+	By      string `json:"by,omitempty"`
 }
 
 type approvalState struct {
@@ -48,6 +58,7 @@ type approvalState struct {
 	Blocked  map[string]pendingDevice `json:"blocked"`
 	Grace    map[string]pendingDevice `json:"grace,omitempty"` // new, still online during the grace period (At: since)
 	Used     map[string]int64         `json:"used,omitempty"`  // approval links already used → when they expire
+	Guests   map[string]guestDevice   `json:"guests,omitempty"`
 	Seeded   int64                    `json:"seeded,omitempty"`
 	// SeedRecent: the seed took only devices seen recently (older seeds approved everything UniFi ever saw, and
 	// are trimmed once)
@@ -177,6 +188,13 @@ func (a *App) approvalTick(online []map[string]any) {
 		return
 	}
 	for _, c := range block {
+		if a.Cfg.Get().Onboard.WhenDue == "guest" {
+			err := a.moveToGuest(strings.ToLower(str(c, "mac")), "device approval")
+			if err == nil {
+				continue
+			}
+			log.Printf("device approval: couldn't move %s to the guest network, blocking it: %v", str(c, "mac"), err)
+		}
 		a.blockForApproval(c)
 	}
 }
@@ -198,15 +216,18 @@ func (a *App) graceFilter(cands []map[string]any, grace time.Duration, now time.
 			d = pendingDevice{MAC: mac, Name: str(c, "name"), Hostname: str(c, "hostname"), Vendor: str(c, "oui"), SSID: str(c, "essid"), At: now.Unix()}
 			st.Grace[mac] = d
 			fresh = append(fresh, d)
+			if ip := str(c, "ip"); ip != "" {
+				a.detectModel(mac, ip, false) // an Apple device says its model: easier to tell whose it is
+			}
 			continue
 		}
-		if now.Sub(time.Unix(d.At, 0)) >= grace {
+		if now.Unix() >= graceEnds(d, grace) {
 			due = append(due, c)
 			delete(st.Grace, mac)
 		}
 	}
 	for mac, d := range st.Grace { // approved meanwhile, or long gone
-		if st.Approved[mac] > 0 || now.Sub(time.Unix(d.At, 0)) > 30*24*time.Hour {
+		if st.Approved[mac] > 0 || now.Sub(time.Unix(max(d.At, d.Until), 0)) > 30*24*time.Hour {
 			delete(st.Grace, mac)
 		}
 	}
@@ -224,6 +245,11 @@ func (a *App) graceFilter(cands []map[string]any, grace time.Duration, now time.
 			Data: map[string]any{"mac": d.MAC, "name": name, "grace": true}})
 	}
 	return due
+}
+
+// graceEnds: when a device's grace period is over (unix seconds): the setting, or the more time it was given.
+func graceEnds(d pendingDevice, grace time.Duration) int64 {
+	return max(d.At+int64(grace.Seconds()), d.Until)
 }
 
 // fmtGrace: 15 minutes, 4 hours, 3 days.
@@ -347,11 +373,23 @@ func (a *App) approvalView() map[string]any {
 	for _, d := range st.Grace {
 		if st.Approved[d.MAC] == 0 {
 			grace = append(grace, map[string]any{"mac": d.MAC, "name": d.Name, "hostname": d.Hostname, "vendor": d.Vendor, "ssid": d.SSID, "at": d.At,
-				"ends": d.At + int64(gm)*60, "private": privateMACAddr(d.MAC), "likely": a.likelyDevice(d.MAC, d.Hostname, d.At, time.Now())})
+				"ends": graceEnds(d, time.Duration(gm)*time.Minute), "extended": d.Until > 0, "private": privateMACAddr(d.MAC),
+				"model": modelLabel(foundModel(d.MAC)), "likely": a.likelyDevice(d.MAC, d.Hostname, d.At, time.Now())})
 		}
 	}
 	sort.Slice(grace, func(i, j int) bool { return grace[i]["at"].(int64) > grace[j]["at"].(int64) })
-	return map[string]any{"likely": likely, "on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept,
+	models := map[string]string{}
+	for _, d := range waiting {
+		if m := modelLabel(foundModel(d.MAC)); m != "" {
+			models[d.MAC] = m
+		}
+	}
+	guests := []guestDevice{}
+	for _, g := range st.Guests {
+		guests = append(guests, g)
+	}
+	sort.Slice(guests, func(i, j int) bool { return guests[i].At > guests[j].At })
+	return map[string]any{"models": models, "guests": guests, "when_due": a.Cfg.Get().Onboard.WhenDue, "guest_net": a.guestNetName(), "likely": likely, "on": a.Cfg.Get().Onboard.Approve, "approved": len(st.Approved), "seeded": st.Seeded, "recent_hours": int(recentSeed.Hours()), "waiting": waiting, "kept": kept,
 		"grace_minutes": gm, "grace": grace, "push": a.Sec.Get(slotNtfy) != ""}
 }
 
@@ -386,6 +424,48 @@ func (a *App) approvalAPI(op string, body map[string]any, by string) (map[string
 		v := a.approvalView()
 		v["trimmed"] = n
 		return v, nil
+	case "extend": // more time before it's blocked: from now, or from when it would have ended
+		mac := strings.ToLower(s(body, "mac"))
+		m, _ := n(body, "minutes")
+		if m < 60 || m > 30*24*60 {
+			return nil, errors.New("from an hour to 30 days")
+		}
+		as := a.approval
+		as.mu.Lock()
+		st := as.load()
+		d, ok := st.Grace[mac]
+		if ok {
+			from := max(time.Now().Unix(), graceEnds(d, time.Duration(a.Cfg.Get().Onboard.GraceMinutes)*time.Minute))
+			d.Until = min(from+int64(m)*60, time.Now().Unix()+30*24*3600)
+			st.Grace[mac] = d
+		}
+		err := as.save(st)
+		as.mu.Unlock()
+		if !ok {
+			return nil, errors.New("it isn't in its grace period any more")
+		}
+		if err != nil {
+			return nil, err
+		}
+	case "guest": // put it on the guest network instead (guestmove.go)
+		if err := a.moveToGuest(strings.ToLower(s(body, "mac")), by); err != nil {
+			return nil, err
+		}
+	case "unguest": // back to the network of the Wi-Fi it joined
+		if err := a.moveFromGuest(strings.ToLower(s(body, "mac")), by); err != nil {
+			return nil, err
+		}
+	case "when_due":
+		v := s(body, "value")
+		if v != "" && v != "guest" {
+			return nil, errors.New("block or guest")
+		}
+		if v == "guest" && a.guestNetID() == "" {
+			return nil, errors.New("no guest network found in UniFi")
+		}
+		if err := a.Cfg.Update(func(c *config.Config) { c.Onboard.WhenDue = v }); err != nil {
+			return nil, err
+		}
 	case "same": // "it's this checked-in device under a new address": it moves there, and is let on
 		mac := strings.ToLower(s(body, "mac"))
 		x, ok := a.checkins.Get(s(body, "id"))

@@ -561,13 +561,14 @@ async function loadClientApproval() {
 }
 function graceTable(m, l) {
   const people = S.devTypePeople || [];
-  const left = d => d.ends * 1000 > Date.now() ? `in ${fmtDur((d.ends * 1000 - Date.now()) / 1000)}` : "at the next check";
+  const left = d => d.ends * 1000 > Date.now() ? `in ${fmtDur((d.ends * 1000 - Date.now()) / 1000)}${d.extended ? " (more time)" : ""}`
+    : m.clients.some(c => c.mac === d.mac) ? "at the next check" : "if it comes back"; // gone: nothing to block now
   return `<p class="fine muted">New devices on the home Wi-Fi stay online for ${esc(fmtDur((S.approval?.grace_minutes || 0) * 60))} so you can approve them; then HomeOwl blocks them. Set the time in <a href="#" data-goto="checkins">Devices › New devices</a>.</p>` + table("grace", [
-    { k: "name", label: "Device", fmt: d => `${onDot(true)}${esc(m.knownByMac[d.mac]?.label || d.name || d.hostname || d.mac)}<div class="fine muted mono">${esc(d.mac)}</div><div class="fine muted">${esc(newDevMeta(d, true).join(" · "))}</div>${likelyHTML(d.mac, d.likely)}` },
+    { k: "name", label: "Device", fmt: d => `${onDot(m.clients.some(c => c.mac === d.mac))}${esc(m.knownByMac[d.mac]?.label || d.name || d.hostname || d.mac)}<div class="fine muted mono">${esc(d.mac)}</div><div class="fine muted">${esc(newDevMeta(d, true).join(" · "))}</div>${likelyHTML(d.mac, d.likely)}` },
     { k: "vendor", label: "Vendor", fmt: d => esc(d.vendor || "–") }, { k: "ssid", label: "Wi-Fi", fmt: d => esc(d.ssid || "–") },
     { k: "at", label: "Joined", num: 1, fmt: d => esc(ago(d.at * 1000)) },
     { k: "ends", label: "Blocked", num: 1, fmt: d => `<span class="${d.ends * 1000 - Date.now() < 900000 ? "warn-t" : ""}">${esc(left(d))}</span>` },
-    { k: "mac", label: "", sort: () => 0, fmt: d => `<span class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}<button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button><button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></span>` },
+    { k: "mac", label: "", sort: () => 0, fmt: d => `<span class="btnrow">${people.length ? `<select data-apvwho="${esc(d.mac)}" aria-label="Whose device"><option value="">Whose? (optional)</option>${people.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("")}</select>` : ""}<button class="btn sm primary" data-apv="${esc(d.mac)}">Approve</button>${apvMore(d, true)}<button class="btn sm" data-apvblock="${esc(d.mac)}">Block now</button></span>` },
   ], l, { search: true, empty: "No device is in its grace period" });
 }
 
