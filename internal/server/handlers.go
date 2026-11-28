@@ -601,6 +601,20 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		if k, err = a.rotateGuestPasswords(by); err == nil {
 			res = map[string]any{"rotated": k}
 		}
+	case p == "guest-wifi/guests":
+		if r.Method == http.MethodPost {
+			err = a.guestPolicySave(body)
+		}
+		if err == nil {
+			res = a.guestPolicyView()
+		}
+	case p == "guest-wifi/guests/forget-now":
+		var names []string
+		if names, err = a.forgetStaleGuests(time.Now(), by); err == nil {
+			v := a.guestPolicyView()
+			v["removed"] = names
+			res = v
+		}
 	case p == "guest-wifi/theme":
 		res, err = a.setQRTheme(body)
 	case p == "guest-wifi/suggest":
@@ -1309,7 +1323,7 @@ func orStr(v ...string) string {
 // needs a POST, which carries the session token (X-Audit-Token) and passes the same-origin check: a link, an
 // <img> or a page on another site can't make HomeOwl act.
 var getOK = map[string]bool{"approval": true, "archive": true, "appblocks": true, "privaterelay": true, "owners": true, "wifi-ident": true, "devtypes": true, "mdm": true, "checkins": true, "checkins/coverage": true,
-	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "cameras/discover": true}
+	"checkins/ndprofiles": true, "doors": true, "guest-wifi/schedule": true, "guest-wifi/guests": true, "cameras/discover": true}
 
 var tsTagRE = regexp.MustCompile(`^tag:[A-Za-z0-9][A-Za-z0-9-]{0,62}$`)
 

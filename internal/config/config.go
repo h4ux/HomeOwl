@@ -205,6 +205,11 @@ type Guest struct {
 	RotateDay   int    `json:"rotate_day,omitempty"`
 	RotateHour  int    `json:"rotate_hour,omitempty"`
 	RotateSince int64  `json:"rotate_since,omitempty"` // ms: the last rotation, or when the schedule was set
+	// Alert: tell the admins when a device joins the guest Wi-Fi for the first time (guests never wait for approval).
+	// Alerts.NewDevice "all" (older settings) means the same.
+	Alert bool `json:"alert,omitempty"`
+	// ForgetDays: guest devices not seen for this many days are removed from UniFi's client list (0 = never)
+	ForgetDays int `json:"forget_days,omitempty"`
 }
 
 // Alerts: what HomeOwl tells you about. Where it sends them (ntfy, webhook) is kept in the secrets store.

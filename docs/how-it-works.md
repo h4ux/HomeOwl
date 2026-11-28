@@ -206,6 +206,17 @@ and **Block** buttons. A tap doesn't call HomeOwl: it posts a signed, one-time a
 that HomeOwl listens to, so it works from anywhere without opening HomeOwl to the internet. Answers expire after two
 days, and HomeOwl only acts on its own.
 
+**Guests** have their own rules (Network › Wi-Fi › Guest Wi-Fi › Guests). A device on the guest Wi-Fi never waits
+for approval: UniFi's guest networks, Wi-Fi networks picked as guest Wi-Fi on that page, and the guest network HomeOwl
+moves visitors to all count. A network that a home Wi-Fi also uses doesn't make its devices guests; only the guest
+Wi-Fi's name does. The admins can be told when a device joins the guest Wi-Fi for the first time (*On the guest
+Wi-Fi: …*, without Approve buttons). Guest devices not seen for a number of days (1, 7, 30, 60, 90, 120, 365 or any
+other) can be removed: UniFi forgets them, through the allow-listed `forget-sta` command, written to History ›
+Changes. HomeOwl checks every hour and removes at most 25 at a time. Online devices, checked-in family devices,
+devices tagged in Who's home, and devices with a fixed IP or a note in UniFi are never removed. A removed device can
+join again with the guest password and counts as a new guest; to keep someone off, give the guest Wi-Fi a new
+password.
+
 **One approval per device.** A device that checks in (its page, "This is Sam's iPhone") is waiting for that
 check-in only: it gets no grace-period alert of its own and isn't blocked meanwhile, and a grace period already
 running ends there. Approving it — on the New devices page, from the notification, or with Approve in Devices › Grace

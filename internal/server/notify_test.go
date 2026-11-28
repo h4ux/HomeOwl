@@ -28,7 +28,7 @@ func TestNewDeviceAlert(t *testing.T) {
 	}
 	_ = a.Cfg.Update(func(c *config.Config) { c.Alerts.NewDevice = "all" })
 	a.watchNewDevices(append(online, map[string]any{"mac": "02:00:00:00:00:04", "is_guest": true}))
-	if l := a.Alerts.List(); len(l) != 2 || l[0].Body != "private address" || l[0].Title != "New device: Unknown device" {
+	if l := a.Alerts.List(); len(l) != 2 || l[0].Kind != "guest_joined" || l[0].Body != "private address" || l[0].Title != "On the guest Wi-Fi: Unknown device" {
 		t.Fatalf("guest device with 'all': %+v", l[0])
 	}
 	_ = a.Cfg.Update(func(c *config.Config) { c.Alerts.NewDevice = "off" })

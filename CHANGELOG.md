@@ -16,6 +16,10 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 - **Internet down / back alerts**, with how long it lasted and the likely cause (on by default; Network › Internet ›
   Settings).
 - **Today** has an Internet card, and the MCP server an `internet_quality` tool.
+- **Guests have their own rules** (Guest Wi-Fi › Guests). They never wait for approval, now also on Wi-Fi networks
+  picked as guest Wi-Fi. A separate switch tells you when a device joins the guest Wi-Fi for the first time. And guest
+  devices not seen for a number of days you choose (1, 7, 30, 60, 90, 120, 365 or any other) are removed from UniFi's
+  client list, at most 25 an hour, each written to History › Changes; family, tagged and fixed-IP devices are kept.
 
 ## [0.1.122] — 2026-11-21
 

@@ -5,7 +5,7 @@
 
 S.alerts = null;
 const alLive = () => S.source !== "demo" && S.source !== "file";   // a running HomeOwl keeps alerts even before UniFi is connected
-const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", approval_done: "unknown", archive: "unknown", site_request: "unknown" };
+const AL_ICON = { new_device: "unknown", guest_rotated: "router", test: "iot", setup_lost: "phone", setup_back: "phone", checkin: "phone", approval: "unknown", approval_flood: "unknown", approval_done: "unknown", archive: "unknown", site_request: "unknown", guest_joined: "phone", guest_forgot: "unknown", internet_down: "router", internet_up: "router" };
 
 // demo: two fictional new devices
 function alFromBundle() {

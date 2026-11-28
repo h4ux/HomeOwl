@@ -67,6 +67,7 @@ func (a *App) pickGuestSSIDs(body map[string]any) error {
 			ids = append(ids, s)
 		}
 	}
+	defer forgetGuestNets()
 	return a.Cfg.Update(func(c *config.Config) { c.Guest.SSIDs = ids })
 }
 

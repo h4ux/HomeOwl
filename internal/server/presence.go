@@ -72,7 +72,8 @@ func (a *App) presenceLoop(ctx context.Context) {
 // presenceTick reads the clients online once a minute: for Who's home and for the new-device alert.
 func (a *App) presenceTick() {
 	people := a.presencePeople()
-	if (len(people) == 0 && a.Cfg.Get().Alerts.NewDevice == "off" && !a.fixedPending() && !a.Cfg.Get().Onboard.Approve) || !a.UniFi.Connected() {
+	cfg := a.Cfg.Get()
+	if (len(people) == 0 && cfg.Alerts.NewDevice == "off" && !guestAlertsOn(cfg) && cfg.Guest.ForgetDays == 0 && !a.fixedPending() && !cfg.Onboard.Approve) || !a.UniFi.Connected() {
 		return
 	}
 	st, d := a.UniFi.Get(a.UniFi.SitePath("stat/sta", false))
@@ -85,6 +86,7 @@ func (a *App) presenceTick() {
 		a.followFixed(list) // before the new-device alert: a phone that switched to its real address isn't new
 	}
 	a.followRotated(list, time.Now()) // a checked-in device back with a new private address isn't new either
+	a.guestTick(list)                 // remembers the guest Wi-Fi's devices (for removing them after a while)
 	a.approvalTick(list)              // blocks first-time devices on the home Wi-Fi until an admin approves them
 	a.watchNewDevices(list)
 	if len(people) == 0 {

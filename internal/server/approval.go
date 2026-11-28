@@ -21,7 +21,8 @@ import (
 // Device approval (Settings › Device profiles): with it on, a device that joins the home Wi-Fi for the first time
 // is blocked in UniFi until an admin approves it — unless it's a checked-in device (it came through the setup Wi-Fi
 // and its profile, or it was approved before). Everything the console already knew when it was turned on counts as
-// approved, so nothing in the house is cut off. Guest networks and the setup Wi-Fi aren't gated, nor are wired
+// approved, so nothing in the house is cut off. Guest networks (UniFi's, and the ones picked on the Guest Wi-Fi page)
+// and the setup Wi-Fi aren't gated, nor are wired
 // devices (UniFi's block is for Wi-Fi). Blocks go through the normal allow-listed action — logged, with undo — and
 // HomeOwl only ever blocks on its own: unblocking is the admin's Approve, or unblocking it in UniFi (which works
 // while HomeOwl is down, and HomeOwl then counts as an approval). A stopped HomeOwl blocks nothing new.
@@ -94,7 +95,7 @@ func (s *approvalStore) save(st approvalState) error {
 
 // gated: a Wi-Fi client on a network the approval covers.
 func (a *App) gated(c map[string]any) bool {
-	return c["is_wired"] != true && c["is_guest"] != true && !a.onSetupWiFi(c)
+	return c["is_wired"] != true && !a.onSetupWiFi(c) && !a.isGuestClient(c)
 }
 
 // movingHere: a checked-in device is expected to show up with a new address and this host name (fixedmac.go),

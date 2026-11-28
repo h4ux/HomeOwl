@@ -36,7 +36,7 @@ var settingFields = map[string][]string{
 }
 var radioFields = []string{"channel", "ht", "tx_power_mode", "tx_power", "min_rssi_enabled", "min_rssi"}
 var devCmds = []string{"restart", "set-locate", "unset-locate", "upgrade", "force-provision", "adopt", "power-cycle", "speedtest"}
-var staCmds = []string{"block-sta", "unblock-sta", "kick-sta"}
+var staCmds = []string{"block-sta", "unblock-sta", "kick-sta", "forget-sta"}
 var undoCmd = map[string]string{"block-sta": "unblock-sta", "unblock-sta": "block-sta", "set-locate": "unset-locate"}
 var macRE = regexp.MustCompile(`^[0-9a-f]{2}(:[0-9a-f]{2}){5}$`)
 var idRE = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
@@ -247,6 +247,9 @@ func (c *Client) plan(a Action) (*plan, error) {
 			return nil, aerr("unsupported client command or bad MAC")
 		}
 		body := map[string]any{"cmd": cmd, "mac": mac}
+		if cmd == "forget-sta" { // removes the client from UniFi's list (its name, notes, fixed address); no undo
+			body = map[string]any{"cmd": cmd, "macs": []string{mac}}
+		}
 		p := &plan{req: req{"POST", c.SitePath("cmd/stamgr", false), body}, Before: map[string]any{}, After: map[string]any{"command": cmd}, Target: orStr(a.s("label"), mac)}
 		if u, ok := undoCmd[cmd]; ok {
 			p.Undo = &req{"POST", p.Path, map[string]any{"cmd": u, "mac": mac}}

@@ -22,7 +22,32 @@ async function loadGuest() {
   if (S.source === "live") {
     try { S.guest = await api("/api/guest-wifi"); } catch (err) { el.innerHTML = `<div class="empty bad-t">${esc(err.message)}</div>`; return; }
   } else S.guest = guestFromBundle();
+  S.guestPol = null;
+  if (S.source === "live" && S.role === "admin") { try { S.guestPol = await api("/api/guest-wifi/guests"); } catch { /* shown without the Guests card */ } }
   if ($("#guest-body")) $("#guest-body").innerHTML = guestBody(S.guest);
+}
+
+// ---- Guests: no approval, an alert when one joins, removed after N days unseen (admins)
+const GUEST_DAYS = [0, 1, 7, 30, 60, 90, 120, 365];
+function guestPolicyCard() {
+  const g = S.guestPol; if (!g) return "";
+  const d = +g.forget_days || 0, other = !GUEST_DAYS.includes(d), now = Date.now();
+  const devs = arr(g.devices), due = devs.filter(x => x.due && x.due <= now);
+  const when = x => x.reason ? `<span class="fine">kept: ${esc(x.reason)}</span>` : !x.due ? `<span class="fine">–</span>`
+    : x.due <= now ? `<span class="tag warn">due now</span>` : `in ${fmtDur((x.due - now) / 1000)}`;
+  return `<div class="card section"><h2>Guests ${hint("Devices on the guest Wi-Fi get the internet and nothing of the home network, so they never wait for approval. This also covers Wi-Fi networks picked as guest Wi-Fi below.")}</h2>
+    <label class="check"><input type="checkbox" id="gpol-alert" ${g.alert ? "checked" : ""}> Tell me when a device joins the guest Wi-Fi for the first time (Home › Alerts and your phone)</label>
+    <div class="grid g3"><label>Remove guest devices not seen for<select id="gpol-days">${GUEST_DAYS.map(x => `<option value="${x}" ${!other && d === x ? "selected" : ""}>${x ? plural(x, "day") : "Never remove them"}</option>`).join("")}<option value="other" ${other ? "selected" : ""}>Another number of days…</option></select></label>
+      <label ${other ? "" : "hidden"} id="gpol-other-l">Days<input type="number" min="1" max="3650" id="gpol-other" value="${other ? d : ""}"></label></div>
+    <p class="fine">Removing a device makes UniFi forget it (its name and history there), and each removal is written to History › Changes. It can join again with the guest password, and then counts as a new guest. Online devices, checked-in family devices, devices tagged in Who's home, and devices with a fixed IP or a note in UniFi are never removed. To keep someone off for good, give the guest Wi-Fi a new password.</p>
+    <div class="btnrow"><button class="btn primary sm" id="gpol-save">Save</button>${due.length ? `<button class="btn sm" id="gpol-now">Remove ${plural(due.length, "device")} due now</button>` : ""}</div>
+    <h3 class="fine" style="margin-top:14px">Guest devices HomeOwl has seen</h3>
+    ${table("guestdevs", [
+      { k: "name", label: "Device", fmt: x => esc(x.name) },
+      { k: "ssid", label: "Wi-Fi", fmt: x => esc(x.ssid || "") },
+      { k: "last", label: "Last seen", fmt: x => x.last ? ago(x.last) : "–", sort: x => -x.last },
+      { k: "due", label: "Removed", fmt: when, sort: x => x.due || Infinity },
+    ], devs, { empty: "None yet. HomeOwl lists devices here once they're seen on the guest Wi-Fi.", search: true })}</div>`;
 }
 
 const guestCode = g => QR.wifi({ ssid: g.ssid, password: g.password, security: g.security, hidden: g.hidden });
@@ -31,7 +56,7 @@ function guestBody(gw) {
   const nets = gw.networks || [];
   const pick = admin ? `<details class="card section"><summary><b>Which Wi-Fi networks are for guests?</b> <span class="fine">UniFi's guest networks are found automatically; add others here.</span></summary>
       <div style="margin-top:10px">${(gw.all || []).map(w => `<label class="check"><input type="checkbox" data-guestpick="${esc(w.id)}" ${w.picked || w.guest ? "checked" : ""} ${w.auto ? "disabled title=\"A guest network in UniFi\"" : ""}> ${esc(w.ssid)}${w.auto ? ` <span class="tag">guest in UniFi</span>` : ""}</label>`).join("") || `<p class="muted">No Wi-Fi networks.</p>`}</div></details>` : "";
-  if (!nets.length) return `<div class="card"><h2>No guest Wi-Fi yet</h2><p>Create a guest Wi-Fi in UniFi (Settings → WiFi → Create New, with “Guest network” turned on) — it keeps visitors away from your own devices.${admin ? " Or pick an existing Wi-Fi below." : ""}</p></div>${pick}`;
+  if (!nets.length) return `<div class="card"><h2>No guest Wi-Fi yet</h2><p>Create a guest Wi-Fi in UniFi (Settings → WiFi → Create New, with “Guest network” turned on) — it keeps visitors away from your own devices.${admin ? " Or pick an existing Wi-Fi below." : ""}</p></div>${pick}${admin ? guestPolicyCard() : ""}`;
   return `<div class="guest-grid">${nets.map(g => {
     const qr = g.security ? QR.themed(guestCode(g), { theme: guestTheme(), size: 220, label: `Join ${g.ssid}`, caption: `${g.ssid} · scan to join` }) : `<div class="empty">This Wi-Fi uses individual logins (enterprise), so there's no shared password to put in a code.</div>`;
     return `<div class="card guest-card">
@@ -44,7 +69,7 @@ function guestBody(gw) {
           ${g.password ? `<button class="btn sm" data-copy="${esc(g.password)}">Copy password</button>` : ""}
           ${admin && g.can_rotate ? `<button class="btn sm" data-guestrotate="${esc(g.id)}">New password…</button>` : ""}</div>
       </div></div>`;
-  }).join("")}</div>${nets.some(g => g.security) ? guestThemes(admin) : ""}${pick}`;
+  }).join("")}</div>${admin ? guestPolicyCard() : ""}${nets.some(g => g.security) ? guestThemes(admin) : ""}${pick}`;
 }
 
 // QR style: saved in the settings by an admin (live), or just for this browser (demo)
@@ -104,7 +129,23 @@ document.addEventListener("click", e => {
     else { S.qrTheme = id; $("#guest-body").innerHTML = guestBody(S.guest); }
   }
 });
+document.addEventListener("click", async e => {
+  if (e.target.id === "gpol-save") {
+    const sel = $("#gpol-days").value, days = sel === "other" ? Math.round(+$("#gpol-other").value || 0) : +sel;
+    if (sel === "other" && (days < 1 || days > 3650)) return toast("Days must be 1 to 3650", "err");
+    e.target.disabled = true;
+    try { S.guestPol = await api("/api/guest-wifi/guests", { alert: !!$("#gpol-alert").checked, forget_days: days }); $("#guest-body").innerHTML = guestBody(S.guest); toast("Guest settings saved", "ok"); }
+    catch (err) { toast(err.message, "err"); e.target.disabled = false; }
+  } else if (e.target.id === "gpol-now") {
+    const n = arr(S.guestPol?.devices).filter(x => x.due && x.due <= Date.now()).length;
+    openModal({ title: `Remove ${plural(n, "guest device")}?`, body: `<p>UniFi forgets ${n === 1 ? "it" : "them"}: the name and history there go. ${n === 1 ? "It" : "They"} can join again with the guest password. This can't be undone, and it's written to History › Changes.</p>`,
+      buttons: [{ label: "Cancel" }, { label: "Remove", cls: "danger", onClick: async () => { closeModal();
+        try { const r = await api("/api/guest-wifi/guests/forget-now", {}); S.guestPol = r; $("#guest-body").innerHTML = guestBody(S.guest); toast(`${plural(arr(r.removed).length, "device")} removed`, "ok"); }
+        catch (err) { toast(err.message, "err"); } } }] });
+  }
+});
 document.addEventListener("change", async e => {
+  if (e.target.id === "gpol-days") { const l = $("#gpol-other-l"); if (l) l.hidden = e.target.value !== "other"; return; }
   if (!e.target.matches("[data-guestpick]")) return;
   const ids = $$("[data-guestpick]").filter(x => x.checked && !x.disabled).map(x => x.dataset.guestpick);
   try { await api("/api/guest-wifi/pick", { ids }); loadGuest(); } catch (err) { toast(err.message, "err"); }

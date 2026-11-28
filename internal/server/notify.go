@@ -154,6 +154,17 @@ func newSeen(dir string) *seenClients {
 	return s
 }
 
+// forget: a device removed from UniFi counts as new when it comes back.
+func (s *seenClients) forget(mac string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.m[mac]; ok {
+		delete(s.m, mac)
+		b, _ := json.Marshal(s.m)
+		_ = os.WriteFile(s.path, b, 0o600)
+	}
+}
+
 func (s *seenClients) seeded() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.m != nil }
 
 // add returns the addresses it hadn't seen before.
@@ -180,8 +191,9 @@ func (s *seenClients) add(macs []string, now int64) []string {
 // watchNewDevices gets the clients online now (stat/sta). The first time, everything UniFi already knows is
 // remembered quietly; after that, a device that was never seen before raises an alert.
 func (a *App) watchNewDevices(online []map[string]any) {
-	mode := a.Cfg.Get().Alerts.NewDevice
-	if mode == "off" {
+	cfg := a.Cfg.Get()
+	home, guest := cfg.Alerts.NewDevice != "off", guestAlertsOn(cfg)
+	if !home && !guest {
 		return
 	}
 	now := time.Now().UnixMilli()
@@ -205,10 +217,16 @@ func (a *App) watchNewDevices(online []map[string]any) {
 			macs = append(macs, mac)
 		}
 	}
-	var report []map[string]any
+	var report, guests []map[string]any
 	for _, mac := range a.seen.add(macs, now) {
 		c := byMac[mac]
-		if g, _ := c["is_guest"].(bool); g && mode != "all" {
+		if a.isGuestClient(c) { // guests have their own alert (and never wait for approval)
+			if guest {
+				guests = append(guests, c)
+			}
+			continue
+		}
+		if !home {
 			continue
 		}
 		if _, known := a.checkins.Registered(mac); known || a.approvalBlocked(mac) { // a checked-in phone back with its real Wi-Fi address; or the approval alert says it
@@ -216,6 +234,7 @@ func (a *App) watchNewDevices(online []map[string]any) {
 		}
 		report = append(report, c)
 	}
+	a.alertGuests(guests)
 	if len(report) == 0 {
 		return
 	}
@@ -241,6 +260,38 @@ func (a *App) watchNewDevices(online []map[string]any) {
 		}
 		a.Alerts.Add(alerts.Alert{Kind: "new_device", Level: "warn", Title: "New device: " + clientName(c), Body: strings.Join(parts, " · "),
 			Data: map[string]any{"mac": mac, "ip": str(c, "ip"), "name": clientName(c), "network": str(c, "network"), "guest": c["is_guest"] == true}})
+	}
+}
+
+// alertGuests: "On the guest Wi-Fi: …" for devices joining it for the first time (one alert for many at once).
+func (a *App) alertGuests(list []map[string]any) {
+	if len(list) == 0 {
+		return
+	}
+	if len(list) > 5 {
+		names := []string{}
+		for _, c := range list[:5] {
+			names = append(names, clientName(c))
+		}
+		a.Alerts.Add(alerts.Alert{Kind: "guest_joined", Level: "info", Title: strconv.Itoa(len(list)) + " new devices on the guest Wi-Fi",
+			Body: strings.Join(names, ", ") + "…", Data: map[string]any{"count": len(list)}})
+		return
+	}
+	for _, c := range list {
+		parts := []string{}
+		for _, p := range []string{str(c, "oui"), firstNonEmpty(str(c, "essid"), str(c, "network"))} {
+			if p != "" {
+				parts = append(parts, p)
+			}
+		}
+		if mac := strings.ToLower(str(c, "mac")); len(mac) > 1 && strings.ContainsRune("26ae", rune(mac[1])) {
+			parts = append(parts, "private address")
+		}
+		if days := a.Cfg.Get().Guest.ForgetDays; days > 0 {
+			parts = append(parts, fmt.Sprintf("removed after %d days unseen", days))
+		}
+		a.Alerts.Add(alerts.Alert{Kind: "guest_joined", Level: "info", Title: "On the guest Wi-Fi: " + clientName(c), Body: strings.Join(parts, " · "),
+			Data: map[string]any{"mac": strings.ToLower(str(c, "mac")), "name": clientName(c), "guest": true}})
 	}
 }
 

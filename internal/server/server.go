@@ -111,6 +111,7 @@ type App struct {
 	Access       *access.Client
 	UPS          *ups.Monitor
 	internet     *internetState // Network › Internet (internet.go)
+	guests       *guestLog      // the guest Wi-Fi's devices (guestpolicy.go)
 	snaps        snapCache
 	shutdownPerm permCache
 	// Startup is set by the command line: start HomeOwl with the computer (nil = not available).
@@ -142,6 +143,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.Access = &access.Client{}
 	a.UPS = newUPSMonitor(a)
 	a.internet = newInternet(a)
+	a.guests = newGuestLog(dataDir)
 	a.presence, a.presenceKick = newPresence(dataDir), make(chan struct{}, 1)
 	a.Alerts, a.seen = alerts.Open(dataDir), newSeen(dataDir)
 	a.Alerts.Send = a.deliverAlert
@@ -192,6 +194,7 @@ func (a *App) Run(ctx context.Context) error {
 	go a.UPS.Run(ctx)
 	go a.internet.w.Run(ctx)
 	go a.internetLoop(ctx)
+	go a.guestForgetLoop(ctx)
 	if err := a.StartLAN(); err != nil {
 		return err
 	}
