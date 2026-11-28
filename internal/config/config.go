@@ -212,6 +212,17 @@ type Alerts struct {
 	NewDevice string `json:"new_device,omitempty"` // "" = devices joining your own networks, "all" = guest Wi-Fi too, "off"
 	MacOS     bool   `json:"macos,omitempty"`      // also show a macOS notification
 	Setup     string `json:"setup,omitempty"`      // "" = when a device stops using its NextDNS setup, "off"
+	Internet  string `json:"internet,omitempty"`   // "" = when the internet goes down and comes back, "off"
+}
+
+// Internet is the internet-quality page: HomeOwl's own reading every minute, speed tests on a schedule, and the
+// speed the household pays for (to compare the tests with).
+type Internet struct {
+	Off       bool    `json:"off,omitempty"`        // no readings (and no outages or verdict)
+	SpeedTest string  `json:"speed_test,omitempty"` // "" (off), "daily" (at Hour) or "6h"
+	Hour      int     `json:"hour,omitempty"`       // daily: hour of the day, 0–23
+	PlanDown  float64 `json:"plan_down,omitempty"`  // Mbps
+	PlanUp    float64 `json:"plan_up,omitempty"`
 }
 
 // Presence is "who's home": the devices that say a person is home, and the history of arrivals and departures.
@@ -259,6 +270,7 @@ type Config struct {
 	Cameras        Cameras    `json:"cameras"`
 	Access         Access     `json:"access"`
 	UPS            UPS        `json:"ups"`
+	Internet       Internet   `json:"internet"`
 	Tuya           Tuya       `json:"tuya"`
 	Onboard        Onboard    `json:"onboard"`
 	AI             AI         `json:"ai"`

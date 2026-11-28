@@ -21,6 +21,7 @@ Create tokens and choose the mode in **Settings › AI & MCP**. Tokens can be re
 | `list_people` | read | household members and their devices |
 | `cameras` | read | UniFi Protect cameras and the detections and doorbell rings HomeOwl recorded (no pictures) |
 | `ups` | read | UPSes on the NUT server: status, charge, runtime, load, voltages, power cuts and events (no scripts or settings) |
+| `internet_quality` | read | the internet as HomeOwl measures it every minute: outages and their likely cause, speed tests, uptime, latency and an "ISP or us?" verdict |
 | `analytics_sql` | read | one read-only DuckDB query |
 | `change_log`, `refresh_data` | read | changes made through HomeOwl; re-read UniFi |
 | `block_client`, `unblock_client`, `reconnect_client` | guarded | client actions (dry run by default) |

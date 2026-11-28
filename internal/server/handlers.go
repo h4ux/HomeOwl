@@ -248,6 +248,12 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 			send(w, 200, a.upsView(who.Admin(), days))
 			return
 		}
+	case "internet":
+		if r.Method == http.MethodGet {
+			days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+			send(w, 200, a.internetView(who.Admin(), days))
+			return
+		}
 	case "isp-logos":
 		send(w, 200, map[string]any{"logos": a.logos.Versions()})
 		return
@@ -351,6 +357,26 @@ func (a *App) api(w http.ResponseWriter, r *http.Request) {
 		res = map[string]any{"unlock_allowed": a.Cfg.Get().Access.Unlock}
 	case p == "doors/unlock":
 		res, err = a.doorUnlock(r.Context(), body, by)
+	case p == "internet/settings":
+		if r.Method != http.MethodPost {
+			err = errors.New("use POST")
+			break
+		}
+		if err = a.internetSave(body); err == nil {
+			res = a.internetView(true, 1)
+		}
+	case p == "internet/speedtest":
+		if r.Method != http.MethodPost {
+			err = errors.New("use POST")
+			break
+		}
+		if err = a.runSpeedTest("homeowl", by, true); err == nil {
+			res = a.internetView(true, 1)
+		}
+	case p == "internet/import":
+		if err = a.importSpeedTests(r.Context()); err == nil {
+			res = a.internetView(true, 1)
+		}
 	case p == "ups/connect":
 		res, err = a.upsConnect(r.Context(), body)
 	case p == "ups/disconnect":

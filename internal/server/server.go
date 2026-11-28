@@ -110,6 +110,7 @@ type App struct {
 	ProtectUniFi *unifi.Client // Protect on its own console; unused (not connected) when Protect is on the Network console
 	Access       *access.Client
 	UPS          *ups.Monitor
+	internet     *internetState // Network › Internet (internet.go)
 	snaps        snapCache
 	shutdownPerm permCache
 	// Startup is set by the command line: start HomeOwl with the computer (nil = not available).
@@ -140,6 +141,7 @@ func New(dataDir string, readOnly bool) (*App, error) {
 	a.firmware = newFirmwareWatch(dataDir)
 	a.Access = &access.Client{}
 	a.UPS = newUPSMonitor(a)
+	a.internet = newInternet(a)
 	a.presence, a.presenceKick = newPresence(dataDir), make(chan struct{}, 1)
 	a.Alerts, a.seen = alerts.Open(dataDir), newSeen(dataDir)
 	a.Alerts.Send = a.deliverAlert
@@ -188,6 +190,8 @@ func (a *App) Run(ctx context.Context) error {
 	go a.watchExecutable(ctx)
 	go a.Protect.Run(ctx)
 	go a.UPS.Run(ctx)
+	go a.internet.w.Run(ctx)
+	go a.internetLoop(ctx)
 	if err := a.StartLAN(); err != nil {
 		return err
 	}

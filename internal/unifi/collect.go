@@ -224,6 +224,13 @@ func (k *Cache) Age() (time.Duration, bool) {
 	return time.Since(k.at), true
 }
 
+// Peek returns the last collected data without collecting (nil before the first collection).
+func (k *Cache) Peek() map[string]any {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	return k.bundle
+}
+
 func (k *Cache) Invalidate() {
 	k.mu.Lock()
 	k.at = time.Time{}

@@ -297,6 +297,36 @@ has seen, so one phone can show up several times. **Devices › All devices** su
 that is now on a newer address, and private addresses unused for 90 days. Archived addresses leave HomeOwl's lists;
 UniFi, the logs and the history keep them, and they can be restored. A device that comes back online shows again.
 
+## Is it the provider, or us?
+
+**Network › Internet** answers the question every family asks when the internet stops: is it our provider, or
+something at home? Once a minute, the computer running HomeOwl opens a connection to the gateway and, at the same time,
+to three well-known public addresses (`1.1.1.1`, `8.8.8.8` and `9.9.9.9`, the fastest answer counts). It only times
+how long the answer takes; nothing is sent. A refused connection counts as an answer.
+
+```mermaid
+flowchart LR
+  H[HomeOwl's computer] -- every minute --> G[Gateway]
+  G --> P[Provider] --> I[1.1.1.1 · 8.8.8.8 · 9.9.9.9]
+  H -. same minute .-> I
+```
+
+- Two readings in a row without an answer from the internet make an **outage**. If the gateway kept answering, it's
+  the **provider**. If the gateway didn't answer either, it's **at home**: the gateway's power or a cable, or this
+  computer's own connection.
+- A laptop away from home (its address isn't in one of UniFi's networks) takes no readings, and a gap of more than ten
+  minutes (the computer slept) ends an open outage at the last reading instead of stretching it over the gap.
+- **Speed tests** come from the gateway, so the home Wi-Fi doesn't slow them down. HomeOwl copies UniFi's own record of
+  them every 30 minutes, and can start one every day or every six hours. Each one it starts goes through the action
+  allow-list and the Changes log. With the plan's speed filled in, it says when tests come in under half of it.
+- The **verdict** looks at the last 7 days of outages and the last 24 hours of readings: a slow gateway from this
+  computer (its own Wi-Fi), slow or jumpy times past the gateway, readings without an answer, and slow speed tests.
+- **Alerts**: *The internet is down* and *The internet is back* (with how long and the likely cause) go to Home ›
+  Alerts and your channels. While the internet is down a phone may only hear the second one.
+
+Readings are kept for 7 days and outages and speed tests for a year, in `internet-history.json` in the data folder.
+The MCP tool `internet_quality` gives an AI the same page.
+
 ## Where things live
 
 | What | Where |

@@ -344,6 +344,17 @@ func (a *App) allTools() []mcp.Tool {
 				days, _ := args["days"].(float64)
 				return a.upsView(false, int(days)), nil
 			}},
+		{Name: "internet_quality", Title: "Internet quality",
+			Level: "read",
+			Description: "The internet connection as HomeOwl measures it every minute from its own computer: time to the gateway and to the internet, " +
+				"outages (with their likely cause: isp = the gateway answered but nothing past it, home = the gateway didn't answer either), " +
+				"the gateway's speed tests of the last year, uptime and latency over 24 hours and 7 days, and a plain verdict (\"ISP or us?\"). " +
+				"Times are ms since 1970; chart buckets average 5 minutes (1 day) or 30 minutes (7 days).",
+			Schema: obj(map[string]any{"days": map[string]any{"type": "integer", "description": "chart buckets for 1 or 7 days (default 1)"}}),
+			Run: func(ctx context.Context, args map[string]any, who string) (any, error) {
+				days, _ := args["days"].(float64)
+				return a.internetView(false, int(days)), nil
+			}},
 		{Name: "analytics_sql", Title: "Analytics SQL (read-only)", Level: "read",
 			Description: "Run one read-only DuckDB query on HomeOwl's analytics database. Tables: dns_queries, dns_hourly_device, dns_daily_domain, client_hourly, " +
 				"site_hourly, sessions, clients, events, threats, syslog, syslog_hourly, people, person_devices; views dnsq (queries with device/category/person), trafq.",

@@ -196,7 +196,7 @@ func ntfy(ctx context.Context, ch Channels, a Alert) error {
 		return err
 	}
 	req.Header.Set("Title", a.Title)
-	req.Header.Set("Tags", map[string]string{"new_device": "new", "guest_rotated": "key", "test": "owl"}[a.Kind])
+	req.Header.Set("Tags", map[string]string{"new_device": "new", "guest_rotated": "key", "test": "owl", "internet_down": "warning", "internet_up": "white_check_mark"}[a.Kind])
 	if a.Level == "warn" {
 		req.Header.Set("Priority", "high")
 	}

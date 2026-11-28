@@ -27,6 +27,7 @@ const NAV = [
   ] },
   { id: "network", name: "Network", pages: [
     { label: "Overview", views: [["overview", "Overview"]] },
+    { label: "Internet", views: [["internet", "Internet"]] },
     { label: "Suggestions", views: [["findings", "Suggestions"]], pill: "nav-findings" },
     { label: "Wi-Fi", views: [["wifi", "Wi-Fi & radios"], ["guest", "Guest Wi-Fi"], ["neighbors", "Neighbour Wi-Fi"]] },
     { label: "Networks", views: [["networks", "Networks & VLANs"], ["security", "Security & exposure"], ["dns", "NextDNS & Tailscale"]] },

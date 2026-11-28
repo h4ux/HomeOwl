@@ -1,5 +1,5 @@
 /* HomeOwl — Home › Today: the one screen for the household. Status line, who's home, cameras, UPS and the internet,
-   each linking to its full page. Reuses the loaders' demo data (presence.js, cameras.js, ups.js). Depends on core.js, app.js. */
+   each linking to its full page. Reuses the loaders' demo data (presence.js, cameras.js, ups.js, internet.js). Depends on core.js, app.js. */
 "use strict";
 
 S.today = null;
@@ -38,7 +38,11 @@ function todayCards() {
     : `<div class="td-ups"><b class="${u.power === false ? "warn-t" : "ok-t"}">${u.power === false ? "On battery" : "On mains"}</b>
         <div class="ups-bar${u.charge < 40 ? " low" : ""}"><i style="width:${Math.max(0, Math.min(100, u.charge || 0))}%"></i></div>
         <span class="fine">Battery ${u.charge ?? "–"}%${u.runtime ? ` · ${fmtDur(u.runtime)} runtime` : ""}</span></div>`;
-  return card("Who's home", "presence", who) + card("Cameras", "cameras", camHtml) + card("UPS", "ups", upsHtml)
+  // internet: the verdict in one line, uptime and the last speed test
+  const net = T.net, v = net?.verdict || {}, lt = arr(net?.tests)[0];
+  const netHtml = !net ? wait : `<div class="td-ups"><b class="${v.level === "good" ? "ok-t" : v.level === "info" ? "" : "warn-t"}">${esc(v.title || "")}</b>
+      <span class="fine">${[net.week?.uptime !== null && net.week?.uptime !== undefined ? `up ${inetPct(net.week.uptime)} this week` : "", net.day?.net_median !== null && net.day?.net_median !== undefined ? inetMs(net.day.net_median) : "", lt ? `${Math.round(lt.down)} / ${Math.round(lt.up)} Mbps` : ""].filter(Boolean).join(" · ")}</span></div>`;
+  return card("Who's home", "presence", who) + card("Internet", "internet", netHtml) + card("Cameras", "cameras", camHtml) + card("UPS", "ups", upsHtml)
     + card("Network", "overview", `<div class="td-net"><span><b>${S.model.devices.filter(d => d.online).length}/${S.model.devices.length}</b><span class="fine">devices online</span></span><span><b>${S.model.clients.length}</b><span class="fine">clients</span></span><span><b>${scoreOf(S.findings)}</b><span class="fine">config score</span></span></div>`);
 }
 
@@ -46,7 +50,9 @@ async function loadToday() {
   const live = S.source === "live", T = S.today = S.today || {};
   const draw = () => { const el = $("#td-body"); if (el && S.view === "today") { el.innerHTML = todayCards(); if (live) refreshSnaps(true); } };
   draw();
-  const get = async (k, path, demo) => { try { T[k] = live || (k === "ups" && S.source === "none") ? await api(path) : demo(); } catch { T[k] = k === "cam" ? { no_protect: true, cameras: [] } : k === "ups" ? { configured: false } : { people: [] }; } draw(); };
-  await Promise.all([get("pr", "/api/presence?days=1", prFromBundle), get("cam", "/api/cameras?days=1", camFromBundle), get("ups", "/api/ups?days=1", upsFromBundle)]);
+  const local = k => k === "ups" || k === "net"; // these don't need UniFi
+  const get = async (k, path, demo) => { try { T[k] = live || (local(k) && S.source === "none") ? await api(path) : demo(); } catch { T[k] = k === "cam" ? { no_protect: true, cameras: [] } : k === "ups" ? { configured: false } : k === "net" ? { verdict: { level: "info", title: "Can't read the internet history" } } : { people: [] }; } draw(); };
+  await Promise.all([get("pr", "/api/presence?days=1", prFromBundle), get("cam", "/api/cameras?days=1", camFromBundle), get("ups", "/api/ups?days=1", upsFromBundle),
+    get("net", "/api/internet?days=1", () => { const d = S.inetDays; S.inetDays = 1; try { return inetFromBundle(); } finally { S.inetDays = d; } })]);
 }
 { const _render = render; render = function () { _render(); if (S.view === "today") loadToday(); }; }

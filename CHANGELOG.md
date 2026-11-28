@@ -4,6 +4,19 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+### Added
+- **Internet: is it your provider, or something at home?** A new **Network › Internet** page. Every minute HomeOwl
+  times a connection from its own computer to your gateway and to the internet (1.1.1.1, 8.8.8.8, 9.9.9.9; the
+  fastest answer counts), so it can tell an outage at your provider (the gateway still answers) from one at home (it
+  doesn't). It shows a plain verdict, uptime over 7 days, the response time to the internet and to the gateway, and a
+  year of outages and speed tests.
+- **Speed tests on a schedule**: every day at the hour you pick, or every 6 hours. The gateway runs them (so the Wi-Fi
+  isn't measured), each one is logged as a change, and UniFi's own test history is copied in too. Give your plan's
+  speed and HomeOwl says when tests come in under half of it.
+- **Internet down / back alerts**, with how long it lasted and the likely cause (on by default; Network › Internet ›
+  Settings).
+- **Today** has an Internet card, and the MCP server an `internet_quality` tool.
+
 ## [0.1.122] — 2026-11-21
 
 ### Added

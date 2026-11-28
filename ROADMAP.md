@@ -19,7 +19,7 @@ Go version with built-in DuckDB, accounts and login, home-network HTTPS and buil
 - **Device check-in** — ✅ a “Hi HomeOwl” page (`/hi` + QR code) where family members name their own device and choose its owner; admin approval sets the UniFi alias and the person. Next: a `hi.home` short name.
 - **"Plug it in now" pairing** — catch a new device the moment it joins and name it (for plugs, bulbs, cameras).
 - **Device identification** — UniFi fingerprint, DHCP name, vendor and DNS behaviour → device type and icon; an "unknown devices" queue.
-- **Internet quality** — scheduled speed tests, latency and outage history, "ISP or us?" verdict.
+- **Internet quality** — ✅ a Network › Internet page: a reading every minute from HomeOwl's computer (gateway and internet), outages with their likely cause, the gateway's speed tests (also on a schedule) against your plan, an "ISP or us?" verdict, and down / back alerts. Next: readings per connection with two WANs, and a printable outage report to send the provider.
 - **New-device alerts** — Telegram, ntfy, Pushover or email, with approve / quarantine.
 - **Wi-Fi planner** — channel use and interference over time, weak spots, roaming problems.
 - **Exposure check** — what's reachable from the internet (port forwards, UPnP), firmware advisories.

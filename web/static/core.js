@@ -654,9 +654,12 @@ function lineChart(series, { fmt = v => v, height = 190, legend = true } = {}) {
   const span = t1 - t0, fmtT = t => new Date(t).toLocaleString([], span > 3 * 86400000 ? { month: "short", day: "numeric" } : { weekday: "short", hour: "2-digit" });
   for (let i = 0; i <= 5; i++) { const t = t0 + span * i / 5; g += `<text x="${x(t)}" y="${H - 8}" text-anchor="middle">${esc(fmtT(t))}</text>`; }
   const lines = series.map((s, i) => { const p = s.points.filter(p => p.v !== null && p.v !== undefined); if (!p.length) return "";
-    const d = p.map((q, j) => `${j ? "L" : "M"}${x(q.t).toFixed(1)},${y(q.v).toFixed(1)}`).join("");
+    // s.gaps: a missing value breaks the line instead of joining its neighbours
+    let pen = false;
+    const d = s.gaps ? s.points.map(q => { if (q.v === null || q.v === undefined) { pen = false; return ""; } const c = `${pen ? "L" : "M"}${x(q.t).toFixed(1)},${y(q.v).toFixed(1)}`; pen = true; return c; }).join("")
+      : p.map((q, j) => `${j ? "L" : "M"}${x(q.t).toFixed(1)},${y(q.v).toFixed(1)}`).join("");
     const dots = p.length <= 3 ? p.map(q => `<circle cx="${x(q.t).toFixed(1)}" cy="${y(q.v).toFixed(1)}" r="4" style="fill:${s.color || PAL[i]}"><title>${esc(fmt(q.v))}</title></circle>`).join("") : "";
-    return `${s.fill && p.length > 1 ? `<path d="${d}L${x(p[p.length - 1].t)},${y(0)}L${x(p[0].t)},${y(0)}Z" style="fill:${s.color || PAL[i]};opacity:.12"/>` : ""}<path d="${d}" fill="none" style="stroke:${s.color || PAL[i]}" stroke-width="1.8"/>${dots}`; }).join("");
+    return `${s.fill && !s.gaps && p.length > 1 ? `<path d="${d}L${x(p[p.length - 1].t)},${y(0)}L${x(p[0].t)},${y(0)}Z" style="fill:${s.color || PAL[i]};opacity:.12"/>` : ""}<path d="${d}" fill="none" style="stroke:${s.color || PAL[i]}" stroke-width="1.8"/>${dots}`; }).join("");
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%">${g}${lines}</svg>${legend ? `<div class="legend">${series.map((s, i) => `<span><i style="background:${s.color || PAL[i]}"></i>${esc(s.name)}</span>`).join("")}</div>` : ""}`;
 }
 function gauge(score, size = 128) {
