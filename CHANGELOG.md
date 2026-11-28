@@ -4,6 +4,8 @@ All notable changes are listed here. The project follows [Semantic Versioning](h
 
 ## [Unreleased]
 
+## [0.1.123] — 2026-11-28
+
 ### Added
 - **Internet: is it your provider, or something at home?** A new **Network › Internet** page. Every minute HomeOwl
   times a connection from its own computer to your gateway and to the internet (1.1.1.1, 8.8.8.8, 9.9.9.9; the
